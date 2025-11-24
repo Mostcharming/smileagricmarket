@@ -1,7 +1,7 @@
 {
-  "name": "altu-health-backend",
+  "name": "smile-agric",
   "version": "1.0.0",
-  "description": "Altu Health ERP Backend API",
+  "description": "Smile Agric ERP",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -20,9 +20,7 @@
     "pm2:logs": "pm2 logs"
   },
   "keywords": [
-    "erp",
-    "health",
-    "hmo"
+    "erp"
   ],
   "author": "",
   "license": "ISC",

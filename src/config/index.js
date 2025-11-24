@@ -22,13 +22,13 @@ const config = {
         jwtExpiresIn: "1d",
     },
     production: {
-        feUrl: "https://api.altuhealth.com",
+        feUrl: "https://smileagric.com",
         db: {
             master: {
                 host: "127.0.0.1",
                 port: 5432,
-                username: "smileagric",
-                password: "altuhealth2025Tayo",
+                username: "postgres",
+                password: "agrimarket",
                 database: "smileagric",
                 dialect: "postgres",
             },
