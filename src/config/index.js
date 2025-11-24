@@ -12,14 +12,7 @@ const config = {
                 database: "smileagric",
                 dialect: "postgres",
             },
-            slave: {
-                host: "192.168.1.165",
-                port: 5432,
-                username: "postgres",
-                password: "Spartan920",
-                database: "smileagric",
-                dialect: "postgres",
-            },
+
         },
         uploads: {
             profileDir: path.resolve(__dirname, '..', 'uploads', 'profiles')
@@ -39,14 +32,7 @@ const config = {
                 database: "smileagric",
                 dialect: "postgres",
             },
-            slave: {
-                host: "127.0.0.1",
-                port: 5432,
-                username: "smileagric",
-                password: "altuhealth2025Tayo",
-                database: "smileagric",
-                dialect: "postgres",
-            },
+
         },
         uploads: {
             profileDir: path.resolve(__dirname, '..', 'uploads', 'profiles')

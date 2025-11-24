@@ -3,8 +3,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
-const dbSelector = require('./middlewares/common/dbSelector');
-const adminRouter = require('./modules/admin/route');
 
 require('./database');
 require('dotenv').config();
@@ -33,7 +31,7 @@ if (config && config.uploads && config.uploads.profileDir) {
   app.use('/upload', express.static(config.uploads.profileDir));
 }
 
-app.use(`/api/${config.apiVersion}/mobile`, adminRouter);
+// app.use(`/api/${config.apiVersion}/mobile`, adminRouter);
 
 app.get('/', (req, res) => {
   res.json({
