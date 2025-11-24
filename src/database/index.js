@@ -86,7 +86,7 @@ async function createDatabaseIfNotExists() {
 
 async function initializeDatabase() {
     try {
-        // await createDatabaseIfNotExists();
+        await createDatabaseIfNotExists();
 
 
         await masterSequelize.authenticate();
