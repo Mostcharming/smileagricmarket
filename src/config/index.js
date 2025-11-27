@@ -22,7 +22,7 @@ const config = {
         jwtExpiresIn: "1d",
     },
     production: {
-        feUrl: "https://smileagric.com",
+        feUrl: "https://smileagrimarket.com",
         db: {
             master: {
                 host: "127.0.0.1",

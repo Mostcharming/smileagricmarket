@@ -31,11 +31,12 @@ if (config && config.uploads && config.uploads.profileDir) {
   app.use('/upload', express.static(config.uploads.profileDir));
 }
 
-// app.use(`/api/${config.apiVersion}/mobile`, adminRouter);
+app.use(`/${config.apiVersion}/mobile`, mobileRouter);
+app.use(`/${config.apiVersion}/web`, webRouter);
 
 app.get('/', (req, res) => {
   res.json({
-    message: 'Altu Health ERP API',
+    message: 'Smile Agri Market API is running',
     apiVersion: config.apiVersion,
     status: 'running'
   });
