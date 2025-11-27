@@ -1,14 +1,9 @@
-const { slaveSequelize, masterSequelize } = require("../../../../database");
-const defineModels = require("../../../../database/models");
+const NotificationLog = require("../../../../database/models/NotificationLog");
+const NotificationTemplate = require("../../../../database/models/NotificationTemplate");
 const { getGeneralSettings } = require("../../../generalSettings");
 
-const sequelizeInstance = slaveSequelize || masterSequelize;
-if (!sequelizeInstance) {
-    throw new Error('Sequelize instance not available');
-}
 
-const models = defineModels(sequelizeInstance);
-const { AdminNotification, NotificationLog, NotificationTemplate } = models;
+// const { AdminNotification, NotificationLog, NotificationTemplate } = models;
 
 class NotifyProcess {
     constructor() {
@@ -117,10 +112,10 @@ class NotifyProcess {
     }
 
     async createErrorLog(message) {
-        await AdminNotification.create({
-            title: message,
-            clickUrl: '#'
-        });
+        // await AdminNotification.create({
+        //     title: message,
+        //     clickUrl: '#'
+        // });
     }
 
     async createLogEntry(notificationType) {

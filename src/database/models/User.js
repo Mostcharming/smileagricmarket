@@ -32,6 +32,22 @@ module.exports = (sequelize) => {
             type: DataTypes.ENUM('male', 'female', 'other'),
             allowNull: true,
             field: 'gender'
+        },
+        otp: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'otp'
+        },
+        otpExpiry: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'otp_expiry'
+        },
+        isPhoneVerified: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+            field: 'is_phone_verified'
         }
     }, {
         tableName: 'users',
