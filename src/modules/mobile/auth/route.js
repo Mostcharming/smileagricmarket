@@ -10,7 +10,7 @@ const {
 
 /**
  * @swagger
- * /v1/mobile/auth/signup/send-otp:
+ * /mobile/auth/signup/send-otp:
  *   post:
  *     tags:
  *       - Mobile Auth - Signup
@@ -54,7 +54,7 @@ router.post('/signup/send-otp', signupSendOtp);
 
 /**
  * @swagger
- * /v1/mobile/auth/signup/verify-otp:
+ * /mobile/auth/signup/verify-otp:
  *   post:
  *     tags:
  *       - Mobile Auth - Signup
@@ -107,7 +107,7 @@ router.post('/signup/verify-otp', signupVerifyOtp);
 
 /**
  * @swagger
- * /v1/mobile/auth/signup/complete-profile:
+ * /mobile/auth/signup/complete-profile:
  *   post:
  *     tags:
  *       - Mobile Auth - Signup
@@ -167,7 +167,7 @@ router.post('/signup/complete-profile', signupCompleteProfile);
 
 /**
  * @swagger
- * /v1/mobile/auth/login/send-otp:
+ * /mobile/auth/login/send-otp:
  *   post:
  *     tags:
  *       - Mobile Auth - Login
@@ -200,7 +200,7 @@ router.post('/login/send-otp', loginSendOtp);
 
 /**
  * @swagger
- * /v1/mobile/auth/login/verify-otp:
+ * /mobile/auth/login/verify-otp:
  *   post:
  *     tags:
  *       - Mobile Auth - Login

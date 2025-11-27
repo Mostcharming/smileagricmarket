@@ -10,7 +10,7 @@ const {
 
 /**
  * @swagger
- * /v1/web/auth/signup/send-otp:
+ * /web/auth/signup/send-otp:
  *   post:
  *     tags:
  *       - Web Auth - Signup
@@ -54,7 +54,7 @@ router.post('/signup/send-otp', signupSendOtp);
 
 /**
  * @swagger
- * /v1/web/auth/signup/verify-otp:
+ * /web/auth/signup/verify-otp:
  *   post:
  *     tags:
  *       - Web Auth - Signup
@@ -107,7 +107,7 @@ router.post('/signup/verify-otp', signupVerifyOtp);
 
 /**
  * @swagger
- * /v1/web/auth/signup/complete-profile:
+ * /web/auth/signup/complete-profile:
  *   post:
  *     tags:
  *       - Web Auth - Signup
@@ -167,7 +167,7 @@ router.post('/signup/complete-profile', signupCompleteProfile);
 
 /**
  * @swagger
- * /v1/web/auth/login/send-otp:
+ * /web/auth/login/send-otp:
  *   post:
  *     tags:
  *       - Web Auth - Login
@@ -200,7 +200,7 @@ router.post('/login/send-otp', loginSendOtp);
 
 /**
  * @swagger
- * /v1/web/auth/login/verify-otp:
+ * /web/auth/login/verify-otp:
  *   post:
  *     tags:
  *       - Web Auth - Login
