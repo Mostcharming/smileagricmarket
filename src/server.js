@@ -29,12 +29,13 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(responseFormatter);
 
-// Swagger UI setup
-console.log('🔍 Swagger spec keys:', Object.keys(swaggerSpec));
-console.log('🔍 Swagger spec paths:', Object.keys(swaggerSpec.paths || {}));
-
 // Serve Swagger JSON
 app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+app.get(`/${config.apiVersion}/api-docs.json`, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
 });
@@ -45,6 +46,20 @@ app.use('/api-docs',
   swaggerUi.setup(swaggerSpec, {
     swaggerOptions: {
       url: '/api-docs.json',
+      deepLinking: true,
+      displayOperationId: true,
+    },
+    customCss: '.swagger-ui { background-color: #fafafa; }',
+    customSiteTitle: 'Smile Agric API Docs',
+  })
+);
+
+// Serve Swagger UI under API version prefix for load balancer
+app.use(`/${config.apiVersion}/api-docs`,
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      url: `/${config.apiVersion}/api-docs.json`,
       deepLinking: true,
       displayOperationId: true,
     },
