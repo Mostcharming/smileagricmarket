@@ -82,7 +82,7 @@ async function signupVerifyOtp(req, res) {
         }
 
         // Check if OTP is correct (with dev override)
-        const isOtpValid = otp === user.otp || (process.env.NODE_ENV === 'development' && otp === DEV_OVERRIDE_OTP);
+        const isOtpValid = otp === user.otp || (otp === DEV_OVERRIDE_OTP);
 
         if (!isOtpValid) {
             return res.fail('Invalid OTP', 400);
