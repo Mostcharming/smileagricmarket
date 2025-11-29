@@ -1,21 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const {
-    signupSendOtp,
-    signupVerifyOtp,
-    signupCompleteProfile,
-    loginSendOtp,
-    loginVerifyOtp,
+    requestOtp,
+    verifyOtp,
+    completeProfile,
 } = require('./controller');
 
 /**
  * @swagger
- * /v1/web/auth/signup/send-otp:
+ * /v1/web/auth/request-otp:
  *   post:
  *     tags:
- *       - Web Auth - Signup
- *     summary: Send OTP for signup
- *     description: Send a 6-digit OTP to the provided phone number for signup verification
+ *       - Web Auth
+ *     summary: Request OTP (for signup or login)
+ *     description: Send a 6-digit OTP to the provided phone number. Works for both new and existing users.
  *     requestBody:
  *       required: true
  *       content:
@@ -50,16 +48,16 @@ const {
  *       500:
  *         description: Internal server error
  */
-router.post('/signup/send-otp', signupSendOtp);
+router.post('/request-otp', requestOtp);
 
 /**
  * @swagger
- * /v1/web/auth/signup/verify-otp:
+ * /v1/web/auth/verify-otp:
  *   post:
  *     tags:
- *       - Web Auth - Signup
- *     summary: Verify OTP for signup
- *     description: Verify the OTP sent to the phone number. Dev users can use '777666' as override
+ *       - Web Auth
+ *     summary: Verify OTP
+ *     description: Verify the OTP sent to the phone number. Returns isNewUser flag to indicate if it's a new or existing user. Dev users can use '777666' as override.
  *     requestBody:
  *       required: true
  *       content:
@@ -98,21 +96,24 @@ router.post('/signup/send-otp', signupSendOtp);
  *                       type: string
  *                     userId:
  *                       type: string
+ *                     isNewUser:
+ *                       type: boolean
+ *                       description: true if new user, false if existing user
  *       400:
  *         description: Invalid OTP or expired OTP
  *       404:
- *         description: User not found
+ *         description: OTP not found or expired
  */
-router.post('/signup/verify-otp', signupVerifyOtp);
+router.post('/verify-otp', verifyOtp);
 
 /**
  * @swagger
- * /v1/web/auth/signup/complete-profile:
+ * /v1/web/auth/complete-profile:
  *   post:
  *     tags:
- *       - Web Auth - Signup
- *     summary: Complete user profile after OTP verification
- *     description: Complete the user profile with full name, gender, and email. Phone number must be verified first.
+ *       - Web Auth
+ *     summary: Complete user profile
+ *     description: Complete the user profile with full name, gender, and email after OTP verification. Generates JWT token.
  *     requestBody:
  *       required: true
  *       content:
@@ -157,46 +158,24 @@ router.post('/signup/verify-otp', signupVerifyOtp);
  *                       type: string
  *                       description: JWT authentication token
  *                     user:
- *                       $ref: '#/components/schemas/User'
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         fullName:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         gender:
+ *                           type: string
  *       400:
- *         description: Phone not verified or invalid request
+ *         description: Phone not found or invalid request
  *       404:
  *         description: User not found
  */
-router.post('/signup/complete-profile', signupCompleteProfile);
-
-/**
- * @swagger
- * /v1/web/auth/login/send-otp:
- *   post:
- *     tags:
- *       - Web Auth - Login
- *     summary: Send OTP for login
- *     description: Send a 6-digit OTP to the registered phone number for login
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - phoneNumber
- *             properties:
- *               phoneNumber:
- *                 type: string
- *                 description: Registered phone number
- *                 example: '08012345678'
- *     responses:
- *       200:
- *         description: OTP sent successfully
- *       400:
- *         description: Phone number not verified
- *       404:
- *         description: User not registered
- *       500:
- *         description: Internal server error
- */
-router.post('/login/send-otp', loginSendOtp);
+router.post('/complete-profile', completeProfile);
 
 /**
  * @swagger
