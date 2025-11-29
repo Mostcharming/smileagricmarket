@@ -129,15 +129,30 @@ async function verifyOtp(req, res) {
                 'OTP verified successfully'
             );
         } else {
-            // For existing users, mark as verified
+            // For existing users, mark as verified and authenticate
             await existingUser.update({
                 otp: null,
                 otpExpiry: null,
                 isPhoneVerified: true
             });
 
+            // Generate JWT token for authentication
+            const token = signToken(existingUser);
+
             return res.success(
-                { phoneNumber, userId: existingUser.id, isNewUser: false },
+                {
+                    token,
+                    phoneNumber,
+                    userId: existingUser.id,
+                    isNewUser: false,
+                    user: {
+                        id: existingUser.id,
+                        phoneNumber: existingUser.phoneNumber,
+                        fullName: existingUser.fullName,
+                        email: existingUser.email,
+                        gender: existingUser.gender
+                    }
+                },
                 'OTP verified successfully'
             );
         }

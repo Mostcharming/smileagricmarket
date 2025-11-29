@@ -8,7 +8,7 @@ const {
 
 /**
  * @swagger
- * /v1/mobile/auth/request-otp:
+ * /mobile/auth/request-otp:
  *   post:
  *     tags:
  *       - Mobile Auth
@@ -52,7 +52,7 @@ router.post('/request-otp', requestOtp);
 
 /**
  * @swagger
- * /v1/mobile/auth/verify-otp:
+ * /mobile/auth/verify-otp:
  *   post:
  *     tags:
  *       - Mobile Auth
@@ -108,7 +108,7 @@ router.post('/verify-otp', verifyOtp);
 
 /**
  * @swagger
- * /v1/mobile/auth/complete-profile:
+ * /mobile/auth/complete-profile:
  *   post:
  *     tags:
  *       - Mobile Auth
@@ -177,58 +177,5 @@ router.post('/verify-otp', verifyOtp);
  */
 router.post('/complete-profile', completeProfile);
 
-/**
- * @swagger
- * /v1/mobile/auth/login/verify-otp:
- *   post:
- *     tags:
- *       - Mobile Auth - Login
- *     summary: Verify OTP and login
- *     description: Verify the OTP to complete login. Dev users can use '777666' as override
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - phoneNumber
- *               - otp
- *             properties:
- *               phoneNumber:
- *                 type: string
- *                 example: '08012345678'
- *               otp:
- *                 type: string
- *                 description: 6-digit OTP or '777666' in dev mode
- *                 example: '123456'
- *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: 'Login successful'
- *                 data:
- *                   type: object
- *                   properties:
- *                     token:
- *                       type: string
- *                       description: JWT authentication token
- *                     user:
- *                       $ref: '#/components/schemas/User'
- *       400:
- *         description: Invalid OTP or expired OTP
- *       404:
- *         description: User not found
- */
-router.post('/login/verify-otp', loginVerifyOtp);
 
 module.exports = router;
