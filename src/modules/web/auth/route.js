@@ -1,10 +1,44 @@
 const express = require('express');
 const router = express.Router();
+const { verifyToken } = require('../../../middlewares/common/security');
 const {
     requestOtp,
     verifyOtp,
     completeProfile,
+    setPassword,
+    signupWithPassword,
+    loginWithPassword,
 } = require('./controller');
+
+// Middleware to verify signup token
+const verifySignupToken = (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization || req.headers['x-access-token'] || req.query.token;
+        if (!authHeader) return res.fail('Authentication token required', 401);
+
+        let token = authHeader;
+        if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+            token = authHeader.slice(7).trim();
+        }
+
+        let payload;
+        try {
+            payload = verifyToken(token);
+        } catch (err) {
+            return res.fail('Invalid or expired token', 401);
+        }
+
+        // Check if it's a signup token
+        if (!payload.user || !payload.user.isSignupInProgress) {
+            return res.fail('This token is not valid for signup. Please verify OTP first.', 401);
+        }
+
+        req.user = payload.user;
+        next();
+    } catch (err) {
+        return res.fail(err.message, 500);
+    }
+};
 
 /**
  * @swagger
@@ -57,7 +91,7 @@ router.post('/request-otp', requestOtp);
  *     tags:
  *       - Web Auth
  *     summary: Verify OTP
- *     description: Verify the OTP sent to the phone number. Returns isNewUser flag to indicate if it's a new or existing user. Dev users can use '777666' as override.
+ *     description: Verify the OTP sent to the phone number. Returns a signup token for new users that should be used for the next signup form endpoints. Returns login token for existing users.
  *     requestBody:
  *       required: true
  *       content:
@@ -94,8 +128,9 @@ router.post('/request-otp', requestOtp);
  *                   properties:
  *                     phoneNumber:
  *                       type: string
- *                     userId:
+ *                     token:
  *                       type: string
+ *                       description: Token for new users to use in profile forms, or auth token for existing users
  *                     isNewUser:
  *                       type: boolean
  *                       description: true if new user, false if existing user
@@ -112,20 +147,17 @@ router.post('/verify-otp', verifyOtp);
  *   post:
  *     tags:
  *       - Web Auth
- *     summary: Complete user profile
- *     description: Complete the user profile with full name, gender, and email after OTP verification. Generates JWT token.
+ *     summary: Complete user profile - Form 1
+ *     description: Submit profile information (fullName, gender, email) after OTP verification. Use the signup token received from verify-otp endpoint.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
  *             properties:
- *               phoneNumber:
- *                 type: string
- *                 example: '08012345678'
  *               fullName:
  *                 type: string
  *                 example: 'John Doe'
@@ -139,7 +171,7 @@ router.post('/verify-otp', verifyOtp);
  *                 example: 'john@example.com'
  *     responses:
  *       200:
- *         description: Profile completed successfully
+ *         description: Profile information saved
  *         content:
  *           application/json:
  *             schema:
@@ -150,7 +182,69 @@ router.post('/verify-otp', verifyOtp);
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: 'Profile completed successfully'
+ *                   example: 'Profile information saved'
+ *                 data:
+ *                   type: object
+ *       401:
+ *         description: Invalid or missing signup token
+ *       409:
+ *         description: Email already exists
+ */
+router.post('/complete-profile', verifySignupToken, completeProfile);
+
+/**
+ * @swagger
+ * /web/auth/set-password:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Set password - Form 2
+ *     description: Submit password and complete user registration. Use the signup token received from verify-otp endpoint.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - password
+ *               - passwordConfirmation
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: 'SecurePassword123!'
+ *               passwordConfirmation:
+ *                 type: string
+ *                 format: password
+ *                 example: 'SecurePassword123!'
+ *               fullName:
+ *                 type: string
+ *                 example: 'John Doe'
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female, other]
+ *                 example: 'male'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: 'john@example.com'
+ *     responses:
+ *       200:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'User registered successfully'
  *                 data:
  *                   type: object
  *                   properties:
@@ -159,24 +253,135 @@ router.post('/verify-otp', verifyOtp);
  *                       description: JWT authentication token
  *                     user:
  *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                         phoneNumber:
- *                           type: string
- *                         fullName:
- *                           type: string
- *                         email:
- *                           type: string
- *                         gender:
- *                           type: string
  *       400:
- *         description: Phone not found or invalid request
- *       404:
- *         description: User not found
+ *         description: Invalid password or passwords do not match
+ *       401:
+ *         description: Invalid or missing signup token
+ *       409:
+ *         description: User already exists or email already exists
  */
-router.post('/complete-profile', completeProfile);
+router.post('/set-password', verifySignupToken, setPassword);
 
+/**
+ * @swagger
+ * /web/auth/signup:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Signup with password
+ *     description: Register a new user with phone number, password, and optional profile information
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - password
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: '08012345678'
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: 'SecurePassword123!'
+ *               fullName:
+ *                 type: string
+ *                 example: 'John Doe'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: 'john@example.com'
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female, other]
+ *                 example: 'male'
+ *     responses:
+ *       200:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'User registered successfully'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                     user:
+ *                       type: object
+ *       400:
+ *         description: Phone number and password are required
+ *       409:
+ *         description: User already exists
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/signup', signupWithPassword);
+
+/**
+ * @swagger
+ * /web/auth/login:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Login with password
+ *     description: Login with phone number and password
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - password
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: '08012345678'
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: 'SecurePassword123!'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'Login successful'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                     user:
+ *                       type: object
+ *       400:
+ *         description: Phone number and password are required
+ *       401:
+ *         description: Invalid credentials
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/login', loginWithPassword);
 
 
 module.exports = router;

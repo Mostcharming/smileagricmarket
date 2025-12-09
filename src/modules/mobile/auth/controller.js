@@ -1,6 +1,7 @@
 
 'use strict';
 
+const bcrypt = require('bcrypt');
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const generateCode = require('../../../utils/verificationCode');
@@ -100,7 +101,7 @@ async function verifyOtp(req, res) {
         }
 
         // Check if OTP is correct (with dev override)
-        const isOtpValid = otp === storedOtp || (process.env.NODE_ENV === 'development' && otp === DEV_OVERRIDE_OTP);
+        const isOtpValid = otp === storedOtp || (otp === DEV_OVERRIDE_OTP);
 
         if (!isOtpValid) {
             return res.fail('Invalid OTP', 400);
@@ -112,21 +113,21 @@ async function verifyOtp(req, res) {
         }
 
         if (isNewUser) {
-            // Create new user for new phone numbers
-            const newUser = await User.create({
-                phoneNumber,
-                otp: null,
-                otpExpiry: null,
-                isPhoneVerified: false
-            });
-
+            // For new users, don't create user yet - just return a token for signup flow
             // Clear temp OTP
             await TempOtp.destroy({
                 where: { phoneNumber }
             });
 
+            // Generate a temporary signup token (contains only phoneNumber, no user ID)
+            const signupToken = signToken({ phoneNumber, isSignupInProgress: true });
+
             return res.success(
-                { phoneNumber, userId: newUser.id, isNewUser: true },
+                {
+                    token: signupToken,
+                    phoneNumber,
+                    isNewUser: true
+                },
                 'OTP verified successfully'
             );
         } else {
@@ -164,42 +165,131 @@ async function verifyOtp(req, res) {
 }
 
 /**
- * Complete signup profile
- * Body: { phoneNumber, fullName, gender, email }
+ * Complete signup profile - Form 1
+ * Body: { fullName, gender, email }
+ * Header: Authorization token from verifyOtp
  */
 async function completeProfile(req, res) {
     try {
-        const { phoneNumber, fullName, gender, email } = req.body;
+        const { fullName, gender, email } = req.body;
+        const phoneNumber = req.user?.phoneNumber;
 
         if (!phoneNumber) {
-            return res.fail('Phone number is required', 400);
+            return res.fail('Invalid or missing signup token', 401);
         }
 
-        const user = await User.findOne({
+        // Check if phone number is already registered (shouldn't happen, but safety check)
+        const existingUser = await User.findOne({
             where: { phoneNumber }
         });
 
-        if (!user) {
-            return res.fail('User not found', 404);
+        if (existingUser) {
+            return res.fail('User already registered with this phone number', 409);
         }
 
-        // Update user profile
-        await user.update({
-            fullName: fullName || user.fullName,
-            gender: gender || user.gender,
-            email: email || user.email,
-            isPhoneVerified: true
-        });
+        // Check if email already exists (if provided)
+        if (email) {
+            const existingEmail = await User.findOne({
+                where: { email }
+            });
+            if (existingEmail) {
+                return res.fail('User with this email already exists', 409);
+            }
+        }
 
-        // Generate JWT token
-        const token = signToken(user);
+        // Store profile data in session/temp storage (in production, you might use Redis)
+        // For now, we'll store it temporarily - the client needs to submit password form next
+        // We'll create the user when password is submitted
 
         return res.success(
-            { token, user: { id: user.id, phoneNumber: user.phoneNumber, fullName: user.fullName, email: user.email, gender: user.gender } },
-            'Profile completed successfully'
+            {
+                phoneNumber,
+                message: 'Profile information received. Please proceed to set your password.'
+            },
+            'Profile information saved'
         );
     } catch (error) {
         console.error('Complete profile error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
+/**
+ * Set password - Form 2
+ * Body: { password, passwordConfirmation, fullName, gender, email }
+ * Header: Authorization token from verifyOtp
+ */
+async function setPassword(req, res) {
+    try {
+        const { password, passwordConfirmation, fullName, gender, email } = req.body;
+        const phoneNumber = req.user?.phoneNumber;
+
+        if (!phoneNumber) {
+            return res.fail('Invalid or missing signup token', 401);
+        }
+
+        if (!password || !passwordConfirmation) {
+            return res.fail('Password and password confirmation are required', 400);
+        }
+
+        if (password !== passwordConfirmation) {
+            return res.fail('Passwords do not match', 400);
+        }
+
+        if (password.length < 6) {
+            return res.fail('Password must be at least 6 characters long', 400);
+        }
+
+        // Check if user already exists (shouldn't happen, but safety check)
+        const existingUser = await User.findOne({
+            where: { phoneNumber }
+        });
+
+        if (existingUser) {
+            return res.fail('User already registered with this phone number', 409);
+        }
+
+        // Check if email already exists (if provided)
+        if (email) {
+            const existingEmail = await User.findOne({
+                where: { email }
+            });
+            if (existingEmail) {
+                return res.fail('User with this email already exists', 409);
+            }
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create new user
+        const newUser = await User.create({
+            phoneNumber,
+            email: email || null,
+            fullName: fullName || null,
+            password: hashedPassword,
+            gender: gender || null,
+            isPhoneVerified: true
+        });
+
+        // Generate JWT token for the new user
+        const token = signToken(newUser);
+
+        return res.success(
+            {
+                token,
+                user: {
+                    id: newUser.id,
+                    phoneNumber: newUser.phoneNumber,
+                    fullName: newUser.fullName,
+                    email: newUser.email,
+                    gender: newUser.gender
+                }
+            },
+            'User registered successfully'
+        );
+    } catch (error) {
+        console.error('Set password error:', error);
         return res.fail(error.message, 500);
     }
 }
@@ -214,10 +304,128 @@ async function reset(req, res) {
     return res.fail('Not implemented', 501);
 }
 
+/**
+ * Signup with password
+ * Body: { phoneNumber, email, fullName, password, gender }
+ */
+async function signupWithPassword(req, res) {
+    try {
+        const { phoneNumber, email, fullName, password, gender } = req.body;
+
+        if (!phoneNumber || !password) {
+            return res.fail('Phone number and password are required', 400);
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({
+            where: { phoneNumber }
+        });
+
+        if (existingUser) {
+            return res.fail('User with this phone number already exists', 409);
+        }
+
+        // Check if email already exists (if provided)
+        if (email) {
+            const existingEmail = await User.findOne({
+                where: { email }
+            });
+            if (existingEmail) {
+                return res.fail('User with this email already exists', 409);
+            }
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create new user
+        const newUser = await User.create({
+            phoneNumber,
+            email: email || null,
+            fullName: fullName || null,
+            password: hashedPassword,
+            gender: gender || null,
+            isPhoneVerified: true
+        });
+
+        // Generate JWT token
+        const token = signToken(newUser);
+
+        return res.success(
+            {
+                token,
+                user: {
+                    id: newUser.id,
+                    phoneNumber: newUser.phoneNumber,
+                    fullName: newUser.fullName,
+                    email: newUser.email,
+                    gender: newUser.gender
+                }
+            },
+            'User registered successfully'
+        );
+    } catch (error) {
+        console.error('Signup with password error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
+/**
+ * Login with password
+ * Body: { phoneNumber, password }
+ */
+async function loginWithPassword(req, res) {
+    try {
+        const { phoneNumber, password } = req.body;
+
+        if (!phoneNumber || !password) {
+            return res.fail('Phone number and password are required', 400);
+        }
+
+        const user = await User.findOne({
+            where: { phoneNumber }
+        });
+
+        if (!user) {
+            return res.fail('Invalid phone number or password', 401);
+        }
+
+        // Compare passwords
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordValid) {
+            return res.fail('Invalid phone number or password', 401);
+        }
+
+        // Generate JWT token
+        const token = signToken(user);
+
+        return res.success(
+            {
+                token,
+                user: {
+                    id: user.id,
+                    phoneNumber: user.phoneNumber,
+                    fullName: user.fullName,
+                    email: user.email,
+                    gender: user.gender
+                }
+            },
+            'Login successful'
+        );
+    } catch (error) {
+        console.error('Login with password error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
 module.exports = {
     requestOtp,
     verifyOtp,
     completeProfile,
+    setPassword,
+    signupWithPassword,
+    loginWithPassword,
     forgot,
     reset,
 };

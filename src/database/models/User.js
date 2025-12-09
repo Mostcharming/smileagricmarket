@@ -48,6 +48,11 @@ module.exports = (sequelize) => {
             allowNull: false,
             defaultValue: false,
             field: 'is_phone_verified'
+        },
+        password: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'password'
         }
     }, {
         tableName: 'users',
