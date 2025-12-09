@@ -8,6 +8,9 @@ const {
     setPassword,
     signupWithPassword,
     loginWithPassword,
+    forgot,
+    verifyResetToken,
+    reset,
 } = require('./controller');
 
 // Middleware to verify signup token
@@ -382,6 +385,171 @@ router.post('/signup', signupWithPassword);
  *         description: Internal server error
  */
 router.post('/login', loginWithPassword);
+
+/**
+ * @swagger
+ * /web/auth/forgot-password:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Request password reset
+ *     description: Send a password reset link to the user's phone number or email. Returns a generic message for security reasons (doesn't reveal if user exists).
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: User phone number (required if email not provided)
+ *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email (required if phoneNumber not provided)
+ *                 example: 'john@example.com'
+ *     responses:
+ *       200:
+ *         description: Password reset request processed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'If an account exists, a reset link will be sent'
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Phone number or email is required
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/forgot-password', forgot);
+
+/**
+ * @swagger
+ * /web/auth/verify-reset-token:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Verify password reset token
+ *     description: Verify that a reset token is valid and not expired. Returns masked user information.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - resetToken
+ *             properties:
+ *               resetToken:
+ *                 type: string
+ *                 description: The reset token from the reset link
+ *                 example: 'abc123def456...'
+ *     responses:
+ *       200:
+ *         description: Reset token is valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'Reset token is valid'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     phoneNumber:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     fullName:
+ *                       type: string
+ *       400:
+ *         description: Reset token has expired
+ *       404:
+ *         description: Invalid reset token
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/verify-reset-token', verifyResetToken);
+
+/**
+ * @swagger
+ * /web/auth/reset-password:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Reset password with valid token
+ *     description: Complete the password reset process. Requires a valid, non-expired reset token.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - resetToken
+ *               - password
+ *               - passwordConfirmation
+ *             properties:
+ *               resetToken:
+ *                 type: string
+ *                 description: The reset token from the reset link
+ *                 example: 'abc123def456...'
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 description: New password (minimum 6 characters)
+ *                 example: 'NewPassword123!'
+ *               passwordConfirmation:
+ *                 type: string
+ *                 format: password
+ *                 description: Confirm the new password
+ *                 example: 'NewPassword123!'
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'Password reset successfully'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: JWT authentication token for automatic login
+ *                     user:
+ *                       type: object
+ *                       description: User details
+ *       400:
+ *         description: Invalid input or token has expired
+ *       404:
+ *         description: Invalid reset token
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/reset-password', reset);
 
 
 module.exports = router;

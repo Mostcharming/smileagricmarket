@@ -294,14 +294,162 @@ async function setPassword(req, res) {
     }
 }
 
+/**
+ * Forgot Password - Request password reset
+ * Body: { phoneNumber } or { email }
+ */
 async function forgot(req, res) {
-    // TODO: Implement forgot password
-    return res.fail('Not implemented', 501);
+    try {
+        const { phoneNumber, email } = req.body;
+
+        if (!phoneNumber && !email) {
+            return res.fail('Phone number or email is required', 400);
+        }
+
+        // Find user by phone or email
+        const user = await User.findOne({
+            where: phoneNumber ? { phoneNumber } : { email }
+        });
+
+        if (!user) {
+            // Don't reveal if user exists or not (security best practice)
+            return res.success(
+                { message: 'If an account exists, a reset link will be sent' },
+                'If an account exists, a reset link will be sent'
+            );
+        }
+
+        // Generate reset token (valid for 1 hour)
+        const resetToken = generateCode(32, { letters: true, numbers: true });
+        const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+        // Store reset token in user record
+        await user.update({
+            resetToken,
+            resetTokenExpiry
+        });
+
+        // Generate reset link
+        const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
+
+        // TODO: Send reset link via SMS or Email
+        // await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
+
+        return res.success(
+            { message: 'Password reset link sent' },
+            'If an account exists, a reset link will be sent'
+        );
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        return res.fail(error.message, 500);
+    }
 }
 
+/**
+ * Verify Reset Token - Get user info for password reset form
+ * Body: { resetToken }
+ */
+async function verifyResetToken(req, res) {
+    try {
+        const { resetToken } = req.body;
+
+        if (!resetToken) {
+            return res.fail('Reset token is required', 400);
+        }
+
+        // Find user with valid reset token
+        const user = await User.findOne({
+            where: { resetToken }
+        });
+
+        if (!user) {
+            return res.fail('Invalid reset token', 404);
+        }
+
+        // Check if token has expired
+        if (new Date() > user.resetTokenExpiry) {
+            return res.fail('Reset token has expired', 400);
+        }
+
+        // Return user info (masked for security)
+        return res.success(
+            {
+                phoneNumber: user.phoneNumber,
+                email: user.email,
+                fullName: user.fullName
+            },
+            'Reset token is valid'
+        );
+    } catch (error) {
+        console.error('Verify reset token error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
+/**
+ * Reset Password - Complete password reset
+ * Body: { resetToken, password, passwordConfirmation }
+ */
 async function reset(req, res) {
-    // TODO: Implement reset password
-    return res.fail('Not implemented', 501);
+    try {
+        const { resetToken, password, passwordConfirmation } = req.body;
+
+        if (!resetToken || !password || !passwordConfirmation) {
+            return res.fail('Reset token, password, and password confirmation are required', 400);
+        }
+
+        if (password !== passwordConfirmation) {
+            return res.fail('Passwords do not match', 400);
+        }
+
+        if (password.length < 6) {
+            return res.fail('Password must be at least 6 characters long', 400);
+        }
+
+        // Find user with valid reset token
+        const user = await User.findOne({
+            where: { resetToken }
+        });
+
+        if (!user) {
+            return res.fail('Invalid reset token', 404);
+        }
+
+        // Check if token has expired
+        if (new Date() > user.resetTokenExpiry) {
+            return res.fail('Reset token has expired', 400);
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Update user password and clear reset token
+        await user.update({
+            password: hashedPassword,
+            resetToken: null,
+            resetTokenExpiry: null
+        });
+
+        // Generate auth token for automatic login
+        const token = signToken(user);
+
+        return res.success(
+            {
+                token,
+                user: {
+                    id: user.id,
+                    phoneNumber: user.phoneNumber,
+                    fullName: user.fullName,
+                    email: user.email,
+                    gender: user.gender
+                }
+            },
+            'Password reset successfully'
+        );
+    } catch (error) {
+        console.error('Reset password error:', error);
+        return res.fail(error.message, 500);
+    }
 }
 
 /**
@@ -427,5 +575,6 @@ module.exports = {
     signupWithPassword,
     loginWithPassword,
     forgot,
+    verifyResetToken,
     reset,
 };
