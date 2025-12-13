@@ -105,7 +105,9 @@ const options = {
     },
     apis: [
         './src/modules/mobile/auth/route.js',
+        './src/modules/mobile/kyc/route.js',
         './src/modules/web/auth/route.js',
+        './src/modules/web/kyc/route.js',
         './src/modules/mobile/route.js',
         './src/modules/web/route.js',
     ],

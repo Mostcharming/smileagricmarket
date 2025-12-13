@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../../../middlewares/common/security');
 const uploadKYC = require('../../../utils/uploadKYC');
 const {
     submitKYC,
@@ -10,31 +9,6 @@ const {
     approveKYC,
     rejectKYC
 } = require('./controller');
-
-// Middleware to verify authentication
-const verifyAuth = (req, res, next) => {
-    try {
-        const authHeader = req.headers.authorization || req.headers['x-access-token'] || req.query.token;
-        if (!authHeader) return res.fail('Authentication token required', 401);
-
-        let token = authHeader;
-        if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
-            token = authHeader.slice(7).trim();
-        }
-
-        let payload;
-        try {
-            payload = verifyToken(token);
-        } catch (err) {
-            return res.fail('Invalid or expired token', 401);
-        }
-
-        req.user = payload.user;
-        next();
-    } catch (err) {
-        return res.fail(err.message, 500);
-    }
-};
 
 /**
  * @swagger
@@ -107,7 +81,7 @@ const verifyAuth = (req, res, next) => {
  *       409:
  *         description: KYC already submitted or approved
  */
-router.post('/submit', verifyAuth, uploadKYC, submitKYC);
+router.post('/submit', uploadKYC, submitKYC);
 
 /**
  * @swagger
@@ -153,7 +127,7 @@ router.post('/submit', verifyAuth, uploadKYC, submitKYC);
  *       404:
  *         description: User not found
  */
-router.get('/status', verifyAuth, getKYCStatus);
+router.get('/status', getKYCStatus);
 
 /**
  * @swagger
@@ -202,7 +176,7 @@ router.get('/status', verifyAuth, getKYCStatus);
  *       409:
  *         description: Cannot update approved KYC
  */
-router.put('/update', verifyAuth, uploadKYC, updateKYC);
+router.put('/update', uploadKYC, updateKYC);
 
 /**
  * @swagger
@@ -257,81 +231,81 @@ router.put('/update', verifyAuth, uploadKYC, updateKYC);
  *       401:
  *         description: Unauthorized
  */
-router.get('/list', verifyAuth, getKYCList);
+router.get('/list', getKYCList);
 
-/**
- * @swagger
- * /web/kyc/approve:
- *   post:
- *     tags:
- *       - Web KYC
- *     summary: Approve KYC
- *     description: Approve a KYC submission (Admin only)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - kycId
- *             properties:
- *               kycId:
- *                 type: string
- *                 description: UUID of the KYC record
- *     responses:
- *       200:
- *         description: KYC approved successfully
- *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: KYC record not found
- *       409:
- *         description: KYC already approved
- */
-router.post('/approve', verifyAuth, approveKYC);
+// /**
+//  * @swagger
+//  * /web/kyc/approve:
+//  *   post:
+//  *     tags:
+//  *       - Web KYC
+//  *     summary: Approve KYC
+//  *     description: Approve a KYC submission (Admin only)
+//  *     security:
+//  *       - bearerAuth: []
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *             required:
+//  *               - kycId
+//  *             properties:
+//  *               kycId:
+//  *                 type: string
+//  *                 description: UUID of the KYC record
+//  *     responses:
+//  *       200:
+//  *         description: KYC approved successfully
+//  *       400:
+//  *         description: Invalid input
+//  *       401:
+//  *         description: Unauthorized
+//  *       404:
+//  *         description: KYC record not found
+//  *       409:
+//  *         description: KYC already approved
+//  */
+// router.post('/approve', approveKYC);
 
-/**
- * @swagger
- * /web/kyc/reject:
- *   post:
- *     tags:
- *       - Web KYC
- *     summary: Reject KYC
- *     description: Reject a KYC submission with a reason (Admin only)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - kycId
- *               - rejectionReason
- *             properties:
- *               kycId:
- *                 type: string
- *                 description: UUID of the KYC record
- *               rejectionReason:
- *                 type: string
- *                 description: Reason for rejection
- *                 example: 'ID document is not clear. Please resubmit with better quality image.'
- *     responses:
- *       200:
- *         description: KYC rejected successfully
- *       400:
- *         description: Invalid input or missing reason
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: KYC record not found
- */
-router.post('/reject', verifyAuth, rejectKYC);
+// /**
+//  * @swagger
+//  * /web/kyc/reject:
+//  *   post:
+//  *     tags:
+//  *       - Web KYC
+//  *     summary: Reject KYC
+//  *     description: Reject a KYC submission with a reason (Admin only)
+//  *     security:
+//  *       - bearerAuth: []
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *             required:
+//  *               - kycId
+//  *               - rejectionReason
+//  *             properties:
+//  *               kycId:
+//  *                 type: string
+//  *                 description: UUID of the KYC record
+//  *               rejectionReason:
+//  *                 type: string
+//  *                 description: Reason for rejection
+//  *                 example: 'ID document is not clear. Please resubmit with better quality image.'
+//  *     responses:
+//  *       200:
+//  *         description: KYC rejected successfully
+//  *       400:
+//  *         description: Invalid input or missing reason
+//  *       401:
+//  *         description: Unauthorized
+//  *       404:
+//  *         description: KYC record not found
+//  */
+// router.post('/reject', rejectKYC);
 
 module.exports = router;
