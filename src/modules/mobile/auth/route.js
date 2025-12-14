@@ -338,24 +338,29 @@ router.post('/signup', signupWithPassword);
  *     tags:
  *       - Mobile Auth
  *     summary: Login with password
- *     description: Login with phone number and password
+ *     description: Login with phone number or email and password
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
- *               - password
  *             properties:
  *               phoneNumber:
  *                 type: string
+ *                 description: User phone number (required if email not provided)
  *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email (required if phoneNumber not provided)
+ *                 example: 'john@example.com'
  *               password:
  *                 type: string
  *                 format: password
  *                 example: 'SecurePassword123!'
+ *             required:
+ *               - password
  *     responses:
  *       200:
  *         description: Login successful
@@ -378,7 +383,7 @@ router.post('/signup', signupWithPassword);
  *                     user:
  *                       type: object
  *       400:
- *         description: Phone number and password are required
+ *         description: Phone number or email and password are required
  *       401:
  *         description: Invalid credentials
  *       500:

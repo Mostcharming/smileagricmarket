@@ -519,29 +519,30 @@ async function signupWithPassword(req, res) {
 
 /**
  * Login with password
- * Body: { phoneNumber, password }
+ * Body: { phoneNumber or email, password }
  */
 async function loginWithPassword(req, res) {
     try {
-        const { phoneNumber, password } = req.body;
+        const { phoneNumber, email, password } = req.body;
 
-        if (!phoneNumber || !password) {
-            return res.fail('Phone number and password are required', 400);
+        if ((!phoneNumber && !email) || !password) {
+            return res.fail('Phone number or email and password are required', 400);
         }
 
+        // Find user by phone number or email
         const user = await User.findOne({
-            where: { phoneNumber }
+            where: phoneNumber ? { phoneNumber } : { email }
         });
 
         if (!user) {
-            return res.fail('Invalid phone number or password', 401);
+            return res.fail('Invalid phone number, email or password', 401);
         }
 
         // Compare passwords
         const isPasswordValid = await bcrypt.compare(password, user.password);
 
         if (!isPasswordValid) {
-            return res.fail('Invalid phone number or password', 401);
+            return res.fail('Invalid phone number, email or password', 401);
         }
 
         // Generate JWT token
