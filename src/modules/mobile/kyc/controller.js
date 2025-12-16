@@ -7,9 +7,9 @@ const models = defineModels(sequelize);
 const { User, KYC } = models;
 
 /**
- * Submit KYC - Upload identification and documents
+ * Submit KYC - Upload selfie image
  * Body: { identificationType, identificationNumber }
- * Files: idDocument (optional), selfie (optional)
+ * Files: selfie (required)
  * Auth: User must be logged in
  */
 async function submitKYC(req, res) {
@@ -55,12 +55,11 @@ async function submitKYC(req, res) {
             return res.fail('KYC submission already pending. Please wait for verification.', 409);
         }
 
-        // At least one file (ID or selfie) must be uploaded
-        const hasIdDocument = req.kycFiles && req.kycFiles.idDocument;
+        // Selfie image is required
         const hasSelfie = req.kycFiles && req.kycFiles.selfie;
 
-        if (!hasIdDocument && !hasSelfie) {
-            return res.fail('At least one file (ID document or selfie) must be uploaded', 400);
+        if (!hasSelfie) {
+            return res.fail('Selfie image is required', 400);
         }
 
         // Create KYC record
@@ -69,19 +68,10 @@ async function submitKYC(req, res) {
             identificationType,
             identificationNumber,
             status: 'pending',
-            submittedAt: new Date()
+            submittedAt: new Date(),
+            selfieImagePath: req.kycFiles.selfie.path,
+            selfieImageUrl: req.kycFiles.selfie.url
         };
-
-        // Add file paths and URLs if provided
-        if (hasIdDocument) {
-            kycData.idDocumentPath = req.kycFiles.idDocument.path;
-            kycData.idDocumentUrl = req.kycFiles.idDocument.url;
-        }
-
-        if (hasSelfie) {
-            kycData.selfieImagePath = req.kycFiles.selfie.path;
-            kycData.selfieImageUrl = req.kycFiles.selfie.url;
-        }
 
         const kyc = await KYC.create(kycData);
 
@@ -91,10 +81,7 @@ async function submitKYC(req, res) {
                 status: kyc.status,
                 message: 'KYC submitted successfully. Please wait for verification.',
                 submittedAt: kyc.submittedAt,
-                files: {
-                    idDocument: hasIdDocument ? req.kycFiles.idDocument.url : null,
-                    selfie: hasSelfie ? req.kycFiles.selfie.url : null
-                }
+                selfie: req.kycFiles.selfie.url
             },
             'KYC submitted successfully'
         );
@@ -146,10 +133,7 @@ async function getKYCStatus(req, res) {
             submittedAt: kyc.submittedAt,
             verifiedAt: kyc.verifiedAt,
             rejectionReason: kyc.rejectionReason,
-            files: {
-                idDocument: kyc.idDocumentUrl || null,
-                selfie: kyc.selfieImageUrl || null
-            }
+            selfie: kyc.selfieImageUrl || null
         };
 
         return res.success(response, `KYC status: ${kyc.status}`);
@@ -205,12 +189,11 @@ async function updateKYC(req, res) {
             return res.fail('Cannot update approved KYC', 409);
         }
 
-        // At least one file (ID or selfie) must be provided
-        const hasIdDocument = req.kycFiles && req.kycFiles.idDocument;
+        // Selfie image is required
         const hasSelfie = req.kycFiles && req.kycFiles.selfie;
 
-        if (!hasIdDocument && !hasSelfie) {
-            return res.fail('At least one file (ID document or selfie) must be provided', 400);
+        if (!hasSelfie) {
+            return res.fail('Selfie image is required', 400);
         }
 
         // Update KYC record
@@ -219,18 +202,10 @@ async function updateKYC(req, res) {
             identificationNumber,
             status: 'pending',
             submittedAt: new Date(),
-            rejectionReason: null
+            rejectionReason: null,
+            selfieImagePath: req.kycFiles.selfie.path,
+            selfieImageUrl: req.kycFiles.selfie.url
         };
-
-        if (hasIdDocument) {
-            updateData.idDocumentPath = req.kycFiles.idDocument.path;
-            updateData.idDocumentUrl = req.kycFiles.idDocument.url;
-        }
-
-        if (hasSelfie) {
-            updateData.selfieImagePath = req.kycFiles.selfie.path;
-            updateData.selfieImageUrl = req.kycFiles.selfie.url;
-        }
 
         await kyc.update(updateData);
 
@@ -240,10 +215,7 @@ async function updateKYC(req, res) {
                 status: kyc.status,
                 message: 'KYC updated successfully. Please wait for verification.',
                 submittedAt: kyc.submittedAt,
-                files: {
-                    idDocument: hasIdDocument ? req.kycFiles.idDocument.url : kyc.idDocumentUrl,
-                    selfie: hasSelfie ? req.kycFiles.selfie.url : kyc.selfieImageUrl
-                }
+                selfie: req.kycFiles.selfie.url
             },
             'KYC updated successfully'
         );
@@ -300,10 +272,7 @@ async function getKYCList(req, res) {
                 submittedAt: kyc.submittedAt,
                 verifiedAt: kyc.verifiedAt,
                 rejectionReason: kyc.rejectionReason,
-                files: {
-                    idDocument: kyc.idDocumentUrl || null,
-                    selfie: kyc.selfieImageUrl || null
-                }
+                selfie: kyc.selfieImageUrl || null
             }))
         };
 

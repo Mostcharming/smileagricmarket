@@ -17,7 +17,7 @@ const {
  *     tags:
  *       - Web KYC
  *     summary: Submit KYC documents
- *     description: Submit identification documents and optional selfie for KYC verification. Requires at least one file upload.
+ *     description: Submit identification information with a selfie image for KYC verification.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -29,6 +29,7 @@ const {
  *             required:
  *               - identificationType
  *               - identificationNumber
+ *               - selfie
  *             properties:
  *               identificationType:
  *                 type: string
@@ -39,10 +40,6 @@ const {
  *                 type: string
  *                 description: The identification number
  *                 example: '12345678901234'
- *               idDocument:
- *                 type: string
- *                 format: binary
- *                 description: ID document image (JPEG, PNG, GIF, WebP, max 10MB)
  *               selfie:
  *                 type: string
  *                 format: binary
@@ -72,8 +69,8 @@ const {
  *                     submittedAt:
  *                       type: string
  *                       format: date-time
- *                     files:
- *                       type: object
+ *                     selfie:
+ *                       type: string
  *       400:
  *         description: Invalid input or file missing
  *       401:
@@ -122,6 +119,8 @@ router.post('/submit', uploadKYC, submitKYC);
  *                       format: date-time
  *                     rejectionReason:
  *                       type: string
+ *                     selfie:
+ *                       type: string
  *       401:
  *         description: Unauthorized
  *       404:
@@ -136,7 +135,7 @@ router.get('/status', getKYCStatus);
  *     tags:
  *       - Web KYC
  *     summary: Update KYC submission
- *     description: Resubmit KYC with corrected documents if previously rejected. Cannot update approved KYC.
+ *     description: Resubmit KYC with corrected information if previously rejected. Cannot update approved KYC.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -148,6 +147,7 @@ router.get('/status', getKYCStatus);
  *             required:
  *               - identificationType
  *               - identificationNumber
+ *               - selfie
  *             properties:
  *               identificationType:
  *                 type: string
@@ -156,14 +156,10 @@ router.get('/status', getKYCStatus);
  *               identificationNumber:
  *                 type: string
  *                 example: '12345678901234'
- *               idDocument:
- *                 type: string
- *                 format: binary
- *                 description: Updated ID document (optional)
  *               selfie:
  *                 type: string
  *                 format: binary
- *                 description: Updated selfie (optional)
+ *                 description: Selfie image (required)
  *     responses:
  *       200:
  *         description: KYC updated successfully
