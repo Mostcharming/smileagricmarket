@@ -274,6 +274,11 @@ async function setPassword(req, res) {
         // Generate JWT token for the new user
         const token = signToken(newUser);
 
+        // Check if user has approved KYC
+        const approvedKYC = await KYC.findOne({
+            where: { userId: newUser.id, status: 'approved' }
+        });
+
         return res.success(
             {
                 token,
@@ -282,7 +287,8 @@ async function setPassword(req, res) {
                     phoneNumber: newUser.phoneNumber,
                     fullName: newUser.fullName,
                     email: newUser.email,
-                    gender: newUser.gender
+                    gender: newUser.gender,
+                    kycVerified: !!approvedKYC
                 }
             },
             'User registered successfully'
@@ -432,6 +438,11 @@ async function reset(req, res) {
         // Generate auth token for automatic login
         const token = signToken(user);
 
+        // Check if user has approved KYC
+        const approvedKYC = await KYC.findOne({
+            where: { userId: user.id, status: 'approved' }
+        });
+
         return res.success(
             {
                 token,
@@ -440,7 +451,8 @@ async function reset(req, res) {
                     phoneNumber: user.phoneNumber,
                     fullName: user.fullName,
                     email: user.email,
-                    gender: user.gender
+                    gender: user.gender,
+                    kycVerified: !!approvedKYC
                 }
             },
             'Password reset successfully'
@@ -498,6 +510,11 @@ async function signupWithPassword(req, res) {
         // Generate JWT token
         const token = signToken(newUser);
 
+        // Check if user has approved KYC
+        const approvedKYC = await KYC.findOne({
+            where: { userId: newUser.id, status: 'approved' }
+        });
+
         return res.success(
             {
                 token,
@@ -506,7 +523,8 @@ async function signupWithPassword(req, res) {
                     phoneNumber: newUser.phoneNumber,
                     fullName: newUser.fullName,
                     email: newUser.email,
-                    gender: newUser.gender
+                    gender: newUser.gender,
+                    kycVerified: !!approvedKYC
                 }
             },
             'User registered successfully'
@@ -548,6 +566,11 @@ async function loginWithPassword(req, res) {
         // Generate JWT token
         const token = signToken(user);
 
+        // Check if user has approved KYC
+        const approvedKYC = await KYC.findOne({
+            where: { userId: user.id, status: 'approved' }
+        });
+
         return res.success(
             {
                 token,
@@ -556,7 +579,8 @@ async function loginWithPassword(req, res) {
                     phoneNumber: user.phoneNumber,
                     fullName: user.fullName,
                     email: user.email,
-                    gender: user.gender
+                    gender: user.gender,
+                    kycVerified: !!approvedKYC
                 }
             },
             'Login successful'

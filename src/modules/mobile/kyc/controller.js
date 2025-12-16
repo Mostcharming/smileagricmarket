@@ -42,17 +42,22 @@ async function submitKYC(req, res) {
             return res.fail('User not found', 404);
         }
 
-        // Check if user already has pending or approved KYC
-        const existingKYC = await KYC.findOne({
-            where: { userId, status: ['pending', 'approved'] }
+        // Check if user already has a pending KYC
+        const pendingKYC = await KYC.findOne({
+            where: { userId, status: 'pending' }
         });
 
-        if (existingKYC && existingKYC.status === 'approved') {
-            return res.fail('KYC already approved for this user', 409);
+        if (pendingKYC) {
+            return res.fail('You already have a pending KYC submission. Please wait for verification.', 409);
         }
 
-        if (existingKYC && existingKYC.status === 'pending') {
-            return res.fail('KYC submission already pending. Please wait for verification.', 409);
+        // Check if user already has an approved KYC
+        const approvedKYC = await KYC.findOne({
+            where: { userId, status: 'approved' }
+        });
+
+        if (approvedKYC) {
+            return res.fail('KYC already approved for this user', 409);
         }
 
         // Selfie image is required

@@ -256,6 +256,20 @@ router.post('/complete-profile', verifySignupToken, completeProfile);
  *                       description: JWT authentication token
  *                     user:
  *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         fullName:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         gender:
+ *                           type: string
+ *                         kycVerified:
+ *                           type: boolean
+ *                           description: Whether user has approved KYC
  *       400:
  *         description: Invalid password or passwords do not match
  *       401:
@@ -322,6 +336,20 @@ router.post('/set-password', verifySignupToken, setPassword);
  *                       type: string
  *                     user:
  *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         fullName:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         gender:
+ *                           type: string
+ *                         kycVerified:
+ *                           type: boolean
+ *                           description: Whether user has approved KYC
  *       400:
  *         description: Phone number and password are required
  *       409:
@@ -382,6 +410,20 @@ router.post('/signup', signupWithPassword);
  *                       type: string
  *                     user:
  *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         fullName:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         gender:
+ *                           type: string
+ *                         kycVerified:
+ *                           type: boolean
+ *                           description: Whether user has approved KYC
  *       400:
  *         description: Phone number or email and password are required
  *       401:
