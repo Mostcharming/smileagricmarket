@@ -60,6 +60,60 @@ async function requestOtp(req, res) {
 }
 
 /**
+ * Resend OTP - Resend OTP to phone number (for signup or login)
+ * Body: { phoneNumber }
+ */
+async function resendOtp(req, res) {
+    try {
+        const { phoneNumber } = req.body;
+
+        if (!phoneNumber) {
+            return res.fail('Phone number is required', 400);
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({
+            where: { phoneNumber }
+        });
+
+        // Generate new OTP
+        const otp = generateCode(6, { letters: false, numbers: true });
+        const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+
+        if (existingUser) {
+            // Existing user - update OTP in user table
+            await existingUser.update({ otp, otpExpiry });
+        } else {
+            // New user - update or create OTP in temp table
+            const tempOtp = await TempOtp.findOne({
+                where: { phoneNumber }
+            });
+
+            if (tempOtp) {
+                await tempOtp.update({ otp, otpExpiry });
+            } else {
+                await TempOtp.create({
+                    phoneNumber,
+                    otp,
+                    otpExpiry
+                });
+            }
+        }
+
+        // Send OTP via SMS (commented for now)
+        // await notify(user, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
+
+        return res.success(
+            { message: 'OTP sent successfully' },
+            'OTP sent to your phone'
+        );
+    } catch (error) {
+        console.error('Resend OTP error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
+/**
  * Verify OTP - Unified endpoint for both signup and login
  * Body: { phoneNumber, otp }
  */
@@ -292,7 +346,7 @@ async function setPassword(req, res) {
                 }
             },
             'User registered successfully'
-        );
+        )
     } catch (error) {
         console.error('Set password error:', error);
         return res.fail(error.message, 500);
@@ -346,6 +400,57 @@ async function forgot(req, res) {
         );
     } catch (error) {
         console.error('Forgot password error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
+/**
+ * Resend Reset Token - Resend password reset token
+ * Body: { phoneNumber } or { email }
+ */
+async function resendResetToken(req, res) {
+    try {
+        const { phoneNumber, email } = req.body;
+
+        if (!phoneNumber && !email) {
+            return res.fail('Phone number or email is required', 400);
+        }
+
+        // Find user by phone or email
+        const user = await User.findOne({
+            where: phoneNumber ? { phoneNumber } : { email }
+        });
+
+        if (!user) {
+            // Don't reveal if user exists or not (security best practice)
+            return res.success(
+                { message: 'If an account exists, a reset link will be sent' },
+                'If an account exists, a reset link will be sent'
+            );
+        }
+
+        // Generate new reset token (valid for 1 hour)
+        const resetToken = generateCode(32, { letters: true, numbers: true });
+        const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+        // Store new reset token in user record
+        await user.update({
+            resetToken,
+            resetTokenExpiry
+        });
+
+        // Generate reset link
+        const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
+
+        // TODO: Send reset link via SMS or Email
+        // await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
+
+        return res.success(
+            { message: 'Password reset link sent' },
+            'If an account exists, a reset link will be sent'
+        );
+    } catch (error) {
+        console.error('Resend reset token error:', error);
         return res.fail(error.message, 500);
     }
 }
@@ -593,12 +698,14 @@ async function loginWithPassword(req, res) {
 
 module.exports = {
     requestOtp,
+    resendOtp,
     verifyOtp,
     completeProfile,
     setPassword,
     signupWithPassword,
     loginWithPassword,
     forgot,
+    resendResetToken,
     verifyResetToken,
     reset,
 };

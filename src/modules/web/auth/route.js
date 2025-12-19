@@ -3,12 +3,14 @@ const router = express.Router();
 const { verifyToken } = require('../../../middlewares/common/security');
 const {
     requestOtp,
+    resendOtp,
     verifyOtp,
     completeProfile,
     setPassword,
     signupWithPassword,
     loginWithPassword,
     forgot,
+    resendResetToken,
     verifyResetToken,
     reset,
 } = require('./controller');
@@ -143,6 +145,50 @@ router.post('/request-otp', requestOtp);
  *         description: OTP not found or expired
  */
 router.post('/verify-otp', verifyOtp);
+
+/**
+ * @swagger
+ * /web/auth/resend-otp:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Resend OTP
+ *     description: Resend OTP to the provided phone number for both signup and login
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: User phone number
+ *                 example: '08012345678'
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'OTP sent to your phone'
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Bad request - Phone number is required
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/resend-otp', resendOtp);
 
 /**
  * @swagger
@@ -479,6 +525,53 @@ router.post('/login', loginWithPassword);
  *         description: Internal server error
  */
 router.post('/forgot-password', forgot);
+
+/**
+ * @swagger
+ * /web/auth/resend-reset-token:
+ *   post:
+ *     tags:
+ *       - Web Auth
+ *     summary: Resend reset token
+ *     description: Resend a password reset link to the user's phone number or email. Returns a generic message for security reasons (doesn't reveal if user exists).
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: User phone number (required if email not provided)
+ *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email (required if phoneNumber not provided)
+ *                 example: 'john@example.com'
+ *     responses:
+ *       200:
+ *         description: Password reset request processed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'If an account exists, a reset link will be sent'
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Phone number or email is required
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/resend-reset-token', resendResetToken);
 
 /**
  * @swagger
