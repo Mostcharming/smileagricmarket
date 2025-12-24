@@ -32,7 +32,8 @@ async function requestOtp(req, res) {
 
         // Generate OTP
         const otp = generateCode(6, { letters: false, numbers: true });
-        const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+        // const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+        const otpExpiry = null; // OTP never expires
 
         if (existingUser) {
             // Existing user - store OTP in user table
@@ -78,7 +79,8 @@ async function resendOtp(req, res) {
 
         // Generate new OTP
         const otp = generateCode(6, { letters: false, numbers: true });
-        const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+        // const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+        const otpExpiry = null; // OTP never expires
 
         if (existingUser) {
             // Existing user - update OTP in user table
@@ -161,9 +163,9 @@ async function verifyOtp(req, res) {
         }
 
         // Check if OTP has expired
-        if (new Date() > otpExpiry) {
-            return res.fail('OTP has expired', 400);
-        }
+        // if (new Date() > otpExpiry) {
+        //     return res.fail('OTP has expired', 400);
+        // }
 
         if (isNewUser) {
             // For new users, don't create user yet - just return a token for signup flow
