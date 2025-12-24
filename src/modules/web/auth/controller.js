@@ -6,9 +6,10 @@ const defineModels = require('../../../database/models');
 const generateCode = require('../../../utils/verificationCode');
 const notify = require('../../../utils/notify');
 const { signToken } = require('../../../middlewares/common/security');
+const { getTemplate } = require('../../../utils/templateLoader');
 
 const models = defineModels(sequelize);
-const { User, TempOtp } = models;
+const { User, TempOtp, KYC } = models;
 
 const OTP_EXPIRY_MINUTES = 10;
 const DEV_OVERRIDE_OTP = '777666';
@@ -38,6 +39,9 @@ async function requestOtp(req, res) {
         if (existingUser) {
             // Existing user - store OTP in user table
             await existingUser.update({ otp, otpExpiry });
+            
+            // Send OTP via SMS
+            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
         } else {
             // New user - store OTP in temp table
             await TempOtp.create({
@@ -45,10 +49,18 @@ async function requestOtp(req, res) {
                 otp,
                 otpExpiry
             });
+            
+            // Create temporary user object for notification
+            const tempUser = {
+                id: phoneNumber,
+                phoneNumber: phoneNumber,
+                fullName: null,
+                email: null
+            };
+            
+            // Send OTP via SMS
+            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
         }
-
-        // Send OTP via SMS (commented for now)
-        // await notify(user, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
 
         return res.success(
             { message: 'OTP sent successfully' },
@@ -85,6 +97,9 @@ async function resendOtp(req, res) {
         if (existingUser) {
             // Existing user - update OTP in user table
             await existingUser.update({ otp, otpExpiry });
+            
+            // Send OTP via SMS
+            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
         } else {
             // New user - update or create OTP in temp table
             const tempOtp = await TempOtp.findOne({
@@ -100,10 +115,18 @@ async function resendOtp(req, res) {
                     otpExpiry
                 });
             }
+            
+            // Create temporary user object for notification
+            const tempUser = {
+                id: phoneNumber,
+                phoneNumber: phoneNumber,
+                fullName: null,
+                email: null
+            };
+            
+            // Send OTP via SMS
+            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
         }
-
-        // Send OTP via SMS (commented for now)
-        // await notify(user, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
 
         return res.success(
             { message: 'OTP sent successfully' },
@@ -393,8 +416,8 @@ async function forgot(req, res) {
         // Generate reset link
         const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
 
-        // TODO: Send reset link via SMS or Email
-        // await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
+        // Send reset link via SMS or Email
+        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
 
         return res.success(
             { message: 'Password reset link sent' },
@@ -444,8 +467,8 @@ async function resendResetToken(req, res) {
         // Generate reset link
         const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
 
-        // TODO: Send reset link via SMS or Email
-        // await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
+        // Send reset link via SMS or Email
+        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
 
         return res.success(
             { message: 'Password reset link sent' },
