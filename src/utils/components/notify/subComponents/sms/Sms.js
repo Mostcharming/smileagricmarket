@@ -2,36 +2,34 @@ const NotifyProcess = require('../NotifyProcess');
 const SmsGateway = require('./SmsGateway');
 
 class Sms extends NotifyProcess {
-    constructor(settings) {
+    constructor(config) {
         super();
         this.mobile = null;
         this.statusField = 'smsStatus';
         this.body = 'smsBody';
         this.globalTemplate = 'smsBody';
-        this.notifyConfig = 'smsConfig';
-        this.setting = settings;
+        this.notifyConfig = 'sms';
+        this.config = config;
     }
 
     async send() {
         const message = await this.getMessage();
 
-        if (this.setting.smsNotification && message) {
+        if (message) {
             try {
-                const fixedJson = this.setting.smsConfig.replace(/\\\//g, '/');
-                const smsConfig = JSON.parse(fixedJson);
-
-                const gateway = smsConfig.name;
+                const smsConfig = this.config.sms;
+                const gateway = smsConfig.provider || 'temii';
 
                 if (this.mobile) {
                     const sendSms = new SmsGateway(
                         smsConfig,
                         this.stripTags(message),
                         this.mobile,
-                        this.setting.smsFrom
+                        smsConfig.senderId
                     );
 
                     sendSms.to = this.mobile;
-                    sendSms.sender = this.setting.smsFrom;
+                    sendSms.sender = smsConfig.senderId;
                     sendSms.message = this.stripTags(message);
                     sendSms.config = smsConfig;
 

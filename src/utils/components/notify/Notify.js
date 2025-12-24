@@ -1,4 +1,4 @@
-const { getGeneralSettings } = require("../../generalSettings");
+const { getTemiiConfig } = require("../../temii-config-loader");
 const Email = require("./subComponents/Email");
 const Sms = require("./subComponents/sms/Sms");
 
@@ -10,14 +10,14 @@ class Notify {
         this.sendVia = sendVia;
         this.user = null;
         this.createLog = false;
-        this.setting = null;
+        this.config = null;
         this.userColumn = '';
         this.userType = null;
     }
 
     async send() {
-        if (!this.setting) {
-            this.setting = await getGeneralSettings();
+        if (!this.config) {
+            this.config = getTemiiConfig();
         }
 
         let methods = {};
@@ -34,11 +34,11 @@ class Notify {
         }
 
         for (const [methodName, MethodClass] of Object.entries(methods)) {
-            const notifyInstance = new MethodClass(this.setting);
+            const notifyInstance = new MethodClass(this.config);
             notifyInstance.templateName = this.templateName;
             notifyInstance.shortCodes = this.shortCodes;
             notifyInstance.user = this.user;
-            notifyInstance.setting = this.setting;
+            notifyInstance.config = this.config;
             notifyInstance.createLog = this.createLog;
             notifyInstance.userColumn = this.userColumn;
             notifyInstance.userType = this.userType;

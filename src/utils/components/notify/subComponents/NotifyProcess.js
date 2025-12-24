@@ -1,6 +1,5 @@
 const NotificationLog = require("../../../../database/models/NotificationLog");
 const NotificationTemplate = require("../../../../database/models/NotificationTemplate");
-const { getGeneralSettings } = require("../../../generalSettings");
 
 
 // const { AdminNotification, NotificationLog, NotificationTemplate } = models;
@@ -10,7 +9,7 @@ class NotifyProcess {
         this.templateName = null;
         this.shortCodes = {};
         this.user = null;
-        this.setting = null;
+        this.config = null;
         this.statusField = null;
         this.globalTemplate = null;
         this.body = null;
@@ -29,7 +28,6 @@ class NotifyProcess {
         if (this.prevConfiguration) {
             this.prevConfiguration();
         }
-        await this.setSetting();
 
         const body = this.body;
         const user = this.user;
@@ -56,7 +54,7 @@ class NotifyProcess {
             }
             message = this.replaceShortCode(
                 user.firstName,
-                this.setting[globalTemplate] || '',
+                '',
                 template[this.body]
             );
             if (!message) {
@@ -67,7 +65,7 @@ class NotifyProcess {
             message = this.replaceShortCode(
                 this.receiverName,
                 this.toAddress,
-                this.setting[globalTemplate] || '',
+                '',
                 this.message
             );
         }
@@ -105,12 +103,6 @@ class NotifyProcess {
         }
     }
 
-    async setSetting() {
-        if (!this.setting) {
-            this.setting = await getGeneralSettings();
-        }
-    }
-
     async createErrorLog(message) {
         // await AdminNotification.create({
         //     title: message,
@@ -120,13 +112,12 @@ class NotifyProcess {
 
     async createLogEntry(notificationType) {
         if (this.user && this.createLog) {
-            const notifyConfig = this.notifyConfig;
-            const config = this.setting[notifyConfig] || {};
+            const config = this.config[notificationType] || {};
 
             await NotificationLog.create({
                 notificationType: notificationType,
-                sender: config.name || '',
-                sentFrom: this.setting.emailFrom || '',
+                sender: config.provider || 'temii',
+                sentFrom: config.fromEmail || config.senderId || '',
                 sentTo: this[notificationType === 'email' ? 'email' : 'mobile'] || null,
                 subject: this.subject,
                 userId: this.user.id,

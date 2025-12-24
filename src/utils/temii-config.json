@@ -1,0 +1,17 @@
+{
+  "sms": {
+    "name": "temii",
+    "provider": "temii",
+    "apiKey": "TLtIqOjKCRgvXDCmKHMgzAQEXSApvkRYVOwLTHRpRMFKnyxjvCkeZMhsuiSySh",
+    "senderId": "Smile Agri",
+    "baseUrl": "https://api.ng.termii.com/api/sms/send"
+  },
+  "email": {
+    "name": "temii",
+    "provider": "temii",
+    "apiKey": "TLtIqOjKCRgvXDCmKHMgzAQEXSApvkRYVOwLTHRpRMFKnyxjvCkeZMhsuiSySh",
+    "baseUrl": "https://api.ng.termii.com/api/email/send",
+    "fromEmail": "noreply@smileagrimarket.com",
+    "fromName": "Smile Agrimarket"
+  }
+}

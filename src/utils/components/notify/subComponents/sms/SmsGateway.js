@@ -70,6 +70,27 @@ class SmsGateway {
             throw new Error(`SMS Gateway Error: ${error.message}`);
         }
     }
+
+    async temii() {
+        try {
+            const response = await axios.post(this.config.baseUrl, {
+                to: this.to,
+                from: this.sender,
+                sms: this.message,
+                type: 'plain',
+                api_key: this.config.apiKey,
+                channel: 'generic'
+            });
+
+            if (!response.data || response.data.code !== '100') {
+                throw new Error(response.data?.message || 'Failed to send SMS via Temii');
+            }
+
+            return response.data;
+        } catch (error) {
+            throw new Error(`Temii SMS Error: ${error.message}`);
+        }
+    }
 }
 
 module.exports = SmsGateway;
