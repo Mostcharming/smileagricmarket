@@ -10,7 +10,7 @@ const { signToken } = require('../../../middlewares/common/security');
 const models = defineModels(sequelize);
 const { User, TempOtp, KYC } = models;
 
-const OTP_EXPIRY_MINUTES = 10;
+const OTP_EXPIRY_MINUTES = 30;
 const DEV_OVERRIDE_OTP = '777666';
 
 /**
@@ -389,7 +389,7 @@ async function forgot(req, res) {
         });
 
         // Generate reset link
-        const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
+        const resetLink = `${process.env.FE_URL || "https://smileagrimarket.com"}/reset-password/${resetToken}`;
 
         // TODO: Send reset link via SMS or Email
         // await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
@@ -440,7 +440,7 @@ async function resendResetToken(req, res) {
         });
 
         // Generate reset link
-        const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
+        const resetLink = `${process.env.FE_URL || "https://smileagrimarket.com"}/reset-password/${resetToken}`;
 
         // TODO: Send reset link via SMS or Email
         // await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);

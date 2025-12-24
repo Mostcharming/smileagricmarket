@@ -2,7 +2,7 @@ const path = require('path');
 
 const config = {
     development: {
-        feUrl: "http://localhost:3001",
+        feUrl: "https://smileagrimarket.com",
         db: {
             master: {
                 host: "192.168.1.165",
