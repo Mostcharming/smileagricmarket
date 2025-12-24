@@ -21,14 +21,11 @@ const uploadDir = (config && config.uploads && config.uploads.kycDir)
     ? config.uploads.kycDir
     : path.resolve(__dirname, '..', '..', 'uploads', 'kyc');
 
-// ensure directory exists
 try {
     fs.mkdirSync(uploadDir, { recursive: true });
 } catch (e) {
-    // ignore, will surface later if permissions prevent creation
 }
 
-// multer storage and filters
 const storage = multer ? multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, uploadDir);
@@ -49,13 +46,9 @@ function fileFilter(req, file, cb) {
 const upload = multer ? multer({
     storage,
     fileFilter,
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB for document clarity
+    limits: { fileSize: 10 * 1024 * 1024 }
 }) : null;
 
-/**
- * Middleware to handle KYC file uploads
- * Accepts multiple files: idDocument and selfie
- */
 function uploadKYC(req, res, next) {
     ensureMulterAvailable();
 
@@ -64,12 +57,10 @@ function uploadKYC(req, res, next) {
         { name: 'selfie', maxCount: 1 }
     ])(req, res, function (err) {
         if (err) {
-            // multer error
             if (err.code === 'LIMIT_FILE_SIZE') return res.fail('File too large (max 10MB)', 400);
             return res.fail(err.message || 'File upload error', 400);
         }
 
-        // attach helpful info for downstream handlers
         req.kycFiles = {};
 
         if (req.files && req.files.idDocument && req.files.idDocument[0]) {

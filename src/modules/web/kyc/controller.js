@@ -6,12 +6,6 @@ const defineModels = require('../../../database/models');
 const models = defineModels(sequelize);
 const { User, KYC } = models;
 
-/**
- * Submit KYC - Upload selfie image
- * Body: { identificationType, identificationNumber }
- * Files: selfie (required)
- * Auth: User must be logged in
- */
 async function submitKYC(req, res) {
     try {
         const userId = req.user?.id;
@@ -25,24 +19,20 @@ async function submitKYC(req, res) {
             return res.fail('Identification type and number are required', 400);
         }
 
-        // Validate identification type
         const validTypes = ['national_id', 'passport', 'driver_license', 'tin', 'voter_card'];
         if (!validTypes.includes(identificationType)) {
             return res.fail(`Invalid identification type. Must be one of: ${validTypes.join(', ')}`, 400);
         }
 
-        // Check if identification number is valid (at least 5 characters)
         if (identificationNumber.length < 5) {
             return res.fail('Identification number must be at least 5 characters', 400);
         }
 
-        // Check if user exists
         const user = await User.findByPk(userId);
         if (!user) {
             return res.fail('User not found', 404);
         }
 
-        // Check if user already has a pending KYC
         const pendingKYC = await KYC.findOne({
             where: { userId, status: 'pending' }
         });
@@ -51,7 +41,6 @@ async function submitKYC(req, res) {
             return res.fail('You already have a pending KYC submission. Please wait for verification.', 409);
         }
 
-        // Check if user already has an approved KYC
         const approvedKYC = await KYC.findOne({
             where: { userId, status: 'approved' }
         });
@@ -60,14 +49,12 @@ async function submitKYC(req, res) {
             return res.fail('KYC already approved for this user', 409);
         }
 
-        // Selfie image is required
         const hasSelfie = req.kycFiles && req.kycFiles.selfie;
 
         if (!hasSelfie) {
             return res.fail('Selfie image is required', 400);
         }
 
-        // Create KYC record
         const kycData = {
             userId,
             identificationType,
@@ -96,10 +83,6 @@ async function submitKYC(req, res) {
     }
 }
 
-/**
- * Get KYC Status - Get current KYC status for logged-in user
- * Auth: User must be logged in
- */
 async function getKYCStatus(req, res) {
     try {
         const userId = req.user?.id;
@@ -108,13 +91,11 @@ async function getKYCStatus(req, res) {
             return res.fail('User not authenticated', 401);
         }
 
-        // Check if user exists
         const user = await User.findByPk(userId);
         if (!user) {
             return res.fail('User not found', 404);
         }
 
-        // Get latest KYC record
         const kyc = await KYC.findOne({
             where: { userId },
             order: [['createdAt', 'DESC']]
@@ -148,12 +129,6 @@ async function getKYCStatus(req, res) {
     }
 }
 
-/**
- * Update KYC - Resubmit KYC if rejected
- * Body: { identificationType, identificationNumber }
- * Files: selfie (required)
- * Auth: User must be logged in
- */
 async function updateKYC(req, res) {
     try {
         const userId = req.user?.id;
@@ -167,19 +142,16 @@ async function updateKYC(req, res) {
             return res.fail('Identification type and number are required', 400);
         }
 
-        // Validate identification type
         const validTypes = ['national_id', 'passport', 'driver_license', 'tin', 'voter_card'];
         if (!validTypes.includes(identificationType)) {
             return res.fail(`Invalid identification type. Must be one of: ${validTypes.join(', ')}`, 400);
         }
 
-        // Check if user exists
         const user = await User.findByPk(userId);
         if (!user) {
             return res.fail('User not found', 404);
         }
 
-        // Find latest KYC record
         const kyc = await KYC.findOne({
             where: { userId },
             order: [['createdAt', 'DESC']]
@@ -189,19 +161,16 @@ async function updateKYC(req, res) {
             return res.fail('No KYC record found. Please submit first.', 404);
         }
 
-        // Can only update if rejected or pending
         if (kyc.status === 'approved') {
             return res.fail('Cannot update approved KYC', 409);
         }
 
-        // Selfie image is required
         const hasSelfie = req.kycFiles && req.kycFiles.selfie;
 
         if (!hasSelfie) {
             return res.fail('Selfie image is required', 400);
         }
 
-        // Update KYC record
         const updateData = {
             identificationType,
             identificationNumber,
@@ -230,26 +199,18 @@ async function updateKYC(req, res) {
     }
 }
 
-/**
- * Get KYC List - Get all KYC records (Admin only)
- * Query: { status, page, limit }
- * Auth: Admin user only
- */
 async function getKYCList(req, res) {
     try {
         const { status, page = 1, limit = 20 } = req.query;
         const offset = (page - 1) * limit;
 
-        // Build where clause
         const where = {};
         if (status && ['pending', 'approved', 'rejected'].includes(status)) {
             where.status = status;
         }
 
-        // Get total count
         const total = await KYC.count({ where });
 
-        // Get paginated results
         const kycs = await KYC.findAll({
             where,
             include: [
@@ -288,11 +249,6 @@ async function getKYCList(req, res) {
     }
 }
 
-/**
- * Approve KYC - Admin endpoint to approve KYC
- * Body: { kycId }
- * Auth: Admin user only
- */
 async function approveKYC(req, res) {
     try {
         const { kycId } = req.body;
@@ -336,11 +292,6 @@ async function approveKYC(req, res) {
     }
 }
 
-/**
- * Reject KYC - Admin endpoint to reject KYC
- * Body: { kycId, rejectionReason }
- * Auth: Admin user only
- */
 async function rejectKYC(req, res) {
     try {
         const { kycId, rejectionReason } = req.body;

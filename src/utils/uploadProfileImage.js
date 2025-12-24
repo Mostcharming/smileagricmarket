@@ -21,14 +21,11 @@ const uploadDir = (config && config.uploads && config.uploads.profileDir)
     ? config.uploads.profileDir
     : path.resolve(__dirname, '..', '..', 'uploads', 'profiles');
 
-// ensure directory exists
 try {
     fs.mkdirSync(uploadDir, { recursive: true });
 } catch (e) {
-    // ignore, will surface later if permissions prevent creation
 }
 
-// multer storage and filters
 const storage = multer ? multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, uploadDir);
@@ -49,10 +46,9 @@ function fileFilter(req, file, cb) {
 const upload = multer ? multer({
     storage,
     fileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+    limits: { fileSize: 5 * 1024 * 1024 }
 }) : null;
 
-// returns an express middleware that accepts single file under field `picture` by default
 function uploadProfileImage(fieldName = 'picture') {
     ensureMulterAvailable();
 
@@ -60,17 +56,14 @@ function uploadProfileImage(fieldName = 'picture') {
         const handler = upload.single(fieldName);
         handler(req, res, function (err) {
             if (err) {
-                // multer error
                 if (err.code === 'LIMIT_FILE_SIZE') return res.fail('File too large (max 5MB)', 400);
                 return res.fail(err.message || 'File upload error', 400);
             }
 
             if (req.file) {
-                // attach helpful info for downstream handlers
                 req.profileImage = {
                     filename: req.file.filename,
                     path: req.file.path,
-                    // served at /upload by the server static middleware
                     url: `/upload/${req.file.filename}`
                 };
             }

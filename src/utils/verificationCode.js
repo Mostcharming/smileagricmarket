@@ -1,4 +1,3 @@
-// utils/codeGenerator.js
 function generateCode(length = 8, options = { letters: true, numbers: true }) {
     let chars = '';
 
@@ -16,10 +15,5 @@ function generateCode(length = 8, options = { letters: true, numbers: true }) {
 
     return code;
 }
-
-// Example usage:
-console.log(generateCode(10)); // e.g. "a9ZbD3qP0t"
-console.log(generateCode(6, { letters: false, numbers: true })); // e.g. "492581"
-console.log(generateCode(12, { letters: true, numbers: false })); // e.g. "xYzQaBcDeFgH"
 
 module.exports = generateCode;

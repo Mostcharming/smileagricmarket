@@ -50,5 +50,4 @@ const currentConfig =
         ? config.production
         : config.development;
 
-
 module.exports = currentConfig;

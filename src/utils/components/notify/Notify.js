@@ -2,7 +2,6 @@ const { getTemiiConfig } = require("../../temii-config-loader");
 const Email = require("./subComponents/Email");
 const Sms = require("./subComponents/sms/Sms");
 
-
 class Notify {
     constructor(sendVia = null) {
         this.templateName = '';

@@ -15,7 +15,6 @@ const {
     reset,
 } = require('./controller');
 
-// Middleware to verify signup token
 const verifySignupToken = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization || req.headers['x-access-token'] || req.query.token;
@@ -33,7 +32,6 @@ const verifySignupToken = (req, res, next) => {
             return res.fail('Invalid or expired token', 401);
         }
 
-        // Check if it's a signup token
         if (!payload.user || !payload.user.isSignupInProgress) {
             return res.fail('This token is not valid for signup. Please verify OTP first.', 401);
         }

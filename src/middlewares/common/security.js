@@ -1,7 +1,5 @@
 'use strict';
 
-
-
 const jwtLib = (() => {
     try {
         return require('jsonwebtoken');
