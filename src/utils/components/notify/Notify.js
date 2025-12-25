@@ -3,7 +3,7 @@ const Email = require("./subComponents/Email");
 const Sms = require("./subComponents/sms/Sms");
 
 class Notify {
-    constructor(sendVia = null) {
+    constructor(sendVia = null, models = null) {
         this.templateName = '';
         this.shortCodes = {};
         this.sendVia = sendVia;
@@ -12,6 +12,7 @@ class Notify {
         this.config = null;
         this.userColumn = '';
         this.userType = null;
+        this.models = models;
     }
 
     async send() {
@@ -41,6 +42,7 @@ class Notify {
             notifyInstance.createLog = this.createLog;
             notifyInstance.userColumn = this.userColumn;
             notifyInstance.userType = this.userType;
+            notifyInstance.NotificationLog = this.models?.NotificationLog || null;
 
             await notifyInstance.send();
         }

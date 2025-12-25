@@ -6,7 +6,6 @@ const defineModels = require('../../../database/models');
 const generateCode = require('../../../utils/verificationCode');
 const notify = require('../../../utils/notify');
 const { signToken } = require('../../../middlewares/common/security');
-const { getTemplate } = require('../../../utils/templateLoader');
 
 const models = defineModels(sequelize);
 const { User, TempOtp, KYC } = models;
@@ -33,7 +32,7 @@ async function requestOtp(req, res) {
         if (existingUser) {
             await existingUser.update({ otp, otpExpiry });
 
-            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
+            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         } else {
             await TempOtp.create({
                 phoneNumber,
@@ -48,7 +47,7 @@ async function requestOtp(req, res) {
                 email: null
             };
 
-            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
+            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         }
 
         return res.success(
@@ -80,7 +79,7 @@ async function resendOtp(req, res) {
         if (existingUser) {
             await existingUser.update({ otp, otpExpiry });
 
-            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
+            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         } else {
             const tempOtp = await TempOtp.findOne({
                 where: { phoneNumber }
@@ -103,7 +102,7 @@ async function resendOtp(req, res) {
                 email: null
             };
 
-            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms']);
+            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         }
 
         return res.success(
@@ -349,7 +348,7 @@ async function forgot(req, res) {
 
         const resetLink = `${process.env.FE_URL || "https://smileagrimarket.com"}/reset-password/${resetToken}`;
 
-        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
+        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email'], true, models);
 
         return res.success(
             { message: 'Password reset link sent' },
@@ -390,7 +389,7 @@ async function resendResetToken(req, res) {
 
         const resetLink = `${process.env.FE_URL || "https://smileagrimarket.com"}/reset-password/${resetToken}`;
 
-        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email']);
+        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email'], true, models);
 
         return res.success(
             { message: 'Password reset link sent' },

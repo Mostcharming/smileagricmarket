@@ -10,6 +10,10 @@ class Sms extends NotifyProcess {
         this.globalTemplate = 'smsBody';
         this.notifyConfig = 'sms';
         this.config = config;
+
+        if (this.user) {
+            this.prevConfiguration();
+        }
     }
 
     async send() {

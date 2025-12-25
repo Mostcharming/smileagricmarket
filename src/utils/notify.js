@@ -1,7 +1,7 @@
 const Notify = require("./components/notify/Notify");
 
-async function notify(user, userType, templateName, shortCodes = null, sendVia = null, createLog = true) {
-    const notifyInstance = new Notify(sendVia);
+async function notify(user, userType, templateName, shortCodes = null, sendVia = null, createLog = true, models = null) {
+    const notifyInstance = new Notify(sendVia, models);
     notifyInstance.templateName = templateName;
     notifyInstance.shortCodes = shortCodes;
     notifyInstance.user = user;

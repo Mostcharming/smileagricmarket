@@ -23,7 +23,7 @@ module.exports = (sequelize) => {
         },
         otpExpiry: {
             type: DataTypes.DATE,
-            allowNull: false,
+            allowNull: true,
             field: 'otp_expiry'
         }
     }, {

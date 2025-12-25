@@ -1,8 +1,4 @@
-const NotificationLog = require("../../../../database/models/NotificationLog");
-const NotificationTemplate = require("../../../../database/models/NotificationTemplate");
-
-
-// const { AdminNotification, NotificationLog, NotificationTemplate } = models;
+const templateLoader = require("../../../notificationTemplateLoader");
 
 class NotifyProcess {
     constructor() {
@@ -22,6 +18,7 @@ class NotifyProcess {
         this.userColumn = null;
         this.toAddress = null;
         this.finalMessage = null;
+        this.NotificationLog = null; // Will be set by subclasses or callers
     }
 
     async getMessage() {
@@ -29,75 +26,59 @@ class NotifyProcess {
             this.prevConfiguration();
         }
 
-        const body = this.body;
-        const user = this.user;
-        const globalTemplate = this.globalTemplate;
-
-        const template = await NotificationTemplate.findOne({
-            where: { act: this.templateName }
-        });
-        this.template = template;
-
-        let message;
-
-        if (user && template) {
-            const statusField = this.statusField;
-            const statusValue = template ? template[statusField] : undefined;
-            const enabled = (
-                statusValue === true ||
-                statusValue === 1 ||
-                statusValue === '1' ||
-                (typeof statusValue === 'string' && statusValue.toLowerCase() === 'true')
-            );
-            if (!enabled) {
-                return false;
-            }
-            message = this.replaceShortCode(
-                user.firstName,
-                '',
-                template[this.body]
-            );
-            if (!message) {
-                message = template[this.body];
-            }
-        } else {
-            this.toAddress = user.email;
-            message = this.replaceShortCode(
-                this.receiverName,
-                this.toAddress,
-                '',
-                this.message
-            );
-        }
-
-        if (this.shortCodes) {
-            for (const [code, value] of Object.entries(this.shortCodes)) {
-                message = message.replace(new RegExp(`{{${code}}}`, 'g'), String(value));
-            }
-        }
-
-        if (!this.template && this.templateName) {
+        if (!this.templateName) {
+            console.error('Template name is not set');
             return false;
         }
 
-        this.getSubject();
-        this.finalMessage = message;
-        return message;
-    }
+        try {
+            // Verify templateLoader is available and has getTemplate method
+            if (!templateLoader || typeof templateLoader.getTemplate !== 'function') {
+                console.error('Template loader is not properly initialized or getTemplate method is not available');
+                return false;
+            }
 
-    replaceShortCode(name, template, body) {
-        let message = template.replace(/{{firstName}}/g, name);
-        message = message.replace(/{{message}}/g, body);
-        return message;
+            const template = templateLoader.getTemplate(this.templateName);
+
+            if (!template) {
+                console.error(`Template not found: ${this.templateName}`);
+                return false;
+            }
+
+            this.template = template;
+
+            let message = template[this.body] || '';
+
+            if (this.shortCodes) {
+                for (const [code, value] of Object.entries(this.shortCodes)) {
+                    message = message.replace(new RegExp(`{{${code}}}`, 'g'), String(value));
+                }
+            }
+
+            // Replace firstName if available
+            if (this.user && this.user.firstName) {
+                message = message.replace(/{{firstName}}/g, this.user.firstName);
+            }
+
+            this.getSubject();
+            this.finalMessage = message;
+            return message;
+        } catch (error) {
+            console.error('Error in getMessage:', error.message);
+            return false;
+        }
     }
 
     getSubject() {
         if (this.template) {
-            let subject = this.template.subj;
+            let subject = this.template.emailSubject || '';
             if (this.shortCodes) {
                 for (const [code, value] of Object.entries(this.shortCodes)) {
                     subject = subject.replace(new RegExp(`{{${code}}}`, 'g'), String(value));
                 }
+            }
+            if (this.user && this.user.firstName) {
+                subject = subject.replace(/{{firstName}}/g, this.user.firstName);
             }
             this.subject = subject;
         }
@@ -111,10 +92,10 @@ class NotifyProcess {
     }
 
     async createLogEntry(notificationType) {
-        if (this.user && this.createLog) {
+        if (this.user && this.createLog && this.NotificationLog) {
             const config = this.config[notificationType] || {};
 
-            await NotificationLog.create({
+            await this.NotificationLog.create({
                 notificationType: notificationType,
                 sender: config.provider || 'temii',
                 sentFrom: config.fromEmail || config.senderId || '',
