@@ -33,6 +33,8 @@ class Notify {
             methods = this.notifyMethods();
         }
 
+        const errors = [];
+
         for (const [methodName, MethodClass] of Object.entries(methods)) {
             const notifyInstance = new MethodClass(this.config);
             notifyInstance.templateName = this.templateName;
@@ -42,9 +44,20 @@ class Notify {
             notifyInstance.createLog = this.createLog;
             notifyInstance.userColumn = this.userColumn;
             notifyInstance.userType = this.userType;
-            notifyInstance.NotificationLog = this.models?.NotificationLog || null;
 
-            await notifyInstance.send();
+            try {
+                await notifyInstance.send();
+            } catch (error) {
+                errors.push({
+                    method: methodName,
+                    error: error.message
+                });
+            }
+        }
+
+        if (errors.length > 0) {
+            const errorMessage = errors.map(e => `${e.method}: ${e.error}`).join('; ');
+            throw new Error(`Notification failed - ${errorMessage}`);
         }
     }
 

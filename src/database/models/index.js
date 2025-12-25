@@ -6,8 +6,6 @@ module.exports = (sequelize) => {
         TempOtp: require('./TempOtp')(sequelize),
         KYC: require('./KYC')(sequelize),
         GeneralSetting: require('./GeneralSetting')(sequelize),
-        NotificationTemplate: require('./NotificationTemplate')(sequelize),
-        NotificationLog: require('./NotificationLog')(sequelize),
     };
 
     return models;

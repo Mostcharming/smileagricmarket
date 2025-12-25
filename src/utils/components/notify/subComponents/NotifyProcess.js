@@ -18,7 +18,6 @@ class NotifyProcess {
         this.userColumn = null;
         this.toAddress = null;
         this.finalMessage = null;
-        this.NotificationLog = null; // Will be set by subclasses or callers
     }
 
     async getMessage() {
@@ -27,22 +26,19 @@ class NotifyProcess {
         }
 
         if (!this.templateName) {
-            console.error('Template name is not set');
-            return false;
+            throw new Error('Template name is not set');
         }
 
         try {
             // Verify templateLoader is available and has getTemplate method
             if (!templateLoader || typeof templateLoader.getTemplate !== 'function') {
-                console.error('Template loader is not properly initialized or getTemplate method is not available');
-                return false;
+                throw new Error('Template loader is not properly initialized or getTemplate method is not available');
             }
 
             const template = templateLoader.getTemplate(this.templateName);
 
             if (!template) {
-                console.error(`Template not found: ${this.templateName}`);
-                return false;
+                throw new Error(`Template not found: ${this.templateName}`);
             }
 
             this.template = template;
@@ -64,8 +60,7 @@ class NotifyProcess {
             this.finalMessage = message;
             return message;
         } catch (error) {
-            console.error('Error in getMessage:', error.message);
-            return false;
+            throw new Error(`Failed to get message: ${error.message}`);
         }
     }
 
@@ -89,25 +84,6 @@ class NotifyProcess {
         //     title: message,
         //     clickUrl: '#'
         // });
-    }
-
-    async createLogEntry(notificationType) {
-        if (this.user && this.createLog && this.NotificationLog) {
-            const config = this.config[notificationType] || {};
-
-            await this.NotificationLog.create({
-                notificationType: notificationType,
-                sender: config.provider || 'temii',
-                sentFrom: config.fromEmail || config.senderId || '',
-                sentTo: this[notificationType === 'email' ? 'email' : 'mobile'] || null,
-                subject: this.subject,
-                userId: this.user.id,
-                userType: this.userType,
-                message: notificationType === 'email'
-                    ? this.finalMessage
-                    : this.finalMessage.trim()
-            });
-        }
     }
 }
 

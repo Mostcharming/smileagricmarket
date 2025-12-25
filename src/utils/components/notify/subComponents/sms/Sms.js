@@ -38,13 +38,16 @@ class Sms extends NotifyProcess {
                     sendSms.config = smsConfig;
 
                     await sendSms[gateway]();
-
-                    await this.createLogEntry('sms');
+                } else {
+                    throw new Error('Mobile number is not set');
                 }
             } catch (error) {
                 await this.createErrorLog(`SMS Error: ${error.message}`);
-                console.error(`API Error: ${error.message}`);
+                console.error(`SMS API Error: ${error.message}`);
+                throw error;
             }
+        } else {
+            throw new Error('Failed to generate message from template');
         }
     }
 

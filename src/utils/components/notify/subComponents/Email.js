@@ -34,10 +34,12 @@ class Email extends NotifyProcess {
 
             try {
                 await this[method](emailConfig, message);
-                await this.createLogEntry('email');
             } catch (error) {
                 await this.createErrorLog(error.message);
+                throw error;
             }
+        } else {
+            throw new Error('Failed to generate message from template');
         }
     }
 
