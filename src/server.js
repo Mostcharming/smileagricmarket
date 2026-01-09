@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const compression = require('compression');
+const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
 
 require('./database');
@@ -10,21 +11,60 @@ require('dotenv').config();
 const config = require('./config');
 const swaggerSpec = require('./config/swagger');
 const { responseFormatter } = require('./middlewares/common/responseFormatter');
+const { inputValidationMiddleware } = require('./middlewares/common/inputValidation');
+const { createRateLimitMiddleware } = require('./middlewares/common/rateLimiter');
 const mobileRouter = require('./modules/mobile/route');
 const webRouter = require('./modules/web/route');
 
 const app = express();
 
+// ==================== SECURITY MIDDLEWARE ====================
+
+// 1. Helmet.js - Set security HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+    },
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+
+// 2. CORS Configuration
 app.use(cors({
-  origin: ['https://smileagrimarket.com', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5011'],
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://smileagrimarket.com', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5011'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  maxAge: 600 // 10 minutes
 }));
+
+// 3. Compression
 app.use(compression());
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// 4. Request logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// 5. Request size limits - Prevent large payload attacks
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// 6. Input validation and sanitization
+// app.use(inputValidationMiddleware);
+
+// 7. General rate limiting (across all endpoints)
+app.use(createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  maxRequests: 1000, // 100 requests per 15 minutes
+  message: 'Too many requests from this IP, please try again later'
+}));
 
 app.use(responseFormatter);
 
