@@ -2,6 +2,7 @@ const { errorHandler, responseFormatter } = require('../../middlewares/common/re
 const { securityMiddleware } = require('../../middlewares/common/security');
 const authRouter = require('./auth/route');
 const kycRouter = require('./kyc/route');
+const adminRouter = require('./admin/route');
 
 const router = require('express').Router();
 
@@ -9,6 +10,9 @@ router.use(responseFormatter);
 
 // Auth routes - no security middleware needed
 router.use('/auth', authRouter);
+
+// Admin routes - has its own authentication
+router.use('/admin', adminRouter);
 
 // All other routes require authentication
 router.use(securityMiddleware);

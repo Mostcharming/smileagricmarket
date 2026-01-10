@@ -18,57 +18,51 @@ const webRouter = require('./modules/web/route');
 
 const app = express();
 
-// ==================== SECURITY MIDDLEWARE ====================
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api-docs') || req.path.includes('/api-docs')) {
+    return next();
+  }
 
-// 1. Helmet.js - Set security HTTP headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
     },
-  },
-  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-  frameguard: { action: 'deny' },
-  noSniff: true,
-  xssFilter: true,
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
-}));
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    frameguard: { action: 'deny' },
+    noSniff: true,
+    xssFilter: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+  })(req, res, next);
+});
 
-// 2. CORS Configuration
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://smileagrimarket.com', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5011'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  maxAge: 600 // 10 minutes
+  maxAge: 600
 }));
 
-// 3. Compression
 app.use(compression());
 
-// 4. Request logging
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// 5. Request size limits - Prevent large payload attacks
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// 6. Input validation and sanitization
-// app.use(inputValidationMiddleware);
-
-// 7. General rate limiting (across all endpoints)
 app.use(createRateLimitMiddleware({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 1000, // 100 requests per 15 minutes
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 1000,
   message: 'Too many requests from this IP, please try again later'
 }));
 
 app.use(responseFormatter);
 
-// Serve Swagger JSON
 app.get('/api-docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
@@ -79,7 +73,6 @@ app.get(`/${config.apiVersion}/api-docs.json`, (req, res) => {
   res.send(swaggerSpec);
 });
 
-// Serve Swagger UI
 app.use('/api-docs',
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {
@@ -93,7 +86,6 @@ app.use('/api-docs',
   })
 );
 
-// Serve Swagger UI under API version prefix for load balancer
 app.use(`/${config.apiVersion}/api-docs`,
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {

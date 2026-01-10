@@ -3,6 +3,7 @@
 module.exports = (sequelize) => {
     const models = {
         User: require('./User')(sequelize),
+        Admin: require('./Admin')(sequelize),
         TempOtp: require('./TempOtp')(sequelize),
         KYC: require('./KYC')(sequelize),
         GeneralSetting: require('./GeneralSetting')(sequelize),

@@ -72,6 +72,86 @@ const options = {
                         },
                     },
                 },
+                Admin: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Admin unique identifier',
+                        },
+                        fullName: {
+                            type: 'string',
+                            description: 'Admin full name',
+                        },
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                            description: 'Admin email address',
+                        },
+                        role: {
+                            type: 'string',
+                            enum: ['super_admin', 'admin', 'moderator'],
+                            description: 'Admin role',
+                        },
+                        isActive: {
+                            type: 'boolean',
+                            description: 'Whether admin account is active',
+                        },
+                        lastLoginAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'Last login timestamp',
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
+                KYC: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'KYC unique identifier',
+                        },
+                        userId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'User ID',
+                        },
+                        identificationType: {
+                            type: 'string',
+                            enum: ['national_id', 'passport', 'driver_license', 'tin', 'voter_card'],
+                            description: 'Type of identification',
+                        },
+                        identificationNumber: {
+                            type: 'string',
+                            description: 'Identification number',
+                        },
+                        status: {
+                            type: 'string',
+                            enum: ['pending', 'approved', 'rejected'],
+                            description: 'KYC verification status',
+                        },
+                        submittedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'Submission timestamp',
+                        },
+                        verifiedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            description: 'Verification timestamp',
+                        },
+                    },
+                },
                 Error: {
                     type: 'object',
                     properties: {
@@ -108,6 +188,7 @@ const options = {
         './src/modules/mobile/kyc/route.js',
         './src/modules/web/auth/route.js',
         './src/modules/web/kyc/route.js',
+        './src/modules/web/admin/route.js',
         './src/modules/mobile/route.js',
         './src/modules/web/route.js',
     ],
