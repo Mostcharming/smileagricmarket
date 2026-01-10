@@ -15,7 +15,8 @@ const config = {
 
         },
         uploads: {
-            profileDir: path.resolve(__dirname, '..', 'uploads', 'profiles')
+            profileDir: path.resolve(__dirname, '..', 'uploads', 'profiles'),
+            kycDir: path.resolve(__dirname, '..', 'uploads', 'kyc')
         },
         apiVersion: "v1",
         jwtSecret: "jwt-secret",
@@ -35,7 +36,8 @@ const config = {
 
         },
         uploads: {
-            profileDir: path.resolve(__dirname, '..', 'uploads', 'profiles')
+            profileDir: path.resolve(__dirname, '..', 'uploads', 'profiles'),
+            kycDir: path.resolve(__dirname, '..', 'uploads', 'kyc')
         },
         apiVersion: "v1",
         jwtSecret: "jwt-secret",

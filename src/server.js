@@ -100,7 +100,11 @@ app.use(`/${config.apiVersion}/api-docs`,
 );
 
 if (config && config.uploads && config.uploads.profileDir) {
-  app.use('/upload', express.static(config.uploads.profileDir));
+  app.use('/upload/profiles', express.static(config.uploads.profileDir));
+}
+
+if (config && config.uploads && config.uploads.kycDir) {
+  app.use('/upload/kyc', express.static(config.uploads.kycDir));
 }
 
 app.use(`/${config.apiVersion}/mobile`, mobileRouter);
