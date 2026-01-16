@@ -10,9 +10,6 @@ const notify = require('../../../utils/notify');
 const models = defineModels(sequelize);
 const { Admin, User, KYC } = models;
 
-/**
- * Admin Login
- */
 async function login(req, res) {
     try {
         const { email, password } = req.body;
@@ -21,7 +18,6 @@ async function login(req, res) {
             return res.fail('Email and password are required', 400);
         }
 
-        // Find admin by email
         const admin = await Admin.findOne({
             where: { email }
         });
@@ -30,21 +26,17 @@ async function login(req, res) {
             return res.fail('Invalid email or password', 401);
         }
 
-        // Check if admin is active
         if (!admin.isActive) {
             return res.fail('Your account has been deactivated. Please contact support.', 403);
         }
 
-        // Verify password
         const isPasswordValid = await bcrypt.compare(password, admin.password);
         if (!isPasswordValid) {
             return res.fail('Invalid email or password', 401);
         }
 
-        // Update last login
         await admin.update({ lastLoginAt: new Date() });
 
-        // Generate JWT token
         const token = signToken({
             admin: {
                 id: admin.id,
@@ -73,22 +65,19 @@ async function login(req, res) {
     }
 }
 
-/**
- * Get User Directory (Paginated with search)
- */
 async function getUserDirectory(req, res) {
     try {
         const {
             page = 1,
             limit = 20,
-            search = ''
+            search = '',
+            kycStatus = ''
         } = req.query;
 
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const offset = (pageNum - 1) * limitNum;
 
-        // Build search condition
         const whereClause = search ? {
             [Op.or]: [
                 { fullName: { [Op.iLike]: `%${search}%` } },
@@ -97,7 +86,6 @@ async function getUserDirectory(req, res) {
             ]
         } : {};
 
-        // Get users
         const { count, rows: users } = await User.findAndCountAll({
             where: whereClause,
             attributes: ['id', 'fullName', 'email', 'phoneNumber', 'createdAt'],
@@ -106,45 +94,47 @@ async function getUserDirectory(req, res) {
             order: [['createdAt', 'DESC']]
         });
 
-        // Get KYC data for all users
         const userIds = users.map(user => user.id);
         const kycRecords = await KYC.findAll({
             where: { userId: userIds },
             attributes: ['userId', 'status', 'submittedAt', 'verifiedAt']
         });
 
-        // Create a map of userId to KYC record
         const kycMap = {};
         kycRecords.forEach(kyc => {
             kycMap[kyc.userId] = kyc;
         });
 
-        // Format the response
-        const formattedUsers = users.map(user => {
+        let formattedUsers = users.map(user => {
             const kyc = kycMap[user.id];
-            const kycStatus = kyc ? kyc.status : 'not_submitted';
+            const userKycStatus = kyc ? kyc.status : 'not_submitted';
 
             return {
                 id: user.id,
                 fullName: user.fullName || 'N/A',
                 email: user.email || 'N/A',
                 phoneNumber: user.phoneNumber || 'N/A',
-                kycStatus: kycStatus,
+                kycStatus: userKycStatus,
                 kycSubmittedAt: kyc ? kyc.submittedAt : null,
                 kycVerifiedAt: kyc ? kyc.verifiedAt : null,
                 createdAt: user.createdAt
             };
         });
 
-        const totalPages = Math.ceil(count / limitNum);
+        if (kycStatus && ['not_submitted', 'pending', 'approved', 'rejected'].includes(kycStatus)) {
+            formattedUsers = formattedUsers.filter(user => user.kycStatus === kycStatus);
+        }
+
+        const totalPages = Math.ceil(formattedUsers.length / limitNum);
+        const paginatedUsers = formattedUsers.slice(offset, offset + limitNum);
 
         return res.success(
             {
-                users: formattedUsers,
+                users: paginatedUsers,
                 pagination: {
                     currentPage: pageNum,
                     totalPages: totalPages,
-                    totalUsers: count,
+                    totalUsers: formattedUsers.length,
                     limit: limitNum,
                     hasNextPage: pageNum < totalPages,
                     hasPreviousPage: pageNum > 1
@@ -158,9 +148,6 @@ async function getUserDirectory(req, res) {
     }
 }
 
-/**
- * Get KYC details by User ID
- */
 async function getKYCByUserId(req, res) {
     try {
         const { userId } = req.params;
@@ -169,7 +156,6 @@ async function getKYCByUserId(req, res) {
             return res.fail('User ID is required', 400);
         }
 
-        // Find the user
         const user = await User.findByPk(userId, {
             attributes: ['id', 'fullName', 'email', 'phoneNumber', 'createdAt']
         });
@@ -178,7 +164,6 @@ async function getKYCByUserId(req, res) {
             return res.fail('User not found', 404);
         }
 
-        // Find the latest KYC record for this user
         const kyc = await KYC.findOne({
             where: { userId },
             order: [['createdAt', 'DESC']]
@@ -234,9 +219,6 @@ async function getKYCByUserId(req, res) {
     }
 }
 
-/**
- * Approve KYC
- */
 async function approveKYC(req, res) {
     try {
         const { kycId } = req.body;
@@ -250,7 +232,6 @@ async function approveKYC(req, res) {
             return res.fail('Admin authentication required', 401);
         }
 
-        // Find the KYC record
         const kyc = await KYC.findByPk(kycId);
 
         if (!kyc) {
@@ -261,7 +242,6 @@ async function approveKYC(req, res) {
             return res.fail('KYC is already approved', 409);
         }
 
-        // Update KYC status
         await kyc.update({
             status: 'approved',
             verifiedBy: adminId,
@@ -269,11 +249,9 @@ async function approveKYC(req, res) {
             rejectionReason: null
         });
 
-        // Get user for notification
         const user = await User.findByPk(kyc.userId);
 
         if (user) {
-            // Send approval notification
             try {
                 await notify(
                     user,
@@ -305,9 +283,6 @@ async function approveKYC(req, res) {
     }
 }
 
-/**
- * Reject KYC
- */
 async function rejectKYC(req, res) {
     try {
         const { kycId, rejectionReason } = req.body;
@@ -325,7 +300,6 @@ async function rejectKYC(req, res) {
             return res.fail('Admin authentication required', 401);
         }
 
-        // Find the KYC record
         const kyc = await KYC.findByPk(kycId);
 
         if (!kyc) {
@@ -336,7 +310,6 @@ async function rejectKYC(req, res) {
             return res.fail('KYC is already rejected', 409);
         }
 
-        // Update KYC status
         await kyc.update({
             status: 'rejected',
             verifiedBy: adminId,
@@ -344,11 +317,9 @@ async function rejectKYC(req, res) {
             rejectionReason: rejectionReason.trim()
         });
 
-        // Get user for notification
         const user = await User.findByPk(kyc.userId);
 
         if (user) {
-            // Send rejection notification with reason
             try {
                 await notify(
                     user,

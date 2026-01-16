@@ -121,7 +121,7 @@ router.post('/login', login);
  *     tags:
  *       - Web Admin
  *     summary: Get User Directory
- *     description: Get paginated list of users with search functionality. Returns user name, email, phone number, and KYC status.
+ *     description: Get paginated list of users with search functionality and KYC status filtering. Returns user name, email, phone number, and KYC status.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -143,6 +143,13 @@ router.post('/login', login);
  *           type: string
  *         description: Search by name, email, or phone number
  *         example: 'john'
+ *       - in: query
+ *         name: kycStatus
+ *         schema:
+ *           type: string
+ *           enum: [not_submitted, pending, approved, rejected]
+ *         description: Filter users by KYC status
+ *         example: 'approved'
  *     responses:
  *       200:
  *         description: User directory retrieved successfully
