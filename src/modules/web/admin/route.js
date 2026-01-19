@@ -288,7 +288,7 @@ router.get('/users', verifyAdminToken, getUserDirectory);
  *                           format: uuid
  *                         identificationType:
  *                           type: string
- *                           enum: [national_id, passport, driver_license, tin, voter_card]
+ *                           enum: [national_id, passport, driver_license, tin, voter_card, nin_slip, residential_permit]
  *                         identificationNumber:
  *                           type: string
  *                         idDocumentUrl:

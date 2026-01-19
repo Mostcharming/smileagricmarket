@@ -33,7 +33,7 @@ const {
  *             properties:
  *               identificationType:
  *                 type: string
- *                 enum: [national_id, passport, driver_license, tin, voter_card]
+ *                 enum: [national_id, passport, driver_license, tin, voter_card, nin_slip, residential_permit]
  *                 description: Type of identification
  *                 example: 'national_id'
  *               identificationNumber:
@@ -151,7 +151,7 @@ router.get('/status', getKYCStatus);
  *             properties:
  *               identificationType:
  *                 type: string
- *                 enum: [national_id, passport, driver_license, tin, voter_card]
+ *                 enum: [national_id, passport, driver_license, tin, voter_card, nin_slip, residential_permit]
  *                 example: 'national_id'
  *               identificationNumber:
  *                 type: string

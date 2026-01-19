@@ -27,7 +27,9 @@ module.exports = (sequelize) => {
                 'passport',
                 'driver_license',
                 'tin',
-                'voter_card'
+                'voter_card',
+                'nin_slip',
+                'residential_permit'
             ),
             allowNull: false,
             field: 'identification_type',

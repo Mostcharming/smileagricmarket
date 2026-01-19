@@ -19,7 +19,7 @@ async function submitKYC(req, res) {
             return res.fail('Identification type and number are required', 400);
         }
 
-        const validTypes = ['national_id', 'passport', 'driver_license', 'tin', 'voter_card'];
+        const validTypes = ['national_id', 'passport', 'driver_license', 'tin', 'voter_card', 'nin_slip', 'residential_permit'];
         if (!validTypes.includes(identificationType)) {
             return res.fail(`Invalid identification type. Must be one of: ${validTypes.join(', ')}`, 400);
         }
@@ -142,7 +142,7 @@ async function updateKYC(req, res) {
             return res.fail('Identification type and number are required', 400);
         }
 
-        const validTypes = ['national_id', 'passport', 'driver_license', 'tin', 'voter_card'];
+        const validTypes = ['national_id', 'passport', 'driver_license', 'tin', 'voter_card', 'nin_slip', 'residential_permit'];
         if (!validTypes.includes(identificationType)) {
             return res.fail(`Invalid identification type. Must be one of: ${validTypes.join(', ')}`, 400);
         }
