@@ -2,7 +2,7 @@ const path = require('path');
 
 const config = {
     development: {
-        feUrl: "https://smileagrimarket.com",
+        feUrl: "https://app.smileagrimarket.com",
         db: {
             master: {
                 host: "192.168.1.165",
@@ -23,7 +23,7 @@ const config = {
         jwtExpiresIn: "1d",
     },
     production: {
-        feUrl: "https://smileagrimarket.com",
+        feUrl: "https://app.smileagrimarket.com",
         db: {
             master: {
                 host: "127.0.0.1",

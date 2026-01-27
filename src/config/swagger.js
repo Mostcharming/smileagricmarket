@@ -18,7 +18,7 @@ const options = {
                 description: 'Development server',
             },
             {
-                url: 'https://smileagrimarket.com/api/v1',
+                url: 'https://app.smileagrimarket.com/api/v1',
                 description: 'Production server',
             },
         ],

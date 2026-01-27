@@ -346,7 +346,7 @@ async function forgot(req, res) {
             resetTokenExpiry
         });
 
-        const resetLink = `${process.env.FE_URL || "https://smileagrimarket.com"}/reset-password/${resetToken}`;
+        const resetLink = `${process.env.FE_URL || "https://app.smileagrimarket.com"}/reset-password/${resetToken}`;
 
         await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email'], true, models);
 
@@ -387,7 +387,7 @@ async function resendResetToken(req, res) {
             resetTokenExpiry
         });
 
-        const resetLink = `${process.env.FE_URL || "https://smileagrimarket.com"}/reset-password/${resetToken}`;
+        const resetLink = `${process.env.FE_URL || "https://app.smileagrimarket.com"}/reset-password/${resetToken}`;
 
         await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email'], true, models);
 

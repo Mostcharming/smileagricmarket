@@ -41,7 +41,7 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://smileagrimarket.com', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5011'],
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://app.smileagrimarket.com', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5011'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
