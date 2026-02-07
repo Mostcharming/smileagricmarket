@@ -3,7 +3,7 @@
     "name": "temii",
     "provider": "temii",
     "apiKey": "TLtIqOjKCRgvXDCmKHMgzAQEXSApvkRYVOwLTHRpRMFKnyxjvCkeZMhsuiSySh",
-    "senderId": "Smile Agri",
+    "senderId": "N-alert",
     "baseUrl": "https://v3.api.termii.com/api/sms/send"
   },
   "email": {
