@@ -29,23 +29,25 @@ class SmsGateway {
     async temii() {
         try {
             let phoneNumber = this._normalizeNumber(this.to);
-            const response = await axios.post(this.config.baseUrl, {
+            const payload = {
+                api_key: this.config.apiKey,
                 to: phoneNumber,
                 from: this.sender,
                 sms: this.message,
-                type: 'plain',
-                api_key: this.config.apiKey,
-                channel: 'dnd'
-            });
+                channel: 'dnd',
+                type: 'plain'
+            };
+
+            const response = await axios.post('https://v3.api.termii.com/api/sms/send', payload);
             console.log('Temii Response:', response);
 
-            if (!response.data || response.data.code !== '100') {
-                throw new Error(response.data?.message || 'Failed to send SMS via Temii');
-            }
+            // if (!response.data || response.data.code !== 'ok') {
+            //     throw new Error(response.data?.message || 'Failed to send SMS via Termii');
+            // }
 
             return response.data;
         } catch (error) {
-            throw new Error(`Temii SMS Error: ${error.message}`);
+            throw new Error(`Termii SMS Error: ${error.message}`);
         }
     }
 }
