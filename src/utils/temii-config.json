@@ -3,7 +3,7 @@
     "name": "temii",
     "provider": "temii",
     "apiKey": "TLtIqOjKCRgvXDCmKHMgzAQEXSApvkRYVOwLTHRpRMFKnyxjvCkeZMhsuiSySh",
-    "senderId": "N-alert",
+    "senderId": "N-Alert",
     "baseUrl": "https://v3.api.termii.com/api/sms/send"
   },
   "email": {

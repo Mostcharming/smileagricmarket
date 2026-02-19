@@ -47,13 +47,16 @@ class NotifyProcess {
 
             if (this.shortCodes) {
                 for (const [code, value] of Object.entries(this.shortCodes)) {
+                    // Replace both {{code}} and {code}
                     message = message.replace(new RegExp(`{{${code}}}`, 'g'), String(value));
+                    message = message.replace(new RegExp(`{${code}}`, 'g'), String(value));
                 }
             }
 
             // Replace firstName if available
             if (this.user && this.user.firstName) {
                 message = message.replace(/{{firstName}}/g, this.user.firstName);
+                message = message.replace(/{firstName}/g, this.user.firstName);
             }
 
             this.getSubject();

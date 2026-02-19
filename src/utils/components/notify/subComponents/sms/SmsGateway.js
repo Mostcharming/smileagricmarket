@@ -41,9 +41,7 @@ class SmsGateway {
             const response = await axios.post('https://v3.api.termii.com/api/sms/send', payload);
             console.log('Temii Response:', response);
 
-            // if (!response.data || response.data.code !== 'ok') {
-            //     throw new Error(response.data?.message || 'Failed to send SMS via Termii');
-            // }
+
 
             return response.data;
         } catch (error) {
