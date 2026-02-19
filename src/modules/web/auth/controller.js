@@ -34,6 +34,8 @@ async function requestOtp(req, res) {
 
             await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         } else {
+            // Delete all previous TempOtp records for this phone number
+            const deleted = await models.TempOtp.destroy({ where: { phoneNumber } });
             await TempOtp.create({
                 phoneNumber,
                 otp,

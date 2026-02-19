@@ -26,7 +26,6 @@ async function requestOtp(req, res) {
         });
 
         const otp = generateCode(6, { letters: false, numbers: true });
-        // const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
         const otpExpiry = null;
 
         if (existingUser) {
@@ -34,6 +33,7 @@ async function requestOtp(req, res) {
 
             await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         } else {
+            const deleted = await models.TempOtp.destroy({ where: { phoneNumber } });
             await TempOtp.create({
                 phoneNumber,
                 otp,
