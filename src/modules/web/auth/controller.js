@@ -25,36 +25,34 @@ async function requestOtp(req, res) {
             where: { phoneNumber }
         });
 
+        if (existingUser) {
+            return res.fail('User already exists with this phone number', 409);
+        }
+
         const otp = generateCode(6, { letters: false, numbers: true });
         // const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
         const otpExpiry = null;
 
-        if (existingUser) {
-            await existingUser.update({ otp, otpExpiry });
+        // Delete all previous TempOtp records for this phone number
+        const deleted = await models.TempOtp.destroy({ where: { phoneNumber } });
+        await TempOtp.create({
+            phoneNumber,
+            otp,
+            otpExpiry
+        });
 
-            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
-        } else {
-            // Delete all previous TempOtp records for this phone number
-            const deleted = await models.TempOtp.destroy({ where: { phoneNumber } });
-            await TempOtp.create({
-                phoneNumber,
-                otp,
-                otpExpiry
-            });
+        const tempUser = {
+            id: phoneNumber,
+            phoneNumber: phoneNumber,
+            fullName: null,
+            email: null
+        };
 
-            const tempUser = {
-                id: phoneNumber,
-                phoneNumber: phoneNumber,
-                fullName: null,
-                email: null
-            };
-
-            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
-        }
+        await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
 
         return res.success(
-            { message: 'OTP sent successfully' },
-            'OTP sent to your phone'
+            { message: 'OTP sent successfully', isNewUser: true },
+            'OTP sent to your phone for registration'
         );
     } catch (error) {
         console.error('Request OTP error:', error);
