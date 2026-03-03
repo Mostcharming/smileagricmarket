@@ -180,6 +180,79 @@ const options = {
                         },
                     },
                 },
+                FarmCategory: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Farm category unique identifier',
+                        },
+                        name: {
+                            type: 'string',
+                            description: 'Farm category name',
+                        },
+                        description: {
+                            type: 'string',
+                            description: 'Farm category description',
+                        },
+                        isActive: {
+                            type: 'boolean',
+                            description: 'Whether category is active',
+                        },
+                        milestoneCount: {
+                            type: 'integer',
+                            description: 'Number of milestones in the category',
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
+                Milestone: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Milestone unique identifier',
+                        },
+                        farmCategoryId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Related farm category ID',
+                        },
+                        farmCategoryName: {
+                            type: 'string',
+                            description: 'Related farm category name',
+                        },
+                        name: {
+                            type: 'string',
+                            description: 'Milestone name/description',
+                        },
+                        order: {
+                            type: 'integer',
+                            description: 'Milestone order/sequence',
+                        },
+                        isActive: {
+                            type: 'boolean',
+                            description: 'Whether milestone is active',
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
             },
         },
     },
@@ -189,6 +262,7 @@ const options = {
         './src/modules/web/auth/route.js',
         './src/modules/web/kyc/route.js',
         './src/modules/web/admin/route.js',
+        './src/modules/web/admin/farmCategoryRoute.js',
         './src/modules/mobile/route.js',
         './src/modules/web/route.js',
     ],

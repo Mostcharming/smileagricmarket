@@ -8,6 +8,7 @@ const {
     approveKYC,
     rejectKYC
 } = require('./controller');
+const farmCategoryRouter = require('./farmCategoryRoute');
 
 /**
  * Middleware to verify admin token
@@ -472,5 +473,8 @@ router.post('/kyc/approve', verifyAdminToken, approveKYC);
  *         description: Internal server error
  */
 router.post('/kyc/reject', verifyAdminToken, rejectKYC);
+
+// Mount farm category routes
+router.use('/', farmCategoryRouter);
 
 module.exports = router;
