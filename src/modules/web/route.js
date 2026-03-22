@@ -3,6 +3,8 @@ const { securityMiddleware } = require('../../middlewares/common/security');
 const authRouter = require('./auth/route');
 const kycRouter = require('./kyc/route');
 const adminRouter = require('./admin/route');
+const dashboardRouter = require('./dashboard/route');
+const farmsRouter = require('./farms/route');
 
 const router = require('express').Router();
 
@@ -19,6 +21,12 @@ router.use(securityMiddleware);
 
 // KYC routes - requires authentication
 router.use('/kyc', kycRouter);
+
+// Dashboard routes - requires authentication
+router.use('/dashboard', dashboardRouter);
+
+// Farms routes - requires authentication
+router.use('/farms', farmsRouter);
 
 router.use(errorHandler);
 

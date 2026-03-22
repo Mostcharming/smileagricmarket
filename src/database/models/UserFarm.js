@@ -51,6 +51,13 @@ module.exports = (sequelize) => {
             defaultValue: true,
             field: 'is_active',
             comment: 'Whether the farm is active'
+        },
+        verificationStatus: {
+            type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+            allowNull: false,
+            defaultValue: 'pending',
+            field: 'verification_status',
+            comment: 'Farm verification status'
         }
     }, {
         tableName: 'user_farms',
@@ -65,6 +72,9 @@ module.exports = (sequelize) => {
             },
             {
                 fields: ['user_id', 'is_active']
+            },
+            {
+                fields: ['verification_status']
             }
         ]
     });

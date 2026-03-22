@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
         UserFarm: require('./UserFarm')(sequelize),
         UserFarmMilestone: require('./UserFarmMilestone')(sequelize),
         UserFarmInvestment: require('./UserFarmInvestment')(sequelize),
+        FarmDocument: require('./FarmDocument')(sequelize),
     };
 
     // Define associations
@@ -121,6 +122,18 @@ module.exports = (sequelize) => {
     });
 
     models.UserFarmInvestment.belongsTo(models.UserFarm, {
+        foreignKey: 'userFarmId',
+        as: 'Farm'
+    });
+
+    // Farm Documents associations
+    models.UserFarm.hasMany(models.FarmDocument, {
+        foreignKey: 'userFarmId',
+        as: 'Documents',
+        onDelete: 'CASCADE'
+    });
+
+    models.FarmDocument.belongsTo(models.UserFarm, {
         foreignKey: 'userFarmId',
         as: 'Farm'
     });
