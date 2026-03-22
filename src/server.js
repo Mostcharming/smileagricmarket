@@ -5,7 +5,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
 
-// require('./database');
+require('./database');
 require('dotenv').config();
 
 const config = require('./config');
