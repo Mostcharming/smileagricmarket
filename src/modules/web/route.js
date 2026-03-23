@@ -5,6 +5,7 @@ const kycRouter = require('./kyc/route');
 const adminRouter = require('./admin/route');
 const dashboardRouter = require('./dashboard/route');
 const farmsRouter = require('./farms/route');
+const farmCategoriesRouter = require('./farmCategories/route');
 
 const router = require('express').Router();
 
@@ -27,6 +28,9 @@ router.use('/dashboard', dashboardRouter);
 
 // Farms routes - requires authentication
 router.use('/farms', farmsRouter);
+
+// Farm Categories routes - requires authentication
+router.use('/farm-categories', farmCategoriesRouter);
 
 router.use(errorHandler);
 
