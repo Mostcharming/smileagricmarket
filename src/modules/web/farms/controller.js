@@ -75,7 +75,7 @@ async function listUserFarms(req, res) {
                     attributes: ['id', 'documentType', 'fileName', 'fileUrl', 'fileSize']
                 }
             ],
-            attributes: ['id', 'name', 'description', 'location', 'size', 'verificationStatus', 'createdAt', 'updatedAt'],
+            attributes: ['id', 'name', 'description', 'location', 'size', 'investmentAmount', 'currency', 'verificationStatus', 'createdAt', 'updatedAt'],
             order: [['createdAt', 'DESC']],
             limit,
             offset
@@ -179,7 +179,7 @@ async function getFarmById(req, res) {
 async function createFarm(req, res) {
     try {
         const userId = req.user?.id;
-        const { farmCategoryId, name, description, location, size, selectedMilestones } = req.body;
+        const { farmCategoryId, name, description, location, size, investmentAmount, currency, selectedMilestones } = req.body;
 
         if (!userId) {
             return res.fail('User not authenticated', 401);
@@ -204,6 +204,8 @@ async function createFarm(req, res) {
             description,
             location,
             size: size ? parseFloat(size) : null,
+            investmentAmount: investmentAmount ? parseFloat(investmentAmount) : null,
+            currency: currency || 'USD',
             isActive: true,
             verificationStatus: 'pending'
         });
@@ -303,7 +305,7 @@ async function updateFarm(req, res) {
     try {
         const userId = req.user?.id;
         const { farmId } = req.params;
-        const { name, description, location, size, isActive } = req.body;
+        const { name, description, location, size, investmentAmount, currency, isActive } = req.body;
 
         if (!userId) {
             return res.fail('User not authenticated', 401);
@@ -329,6 +331,8 @@ async function updateFarm(req, res) {
         if (description !== undefined) farm.description = description;
         if (location !== undefined) farm.location = location;
         if (size !== undefined) farm.size = size ? parseFloat(size) : null;
+        if (investmentAmount !== undefined) farm.investmentAmount = investmentAmount ? parseFloat(investmentAmount) : null;
+        if (currency !== undefined) farm.currency = currency;
         if (isActive !== undefined) farm.isActive = isActive;
 
         await farm.save();

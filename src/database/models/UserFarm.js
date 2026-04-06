@@ -45,6 +45,19 @@ module.exports = (sequelize) => {
             field: 'size',
             comment: 'Size of the farm (in hectares or other unit)'
         },
+        investmentAmount: {
+            type: DataTypes.DECIMAL(15, 2),
+            allowNull: true,
+            field: 'investment_amount',
+            comment: 'Initial investment amount for the farm'
+        },
+        currency: {
+            type: DataTypes.STRING(3),
+            allowNull: false,
+            defaultValue: 'USD',
+            field: 'currency',
+            comment: 'Currency code for investment amount (e.g., USD, EUR, GBP)'
+        },
         isActive: {
             type: DataTypes.BOOLEAN,
             allowNull: false,

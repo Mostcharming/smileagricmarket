@@ -71,6 +71,12 @@ const {
  *                             type: string
  *                           size:
  *                             type: number
+ *                           investmentAmount:
+ *                             type: number
+ *                             description: Initial investment amount for the farm
+ *                           currency:
+ *                             type: string
+ *                             description: Currency code (e.g., USD, EUR, GBP)
  *                           Category:
  *                             type: object
  *                           Investment:
@@ -201,6 +207,12 @@ router.get('/:farmId', getFarmById);
  *               size:
  *                 type: number
  *                 description: Farm size (in hectares or other unit)
+ *               investmentAmount:
+ *                 type: number
+ *                 description: Initial investment amount for the farm
+ *               currency:
+ *                 type: string
+ *                 description: Currency code (e.g., USD, EUR, GBP) - defaults to USD
  *               selectedMilestones:
  *                 type: string
  *                 description: JSON array of milestone IDs (e.g., ["id1","id2"])
@@ -263,6 +275,12 @@ router.post('/', uploadFarmDocuments, createFarm);
  *                 type: string
  *               size:
  *                 type: number
+ *               investmentAmount:
+ *                 type: number
+ *                 description: Investment amount for the farm
+ *               currency:
+ *                 type: string
+ *                 description: Currency code (e.g., USD, EUR, GBP)
  *               isActive:
  *                 type: boolean
  *     responses:
