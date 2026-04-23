@@ -352,10 +352,131 @@ async function rejectKYC(req, res) {
     }
 }
 
+// ==================== ADMIN USER FARMS ====================
+const { UserFarm, FarmCategory, UserFarmInvestment, UserFarmMilestone, FarmDocument } = models;
+
+// List all user farms (admin)
+async function listAllUserFarms(req, res) {
+    try {
+        let {
+            page = 1,
+            limit = 20,
+            search = '',
+            verificationStatus = '',
+            farmCategoryId = ''
+        } = req.query;
+
+        page = parseInt(page);
+        limit = parseInt(limit);
+        const offset = (page - 1) * limit;
+
+        // Build where clause
+        const whereClause = {};
+        if (search) {
+            whereClause.name = { [Op.iLike]: `%${search}%` };
+        }
+        if (verificationStatus) {
+            whereClause.verificationStatus = verificationStatus;
+        }
+        if (farmCategoryId) {
+            whereClause.farmCategoryId = farmCategoryId;
+        }
+
+        // Get total count
+        const total = await UserFarm.count({ where: whereClause });
+
+        // Fetch farms with pagination
+        const farms = await UserFarm.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: FarmCategory,
+                    as: 'Category',
+                    attributes: ['id', 'name']
+                }
+            ],
+            attributes: ['id', 'name', 'verificationStatus', 'location', 'farmCategoryId'],
+            order: [['createdAt', 'DESC']],
+            limit,
+            offset
+        });
+
+        const totalPages = Math.ceil(total / limit);
+        const hasNextPage = page < totalPages;
+        const hasPreviousPage = page > 1;
+
+        return res.success({
+            farms,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages,
+                hasNextPage,
+                hasPreviousPage,
+                startIndex: offset + 1,
+                endIndex: Math.min(offset + limit, total)
+            }
+        }, 'User farms retrieved successfully');
+    } catch (error) {
+        console.error('List all user farms error:', error);
+        return res.fail('Failed to retrieve user farms', 500);
+    }
+}
+
+// Get single user farm details (admin)
+async function getUserFarmDetails(req, res) {
+    try {
+        const { farmId } = req.params;
+        if (!farmId) {
+            return res.fail('Farm ID is required', 400);
+        }
+        const farm = await UserFarm.findOne({
+            where: { id: farmId },
+            include: [
+                {
+                    model: FarmCategory,
+                    as: 'Category',
+                    attributes: ['id', 'name', 'description']
+                },
+                {
+                    model: UserFarmInvestment,
+                    as: 'Investment',
+                    attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentPending', 'investmentStatus', 'currency', 'notes']
+                },
+                {
+                    model: UserFarmMilestone,
+                    as: 'SelectedMilestones',
+                    attributes: ['id', 'isCompleted', 'completedAt'],
+                    include: [{
+                        model: models.Milestone,
+                        as: 'Milestone',
+                        attributes: ['id', 'name', 'order']
+                    }]
+                },
+                {
+                    model: FarmDocument,
+                    as: 'Documents',
+                    attributes: ['id', 'documentType', 'fileName', 'fileUrl', 'fileSize', 'mimeType', 'createdAt']
+                }
+            ]
+        });
+        if (!farm) {
+            return res.fail('Farm not found', 404);
+        }
+        return res.success(farm, 'Farm details retrieved successfully');
+    } catch (error) {
+        console.error('Get user farm details error:', error);
+        return res.fail('Failed to retrieve farm details', 500);
+    }
+}
+
 module.exports = {
     login,
     getUserDirectory,
     getKYCByUserId,
     approveKYC,
-    rejectKYC
+    rejectKYC,
+    listAllUserFarms,
+    getUserFarmDetails
 };

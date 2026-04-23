@@ -1,13 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../../../middlewares/common/security');
+
+
 const {
     login,
     getUserDirectory,
     getKYCByUserId,
     approveKYC,
-    rejectKYC
+    rejectKYC,
+    listAllUserFarms,
+    getUserFarmDetails
 } = require('./controller');
+
+// Import farmCategoryRouter
 const farmCategoryRouter = require('./farmCategoryRoute');
 
 /**
@@ -39,6 +45,174 @@ const verifyAdminToken = (req, res, next) => {
         return res.fail(err.message, 500);
     }
 };
+
+/**
+ * @swagger
+ * /web/admin/user-farms:
+ *   get:
+ *     tags:
+ *       - Web Admin
+ *     summary: List all user farms (admin)
+ *     description: Retrieve a paginated list of all user farms. Supports search, filter by verification status and farm category.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of items per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by farm name
+ *       - in: query
+ *         name: verificationStatus
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *         description: Filter by verification status
+ *       - in: query
+ *         name: farmCategoryId
+ *         schema:
+ *           type: string
+ *         description: Filter by farm category ID
+ *     responses:
+ *       200:
+ *         description: User farms retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'User farms retrieved successfully'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     farms:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           name:
+ *                             type: string
+ *                           verificationStatus:
+ *                             type: string
+ *                             enum: [pending, approved, rejected]
+ *                           location:
+ *                             type: string
+ *                           farmCategoryId:
+ *                             type: string
+ *                           Category:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         hasNextPage:
+ *                           type: boolean
+ *                         hasPreviousPage:
+ *                           type: boolean
+ *                         startIndex:
+ *                           type: integer
+ *                         endIndex:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized - Token required or invalid
+ *       403:
+ *         description: Forbidden - Admin authentication required
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/user-farms', verifyAdminToken, listAllUserFarms);
+
+/**
+ * @swagger
+ * /web/admin/user-farms/{farmId}:
+ *   get:
+ *     tags:
+ *       - Web Admin
+ *     summary: Get user farm details (admin)
+ *     description: Retrieve all details of a single user farm, including investment, milestones, and documents.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: farmId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Farm unique identifier
+ *     responses:
+ *       200:
+ *         description: Farm details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'Farm details retrieved successfully'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     Category:
+ *                       type: object
+ *                     Investment:
+ *                       type: object
+ *                     SelectedMilestones:
+ *                       type: array
+ *                     Documents:
+ *                       type: array
+ *       401:
+ *         description: Unauthorized - Token required or invalid
+ *       403:
+ *         description: Forbidden - Admin authentication required
+ *       404:
+ *         description: Farm not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/user-farms/:farmId', verifyAdminToken, getUserFarmDetails);
+
+
 
 /**
  * @swagger
