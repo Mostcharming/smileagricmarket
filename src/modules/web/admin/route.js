@@ -10,7 +10,9 @@ const {
     approveKYC,
     rejectKYC,
     listAllUserFarms,
-    getUserFarmDetails
+    getUserFarmDetails,
+    approveUserFarm,
+    rejectUserFarm
 } = require('./controller');
 
 // Import farmCategoryRouter
@@ -211,6 +213,135 @@ router.get('/user-farms', verifyAdminToken, listAllUserFarms);
  *         description: Internal server error
  */
 router.get('/user-farms/:farmId', verifyAdminToken, getUserFarmDetails);
+
+/**
+ * @swagger
+ * /web/admin/user-farms/approve:
+ *   post:
+ *     tags:
+ *       - Web Admin
+ *     summary: Approve user farm
+ *     description: Approve a pending user farm and send notification to the user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - farmId
+ *             properties:
+ *               farmId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: The ID of the farm to approve
+ *     responses:
+ *       200:
+ *         description: Farm approved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'Farm approved successfully'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     farmId:
+ *                       type: string
+ *                       format: uuid
+ *                     status:
+ *                       type: string
+ *                       example: 'approved'
+ *       400:
+ *         description: Bad request - Farm ID is required
+ *       401:
+ *         description: Unauthorized - Token required or invalid
+ *       403:
+ *         description: Forbidden - Admin authentication required
+ *       404:
+ *         description: Farm not found
+ *       409:
+ *         description: Conflict - Farm is already approved
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/user-farms/approve', verifyAdminToken, approveUserFarm);
+
+/**
+ * @swagger
+ * /web/admin/user-farms/reject:
+ *   post:
+ *     tags:
+ *       - Web Admin
+ *     summary: Reject user farm
+ *     description: Reject a pending user farm with a rejection note and send notification to the user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - farmId
+ *               - note
+ *             properties:
+ *               farmId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: The ID of the farm to reject
+ *               note:
+ *                 type: string
+ *                 description: Reason for rejecting the farm
+ *                 example: 'Farm location does not meet requirements'
+ *     responses:
+ *       200:
+ *         description: Farm rejected successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: 'Farm rejected successfully'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     farmId:
+ *                       type: string
+ *                       format: uuid
+ *                     status:
+ *                       type: string
+ *                       example: 'rejected'
+ *                     rejectionNote:
+ *                       type: string
+ *       400:
+ *         description: Bad request - Farm ID or rejection note is required
+ *       401:
+ *         description: Unauthorized - Token required or invalid
+ *       403:
+ *         description: Forbidden - Admin authentication required
+ *       404:
+ *         description: Farm not found
+ *       409:
+ *         description: Conflict - Farm is already rejected
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/user-farms/reject', verifyAdminToken, rejectUserFarm);
 
 
 

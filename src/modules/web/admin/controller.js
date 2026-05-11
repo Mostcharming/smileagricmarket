@@ -471,6 +471,132 @@ async function getUserFarmDetails(req, res) {
     }
 }
 
+// Approve user farm (admin)
+async function approveUserFarm(req, res) {
+    try {
+        const { farmId } = req.body;
+        const adminId = req.admin?.id;
+
+        if (!farmId) {
+            return res.fail('Farm ID is required', 400);
+        }
+
+        if (!adminId) {
+            return res.fail('Admin authentication required', 401);
+        }
+
+        const farm = await UserFarm.findByPk(farmId);
+
+        if (!farm) {
+            return res.fail('Farm not found', 404);
+        }
+
+        if (farm.verificationStatus === 'approved') {
+            return res.fail('Farm is already approved', 409);
+        }
+
+        await farm.update({
+            verificationStatus: 'approved'
+        });
+
+        const user = await User.findByPk(farm.userId);
+
+        if (user) {
+            try {
+                await notify(
+                    user,
+                    'user',
+                    'FARM_APPROVED_TEMPLATE',
+                    { farmName: farm.name },
+                    ['sms', 'email'],
+                    true,
+                    models
+                );
+            } catch (notifyError) {
+                console.error('Failed to send farm approval notification:', notifyError);
+                // Continue even if notification fails
+            }
+        }
+
+        return res.success(
+            {
+                farmId: farm.id,
+                status: farm.verificationStatus
+            },
+            'Farm approved successfully'
+        );
+    } catch (error) {
+        console.error('Approve user farm error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
+// Reject user farm (admin)
+async function rejectUserFarm(req, res) {
+    try {
+        const { farmId, note } = req.body;
+        const adminId = req.admin?.id;
+
+        if (!farmId) {
+            return res.fail('Farm ID is required', 400);
+        }
+
+        if (!note || note.trim() === '') {
+            return res.fail('Rejection note is required', 400);
+        }
+
+        if (!adminId) {
+            return res.fail('Admin authentication required', 401);
+        }
+
+        const farm = await UserFarm.findByPk(farmId);
+
+        if (!farm) {
+            return res.fail('Farm not found', 404);
+        }
+
+        if (farm.verificationStatus === 'rejected') {
+            return res.fail('Farm is already rejected', 409);
+        }
+
+        await farm.update({
+            verificationStatus: 'rejected',
+            rejectionNote: note.trim()
+        });
+
+        const user = await User.findByPk(farm.userId);
+
+        if (user) {
+            try {
+                await notify(
+                    user,
+                    'user',
+                    'FARM_REJECTED_TEMPLATE',
+                    { farmName: farm.name, reason: note.trim() },
+                    ['sms', 'email'],
+                    true,
+                    models
+                );
+            } catch (notifyError) {
+                console.error('Failed to send farm rejection notification:', notifyError);
+                // Continue even if notification fails
+            }
+        }
+
+        return res.success(
+            {
+                farmId: farm.id,
+                status: farm.verificationStatus,
+                rejectionNote: note.trim()
+            },
+            'Farm rejected successfully'
+        );
+    } catch (error) {
+        console.error('Reject user farm error:', error);
+        return res.fail(error.message, 500);
+    }
+}
+
 module.exports = {
     login,
     getUserDirectory,
@@ -478,5 +604,7 @@ module.exports = {
     approveKYC,
     rejectKYC,
     listAllUserFarms,
-    getUserFarmDetails
+    getUserFarmDetails,
+    approveUserFarm,
+    rejectUserFarm
 };

@@ -71,6 +71,12 @@ module.exports = (sequelize) => {
             defaultValue: 'pending',
             field: 'verification_status',
             comment: 'Farm verification status'
+        },
+        rejectionNote: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            field: 'rejection_note',
+            comment: 'Reason for farm rejection'
         }
     }, {
         tableName: 'user_farms',

@@ -128,11 +128,29 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5011;
+const HOST = '0.0.0.0';
 
-app.listen(PORT, () => {
+// Get local IP address for network access
+const os = require('os');
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+const localIP = getLocalIP();
+
+app.listen(PORT, HOST, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Environment: ${process.env.NODE_ENV}`);
-  console.log(`📚 Swagger Docs: http://localhost:${PORT}/api-docs`);
+  console.log(`📚 Local access: http://localhost:${PORT}/api-docs`);
+  console.log(`🌐 Network access: http://${localIP}:${PORT}/api-docs`);
 });
 
 module.exports = app;
