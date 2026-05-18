@@ -118,6 +118,9 @@ app.use(`/api/${config.apiVersion}/api-docs`,
   })
 );
 
+const farmDocumentsDir = path.resolve(__dirname, '..', '..', 'uploads', 'farm-documents');
+
+// Register static file routes for both old (/upload/...) and new (/api/v1/upload/...) paths
 if (config && config.uploads && config.uploads.profileDir) {
   app.use('/upload/profiles', express.static(config.uploads.profileDir));
   app.use(`/api/${config.apiVersion}/upload/profiles`, express.static(config.uploads.profileDir));
@@ -128,7 +131,6 @@ if (config && config.uploads && config.uploads.kycDir) {
   app.use(`/api/${config.apiVersion}/upload/kyc`, express.static(config.uploads.kycDir));
 }
 
-const farmDocumentsDir = path.resolve(__dirname, '..', 'uploads', 'farm-documents');
 app.use('/upload/farm-documents', express.static(farmDocumentsDir));
 app.use(`/api/${config.apiVersion}/upload/farm-documents`, express.static(farmDocumentsDir));
 
