@@ -83,6 +83,17 @@ const {
  *                             type: object
  *                           SelectedMilestones:
  *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                   format: uuid
+ *                                 isCompleted:
+ *                                   type: boolean
+ *                                 amount:
+ *                                   type: number
+ *                                   format: float
  *                           createdAt:
  *                             type: string
  *                             format: date-time
@@ -153,6 +164,17 @@ router.get('/', listUserFarms);
  *                       type: object
  *                     SelectedMilestones:
  *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           isCompleted:
+ *                             type: boolean
+ *                           amount:
+ *                             type: number
+ *                             format: float
  *                     stats:
  *                       type: object
  *                       properties:
@@ -215,7 +237,7 @@ router.get('/:farmId', getFarmById);
  *                 description: Currency code (e.g., USD, EUR, GBP) - defaults to USD
  *               selectedMilestones:
  *                 type: string
- *                 description: JSON array of milestone IDs (e.g., ["id1","id2"])
+ *                 description: JSON array of milestone objects with amount (e.g., [{"milestoneId":"id1","amount":5000},{"milestoneId":"id2","amount":3000}])
  *               pictures:
  *                 type: array
  *                 items:
@@ -359,9 +381,18 @@ router.delete('/:farmId', deleteFarm);
  *               milestones:
  *                 type: array
  *                 items:
- *                   type: string
- *                   format: uuid
- *                 description: Array of milestone IDs
+ *                   type: object
+ *                   required:
+ *                     - milestoneId
+ *                     - amount
+ *                   properties:
+ *                     milestoneId:
+ *                       type: string
+ *                       format: uuid
+ *                     amount:
+ *                       type: number
+ *                       format: float
+ *                 description: Array of milestone objects including amount
  *     responses:
  *       200:
  *         description: Milestones added successfully

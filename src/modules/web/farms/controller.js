@@ -9,6 +9,52 @@ const path = require('path');
 const models = defineModels(sequelize);
 const { UserFarm, FarmCategory, UserFarmInvestment, UserFarmMilestone, FarmDocument } = models;
 
+function parseMilestonesWithAmount(milestonesInput) {
+    if (milestonesInput === undefined || milestonesInput === null || milestonesInput === '') {
+        return { milestones: [] };
+    }
+
+    let parsedMilestones = milestonesInput;
+
+    if (typeof milestonesInput === 'string') {
+        try {
+            parsedMilestones = JSON.parse(milestonesInput);
+        } catch (error) {
+            return { error: 'selectedMilestones must be a valid JSON array' };
+        }
+    }
+
+    if (!Array.isArray(parsedMilestones)) {
+        return { error: 'Milestones must be an array' };
+    }
+
+    const normalizedMilestones = [];
+
+    for (const [index, milestone] of parsedMilestones.entries()) {
+        if (!milestone || typeof milestone !== 'object' || Array.isArray(milestone)) {
+            return { error: `Milestone at index ${index} must be an object with milestoneId and amount` };
+        }
+
+        const milestoneId = milestone.milestoneId;
+        const parsedAmount = Number(milestone.amount);
+
+        if (!milestoneId) {
+            return { error: `milestoneId is required at index ${index}` };
+        }
+
+        if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+            return { error: `amount must be a valid non-negative number at index ${index}` };
+        }
+
+        normalizedMilestones.push({
+            milestoneId,
+            amount: parsedAmount
+        });
+    }
+
+    return { milestones: normalizedMilestones };
+}
+
 async function listUserFarms(req, res) {
     try {
         const userId = req.user?.id;
@@ -62,7 +108,7 @@ async function listUserFarms(req, res) {
                 {
                     model: UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'isCompleted'],
+                    attributes: ['id', 'isCompleted', 'amount'],
                     include: [{
                         model: models.Milestone,
                         as: 'Milestone',
@@ -138,7 +184,7 @@ async function getFarmById(req, res) {
                 {
                     model: UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'isCompleted', 'completedAt'],
+                    attributes: ['id', 'isCompleted', 'completedAt', 'amount'],
                     include: [{
                         model: models.Milestone,
                         as: 'Milestone',
@@ -196,6 +242,11 @@ async function createFarm(req, res) {
             return res.fail('Farm category not found', 404);
         }
 
+        const { milestones: parsedMilestones, error: milestonesParseError } = parseMilestonesWithAmount(selectedMilestones);
+        if (milestonesParseError) {
+            return res.fail(milestonesParseError, 400);
+        }
+
         // Create the farm with pending verification status
         const farm = await UserFarm.create({
             userId,
@@ -217,10 +268,11 @@ async function createFarm(req, res) {
         });
 
         // Add selected milestones if provided
-        if (selectedMilestones && Array.isArray(selectedMilestones) && selectedMilestones.length > 0) {
-            const milestonesToAdd = selectedMilestones.map(milestoneId => ({
+        if (parsedMilestones.length > 0) {
+            const milestonesToAdd = parsedMilestones.map(milestone => ({
                 userFarmId: farm.id,
-                milestoneId,
+                milestoneId: milestone.milestoneId,
+                amount: milestone.amount,
                 isCompleted: false
             }));
             await models.UserFarmMilestone.bulkCreate(milestonesToAdd);
@@ -279,7 +331,7 @@ async function createFarm(req, res) {
                 {
                     model: models.UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'isCompleted'],
+                    attributes: ['id', 'isCompleted', 'amount'],
                     include: [{
                         model: models.Milestone,
                         as: 'Milestone',
@@ -408,7 +460,12 @@ async function addMilestonesToFarm(req, res) {
             return res.fail('Farm ID is required', 400);
         }
 
-        if (!milestones || !Array.isArray(milestones) || milestones.length === 0) {
+        const { milestones: parsedMilestones, error: milestonesParseError } = parseMilestonesWithAmount(milestones);
+        if (milestonesParseError) {
+            return res.fail(milestonesParseError, 400);
+        }
+
+        if (parsedMilestones.length === 0) {
             return res.fail('Milestones array is required', 400);
         }
 
@@ -422,21 +479,22 @@ async function addMilestonesToFarm(req, res) {
         }
 
         // Create milestone associations
-        const milestonesToAdd = milestones.map(milestoneId => ({
+        const milestonesToAdd = parsedMilestones.map(milestone => ({
             userFarmId: farmId,
-            milestoneId,
+            milestoneId: milestone.milestoneId,
+            amount: milestone.amount,
             isCompleted: false
         }));
 
         await models.UserFarmMilestone.bulkCreate(milestonesToAdd, {
-            ignoreDuplicates: true // In case of duplicate entries
+            updateOnDuplicate: ['amount', 'updatedAt']
         });
 
         const updatedFarm = await UserFarm.findByPk(farmId, {
             include: [{
                 model: models.UserFarmMilestone,
                 as: 'SelectedMilestones',
-                attributes: ['id', 'isCompleted'],
+                attributes: ['id', 'isCompleted', 'amount'],
                 include: [{
                     model: models.Milestone,
                     as: 'Milestone',
