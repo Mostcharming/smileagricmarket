@@ -14,7 +14,7 @@ const options = {
         },
         servers: [
             {
-                url: 'http://localhost:5011/v1',
+                url: 'http://192.168.1.165:5011/v1',
                 description: 'Development server',
             },
             {

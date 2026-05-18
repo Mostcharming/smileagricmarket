@@ -203,6 +203,21 @@ router.get('/user-farms', verifyAdminToken, listAllUserFarms);
  *                       type: array
  *                     Documents:
  *                       type: array
+ *                     user:
+ *                       type: object
+ *                       description: User who uploaded the farm
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         fullName:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
  *       401:
  *         description: Unauthorized - Token required or invalid
  *       403:

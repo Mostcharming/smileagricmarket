@@ -132,8 +132,19 @@ async function listUserFarms(req, res) {
         const hasNextPage = page < totalPages;
         const hasPreviousPage = page > 1;
 
+        // Map fileUrl to full URL for each farm's documents
+        const farmsWithFullUrls = farms.map(farm => {
+            const farmObj = farm.toJSON();
+            if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
+                farmObj.Documents = farmObj.Documents.map(doc => ({
+                    ...doc,
+                    fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+                }));
+            }
+            return farmObj;
+        });
         return res.success({
-            farms,
+            farms: farmsWithFullUrls,
             pagination: {
                 page,
                 limit,
@@ -208,8 +219,16 @@ async function getFarmById(req, res) {
         const completedMilestones = farm.SelectedMilestones.filter(m => m.isCompleted).length;
         const completionPercentage = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
 
+        // Map fileUrl to full URL for all documents
+        const farmObj = farm.toJSON();
+        if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
+            farmObj.Documents = farmObj.Documents.map(doc => ({
+                ...doc,
+                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+            }));
+        }
         return res.success({
-            ...farm.toJSON(),
+            ...farmObj,
             stats: {
                 totalMilestones,
                 completedMilestones,
@@ -346,7 +365,15 @@ async function createFarm(req, res) {
             ]
         });
 
-        return res.success(createdFarm, 'Farm created successfully', 201);
+        // Map fileUrl to full URL for all documents
+        const farmObj = createdFarm.toJSON ? createdFarm.toJSON() : createdFarm;
+        if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
+            farmObj.Documents = farmObj.Documents.map(doc => ({
+                ...doc,
+                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+            }));
+        }
+        return res.success(farmObj, 'Farm created successfully', 201);
     } catch (error) {
         console.error('Create farm error:', error);
         return res.fail('Failed to create farm', 500);
@@ -578,7 +605,15 @@ async function uploadFarmDocumentsToFarm(req, res) {
             }]
         });
 
-        return res.success(updatedFarm, 'Documents uploaded successfully');
+        // Map fileUrl to full URL for all documents
+        const farmObj = updatedFarm.toJSON ? updatedFarm.toJSON() : updatedFarm;
+        if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
+            farmObj.Documents = farmObj.Documents.map(doc => ({
+                ...doc,
+                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+            }));
+        }
+        return res.success(farmObj, 'Documents uploaded successfully');
     } catch (error) {
         console.error('Upload documents error:', error);
         return res.fail('Failed to upload documents', 500);

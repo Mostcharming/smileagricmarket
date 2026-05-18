@@ -458,13 +458,34 @@ async function getUserFarmDetails(req, res) {
                     model: FarmDocument,
                     as: 'Documents',
                     attributes: ['id', 'documentType', 'fileName', 'fileUrl', 'fileSize', 'mimeType', 'createdAt']
+                },
+                {
+                    model: User,
+                    as: 'User',
+                    attributes: ['id', 'fullName', 'email', 'phoneNumber', 'createdAt']
                 }
             ]
         });
         if (!farm) {
             return res.fail('Farm not found', 404);
         }
-        return res.success(farm, 'Farm details retrieved successfully');
+        // Map fileUrl to full URL for all documents
+        const farmObj = farm.toJSON ? farm.toJSON() : farm;
+        if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
+            farmObj.Documents = farmObj.Documents.map(doc => ({
+                ...doc,
+                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+            }));
+        }
+        // Attach user details (uploader)
+        let userDetails = null;
+        if (farmObj.User) {
+            userDetails = farmObj.User;
+        }
+        return res.success({
+            ...farmObj,
+            user: userDetails
+        }, 'Farm details retrieved successfully');
     } catch (error) {
         console.error('Get user farm details error:', error);
         return res.fail('Failed to retrieve farm details', 500);
