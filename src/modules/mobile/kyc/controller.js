@@ -2,6 +2,7 @@
 
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
+const { toBackendApiUrl } = require('../../../utils/url');
 
 const models = defineModels(sequelize);
 const { User, KYC } = models;
@@ -73,7 +74,7 @@ async function submitKYC(req, res) {
                 status: kyc.status,
                 message: 'KYC submitted successfully. Please wait for verification.',
                 submittedAt: kyc.submittedAt,
-                selfie: req.kycFiles.selfie.url
+                selfie: toBackendApiUrl(req, req.kycFiles.selfie.url)
             },
             'KYC submitted successfully'
         );
@@ -119,7 +120,7 @@ async function getKYCStatus(req, res) {
             submittedAt: kyc.submittedAt,
             verifiedAt: kyc.verifiedAt,
             rejectionReason: kyc.rejectionReason,
-            selfie: kyc.selfieImageUrl || null
+            selfie: toBackendApiUrl(req, kyc.selfieImageUrl)
         };
 
         return res.success(response, `KYC status: ${kyc.status}`);
@@ -189,7 +190,7 @@ async function updateKYC(req, res) {
                 status: kyc.status,
                 message: 'KYC updated successfully. Please wait for verification.',
                 submittedAt: kyc.submittedAt,
-                selfie: req.kycFiles.selfie.url
+                selfie: toBackendApiUrl(req, req.kycFiles.selfie.url)
             },
             'KYC updated successfully'
         );
@@ -238,7 +239,7 @@ async function getKYCList(req, res) {
                 submittedAt: kyc.submittedAt,
                 verifiedAt: kyc.verifiedAt,
                 rejectionReason: kyc.rejectionReason,
-                selfie: kyc.selfieImageUrl || null
+                selfie: toBackendApiUrl(req, kyc.selfieImageUrl)
             }))
         };
 

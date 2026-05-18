@@ -6,6 +6,7 @@ const defineModels = require('../../../database/models');
 const { signToken } = require('../../../middlewares/common/security');
 const { Op } = require('sequelize');
 const notify = require('../../../utils/notify');
+const { toBackendApiUrl } = require('../../../utils/url');
 
 const models = defineModels(sequelize);
 const { Admin, User, KYC } = models;
@@ -199,8 +200,8 @@ async function getKYCByUserId(req, res) {
                     id: kyc.id,
                     identificationType: kyc.identificationType,
                     identificationNumber: kyc.identificationNumber,
-                    idDocumentUrl: kyc.idDocumentUrl,
-                    selfieImageUrl: kyc.selfieImageUrl,
+                    idDocumentUrl: toBackendApiUrl(req, kyc.idDocumentUrl),
+                    selfieImageUrl: toBackendApiUrl(req, kyc.selfieImageUrl),
                     status: kyc.status,
                     rejectionReason: kyc.rejectionReason,
                     submittedAt: kyc.submittedAt,
@@ -474,7 +475,7 @@ async function getUserFarmDetails(req, res) {
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
                 ...doc,
-                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+                fileUrl: toBackendApiUrl(req, doc.fileUrl)
             }));
         }
         // Attach user details (uploader)

@@ -5,6 +5,7 @@ const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
+const { toBackendApiUrl } = require('../../../utils/url');
 
 const models = defineModels(sequelize);
 const { UserFarm, FarmCategory, UserFarmInvestment, UserFarmMilestone, FarmDocument } = models;
@@ -138,7 +139,7 @@ async function listUserFarms(req, res) {
             if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
                 farmObj.Documents = farmObj.Documents.map(doc => ({
                     ...doc,
-                    fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+                    fileUrl: toBackendApiUrl(req, doc.fileUrl)
                 }));
             }
             return farmObj;
@@ -224,7 +225,7 @@ async function getFarmById(req, res) {
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
                 ...doc,
-                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+                fileUrl: toBackendApiUrl(req, doc.fileUrl)
             }));
         }
         return res.success({
@@ -370,7 +371,7 @@ async function createFarm(req, res) {
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
                 ...doc,
-                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+                fileUrl: toBackendApiUrl(req, doc.fileUrl)
             }));
         }
         return res.success(farmObj, 'Farm created successfully', 201);
@@ -610,7 +611,7 @@ async function uploadFarmDocumentsToFarm(req, res) {
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
                 ...doc,
-                fileUrl: doc.fileUrl ? `${req.protocol}://${req.get('host')}${doc.fileUrl}` : doc.fileUrl
+                fileUrl: toBackendApiUrl(req, doc.fileUrl)
             }));
         }
         return res.success(farmObj, 'Documents uploaded successfully');

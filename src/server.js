@@ -4,6 +4,7 @@ const morgan = require('morgan');
 const compression = require('compression');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
+const path = require('path');
 
 require('./database');
 require('dotenv').config();
@@ -73,6 +74,11 @@ app.get(`/${config.apiVersion}/api-docs.json`, (req, res) => {
   res.send(swaggerSpec);
 });
 
+app.get(`/api/${config.apiVersion}/api-docs.json`, (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 app.use('/api-docs',
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {
@@ -99,16 +105,37 @@ app.use(`/${config.apiVersion}/api-docs`,
   })
 );
 
+app.use(`/api/${config.apiVersion}/api-docs`,
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      url: `/api/${config.apiVersion}/api-docs.json`,
+      deepLinking: true,
+      displayOperationId: true,
+    },
+    customCss: '.swagger-ui { background-color: #fafafa; }',
+    customSiteTitle: 'Smile Agric API Docs',
+  })
+);
+
 if (config && config.uploads && config.uploads.profileDir) {
   app.use('/upload/profiles', express.static(config.uploads.profileDir));
+  app.use(`/api/${config.apiVersion}/upload/profiles`, express.static(config.uploads.profileDir));
 }
 
 if (config && config.uploads && config.uploads.kycDir) {
   app.use('/upload/kyc', express.static(config.uploads.kycDir));
+  app.use(`/api/${config.apiVersion}/upload/kyc`, express.static(config.uploads.kycDir));
 }
+
+const farmDocumentsDir = path.resolve(__dirname, '..', 'uploads', 'farm-documents');
+app.use('/upload/farm-documents', express.static(farmDocumentsDir));
+app.use(`/api/${config.apiVersion}/upload/farm-documents`, express.static(farmDocumentsDir));
 
 app.use(`/${config.apiVersion}/mobile`, mobileRouter);
 app.use(`/${config.apiVersion}/web`, webRouter);
+app.use(`/api/${config.apiVersion}/mobile`, mobileRouter);
+app.use(`/api/${config.apiVersion}/web`, webRouter);
 
 app.get('/', (req, res) => {
   res.json({
