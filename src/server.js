@@ -118,20 +118,26 @@ app.use(`/api/${config.apiVersion}/api-docs`,
   })
 );
 
-const farmDocumentsDir = path.resolve(__dirname, '..', '..', 'uploads', 'farm-documents');
+const farmDocumentsDir = path.resolve(__dirname, '..', 'uploads', 'farm-documents');
 
-// Register static file routes for both old (/upload/...) and new (/api/v1/upload/...) paths
+// Register static file routes for all possible paths:
+// 1. /upload/... (legacy)
+// 2. /v1/upload/... (nginx strips /api/ prefix)
+// 3. /api/v1/upload/... (direct requests)
 if (config && config.uploads && config.uploads.profileDir) {
   app.use('/upload/profiles', express.static(config.uploads.profileDir));
+  app.use(`/${config.apiVersion}/upload/profiles`, express.static(config.uploads.profileDir));
   app.use(`/api/${config.apiVersion}/upload/profiles`, express.static(config.uploads.profileDir));
 }
 
 if (config && config.uploads && config.uploads.kycDir) {
   app.use('/upload/kyc', express.static(config.uploads.kycDir));
+  app.use(`/${config.apiVersion}/upload/kyc`, express.static(config.uploads.kycDir));
   app.use(`/api/${config.apiVersion}/upload/kyc`, express.static(config.uploads.kycDir));
 }
 
 app.use('/upload/farm-documents', express.static(farmDocumentsDir));
+app.use(`/${config.apiVersion}/upload/farm-documents`, express.static(farmDocumentsDir));
 app.use(`/api/${config.apiVersion}/upload/farm-documents`, express.static(farmDocumentsDir));
 
 app.use(`/${config.apiVersion}/mobile`, mobileRouter);

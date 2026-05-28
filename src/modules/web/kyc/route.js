@@ -40,6 +40,11 @@ const {
  *                 type: string
  *                 description: The identification number
  *                 example: '12345678901234'
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 description: Date of birth (YYYY-MM-DD)
+ *                 example: '1990-05-15'
  *               selfie:
  *                 type: string
  *                 format: binary
@@ -111,6 +116,9 @@ router.post('/submit', uploadKYC, submitKYC);
  *                       enum: [not_submitted, pending, approved, rejected]
  *                     identificationType:
  *                       type: string
+ *                     dateOfBirth:
+ *                       type: string
+ *                       format: date
  *                     submittedAt:
  *                       type: string
  *                       format: date-time
@@ -156,6 +164,11 @@ router.get('/status', getKYCStatus);
  *               identificationNumber:
  *                 type: string
  *                 example: '12345678901234'
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 description: Date of birth (YYYY-MM-DD)
+ *                 example: '1990-05-15'
  *               selfie:
  *                 type: string
  *                 format: binary

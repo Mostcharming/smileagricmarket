@@ -95,6 +95,12 @@ module.exports = (sequelize) => {
             allowNull: true,
             field: 'submitted_at',
             comment: 'Timestamp when KYC was submitted'
+        },
+        dateOfBirth: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'date_of_birth',
+            comment: 'User\'s date of birth'
         }
     }, {
         tableName: 'kyc',

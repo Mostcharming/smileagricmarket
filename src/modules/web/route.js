@@ -2,6 +2,7 @@ const { errorHandler, responseFormatter } = require('../../middlewares/common/re
 const { securityMiddleware } = require('../../middlewares/common/security');
 const authRouter = require('./auth/route');
 const kycRouter = require('./kyc/route');
+const profileRouter = require('./profile/route');
 const adminRouter = require('./admin/route');
 const dashboardRouter = require('./dashboard/route');
 const farmsRouter = require('./farms/route');
@@ -22,6 +23,9 @@ router.use(securityMiddleware);
 
 // KYC routes - requires authentication
 router.use('/kyc', kycRouter);
+
+// Profile routes - requires authentication
+router.use('/profile', profileRouter);
 
 // Dashboard routes - requires authentication
 router.use('/dashboard', dashboardRouter);

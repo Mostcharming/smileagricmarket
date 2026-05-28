@@ -60,6 +60,7 @@ async function submitKYC(req, res) {
             userId,
             identificationType,
             identificationNumber,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
             status: 'pending',
             submittedAt: new Date(),
             selfieImagePath: req.kycFiles.selfie.path,
@@ -117,6 +118,7 @@ async function getKYCStatus(req, res) {
             status: kyc.status,
             identificationType: kyc.identificationType,
             identificationNumber: kyc.identificationNumber,
+            dateOfBirth: kyc.dateOfBirth,
             submittedAt: kyc.submittedAt,
             verifiedAt: kyc.verifiedAt,
             rejectionReason: kyc.rejectionReason,
@@ -133,7 +135,7 @@ async function getKYCStatus(req, res) {
 async function updateKYC(req, res) {
     try {
         const userId = req.user?.id;
-        const { identificationType, identificationNumber } = req.body;
+        const { identificationType, identificationNumber, dateOfBirth } = req.body;
 
         if (!userId) {
             return res.fail('User not authenticated', 401);
@@ -175,6 +177,7 @@ async function updateKYC(req, res) {
         const updateData = {
             identificationType,
             identificationNumber,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
             status: 'pending',
             submittedAt: new Date(),
             rejectionReason: null,

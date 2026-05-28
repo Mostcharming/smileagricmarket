@@ -201,6 +201,28 @@ router.get('/user-farms', verifyAdminToken, listAllUserFarms);
  *                       type: object
  *                     SelectedMilestones:
  *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           isCompleted:
+ *                             type: boolean
+ *                           completedAt:
+ *                             type: string
+ *                             format: date-time
+ *                             nullable: true
+ *                           amount:
+ *                             type: number
+ *                           Milestone:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               order:
+ *                                 type: integer
  *                     Documents:
  *                       type: array
  *                     user:
@@ -218,6 +240,12 @@ router.get('/user-farms', verifyAdminToken, listAllUserFarms);
  *                         createdAt:
  *                           type: string
  *                           format: date-time
+ *                         verifiedFarmsCount:
+ *                           type: integer
+ *                           description: Number of verified (approved) farms the user has
+ *                         totalFundsReceived:
+ *                           type: number
+ *                           description: Total sum of all investments received by the user
  *       401:
  *         description: Unauthorized - Token required or invalid
  *       403:
@@ -612,6 +640,10 @@ router.get('/users', verifyAdminToken, getUserDirectory);
  *                           enum: [national_id, passport, driver_license, tin, voter_card, nin_slip, residential_permit]
  *                         identificationNumber:
  *                           type: string
+ *                         dateOfBirth:
+ *                           type: string
+ *                           format: date
+ *                           nullable: true
  *                         idDocumentUrl:
  *                           type: string
  *                           nullable: true

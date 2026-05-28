@@ -6,6 +6,7 @@ module.exports = (sequelize) => {
         Admin: require('./Admin')(sequelize),
         TempOtp: require('./TempOtp')(sequelize),
         KYC: require('./KYC')(sequelize),
+        Wallet: require('./Wallet')(sequelize),
         GeneralSetting: require('./GeneralSetting')(sequelize),
         FarmCategory: require('./FarmCategory')(sequelize),
         Milestone: require('./Milestone')(sequelize),
@@ -51,6 +52,30 @@ module.exports = (sequelize) => {
     models.AdminNotification.belongsTo(models.Admin, {
         foreignKey: 'adminId',
         as: 'Admin'
+    });
+
+    // User Wallet associations
+    models.User.hasOne(models.Wallet, {
+        foreignKey: 'userId',
+        as: 'Wallet',
+        onDelete: 'CASCADE'
+    });
+
+    models.Wallet.belongsTo(models.User, {
+        foreignKey: 'userId',
+        as: 'User'
+    });
+
+    // User KYC associations
+    models.User.hasMany(models.KYC, {
+        foreignKey: 'userId',
+        as: 'KYCs',
+        onDelete: 'CASCADE'
+    });
+
+    models.KYC.belongsTo(models.User, {
+        foreignKey: 'userId',
+        as: 'User'
     });
 
     // User Farms associations

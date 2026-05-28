@@ -58,6 +58,14 @@ const options = {
                             enum: ['male', 'female', 'other'],
                             description: 'User gender',
                         },
+                        bio: {
+                            type: 'string',
+                            description: 'User biography or profile description',
+                        },
+                        profileImageUrl: {
+                            type: 'string',
+                            description: 'URL to user profile picture',
+                        },
                         isPhoneVerified: {
                             type: 'boolean',
                             description: 'Whether phone number is verified',
@@ -149,6 +157,94 @@ const options = {
                             type: 'string',
                             format: 'date-time',
                             description: 'Verification timestamp',
+                        },
+                    },
+                },
+                Wallet: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Wallet unique identifier',
+                        },
+                        userId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'User ID for wallet ownership',
+                        },
+                        bankName: {
+                            type: 'string',
+                            description: 'Name of the bank',
+                        },
+                        accountNumber: {
+                            type: 'string',
+                            description: 'Bank account number',
+                        },
+                        accountName: {
+                            type: 'string',
+                            description: 'Account holder name',
+                        },
+                        isVerified: {
+                            type: 'boolean',
+                            description: 'Whether the wallet account is verified',
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
+                ProfileCompletion: {
+                    type: 'object',
+                    properties: {
+                        completionPercentage: {
+                            type: 'number',
+                            description: 'Profile completion percentage (0-100)',
+                        },
+                        completionScore: {
+                            type: 'string',
+                            description: 'Completed items out of total required items',
+                        },
+                        missingFields: {
+                            type: 'array',
+                            items: {
+                                type: 'string'
+                            },
+                            description: 'List of fields still required for 100% completion',
+                        },
+                        profileStatus: {
+                            type: 'object',
+                            properties: {
+                                fullName: {
+                                    type: 'boolean',
+                                },
+                                gender: {
+                                    type: 'boolean',
+                                },
+                                email: {
+                                    type: 'boolean',
+                                },
+                                phoneNumber: {
+                                    type: 'boolean',
+                                },
+                                bio: {
+                                    type: 'boolean',
+                                },
+                                profilePicture: {
+                                    type: 'boolean',
+                                },
+                                kycVerification: {
+                                    type: 'boolean',
+                                },
+                                walletSetup: {
+                                    type: 'boolean',
+                                },
+                            },
                         },
                     },
                 },

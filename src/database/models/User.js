@@ -63,6 +63,24 @@ module.exports = (sequelize) => {
             type: DataTypes.DATE,
             allowNull: true,
             field: 'reset_token_expiry'
+        },
+        bio: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            field: 'bio',
+            comment: 'User biography or profile description'
+        },
+        profileImagePath: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'profile_image_path',
+            comment: 'Path to uploaded profile image'
+        },
+        profileImageUrl: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'profile_image_url',
+            comment: 'URL to access the profile image'
         }
     }, {
         tableName: 'users',

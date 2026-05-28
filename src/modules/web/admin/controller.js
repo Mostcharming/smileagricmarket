@@ -200,6 +200,7 @@ async function getKYCByUserId(req, res) {
                     id: kyc.id,
                     identificationType: kyc.identificationType,
                     identificationNumber: kyc.identificationNumber,
+                    dateOfBirth: kyc.dateOfBirth,
                     idDocumentUrl: toBackendApiUrl(req, kyc.idDocumentUrl),
                     selfieImageUrl: toBackendApiUrl(req, kyc.selfieImageUrl),
                     status: kyc.status,
@@ -448,7 +449,7 @@ async function getUserFarmDetails(req, res) {
                 {
                     model: UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'isCompleted', 'completedAt'],
+                    attributes: ['id', 'isCompleted', 'completedAt', 'amount'],
                     include: [{
                         model: models.Milestone,
                         as: 'Milestone',
@@ -478,10 +479,39 @@ async function getUserFarmDetails(req, res) {
                 fileUrl: toBackendApiUrl(req, doc.fileUrl)
             }));
         }
-        // Attach user details (uploader)
+        // Attach user details (uploader) with additional metrics
         let userDetails = null;
         if (farmObj.User) {
-            userDetails = farmObj.User;
+            // Count verified farms for the user
+            const verifiedFarmsCount = await UserFarm.count({
+                where: {
+                    userId: farmObj.User.id,
+                    verificationStatus: 'approved'
+                }
+            });
+
+            // Sum all investments received for the user's farms
+            const userFarmIds = await UserFarm.findAll({
+                where: { userId: farmObj.User.id },
+                attributes: ['id'],
+                raw: true
+            });
+
+            const investmentData = await UserFarmInvestment.findOne({
+                where: {
+                    userFarmId: userFarmIds.map(f => f.id)
+                },
+                attributes: [
+                    [sequelize.fn('SUM', sequelize.col('investment_received')), 'totalInvestmentsReceived']
+                ],
+                raw: true
+            });
+
+            userDetails = {
+                ...farmObj.User,
+                verifiedFarmsCount,
+                totalFundsReceived: investmentData?.totalInvestmentsReceived || 0
+            };
         }
         return res.success({
             ...farmObj,
