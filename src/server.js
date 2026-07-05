@@ -120,10 +120,6 @@ app.use(`/api/${config.apiVersion}/api-docs`,
 
 const farmDocumentsDir = path.resolve(__dirname, '..', 'uploads', 'farm-documents');
 
-// Register static file routes for all possible paths:
-// 1. /upload/... (legacy)
-// 2. /v1/upload/... (nginx strips /api/ prefix)
-// 3. /api/v1/upload/... (direct requests)
 if (config && config.uploads && config.uploads.profileDir) {
   app.use('/upload/profiles', express.static(config.uploads.profileDir));
   app.use(`/${config.apiVersion}/upload/profiles`, express.static(config.uploads.profileDir));

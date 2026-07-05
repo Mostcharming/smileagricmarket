@@ -357,13 +357,15 @@ const options = {
         './src/modules/mobile/kyc/route.js',
         './src/modules/web/auth/route.js',
         './src/modules/web/kyc/route.js',
-        './src/modules/web/admin/route.js',
-        './src/modules/web/admin/farmCategoryRoute.js',
+
         './src/modules/web/farmCategories/route.js',
         './src/modules/web/dashboard/route.js',
         './src/modules/web/farms/route.js',
+        './src/modules/web/profile/route.js',
         './src/modules/mobile/route.js',
         './src/modules/web/route.js',
+        './src/modules/web/admin/route.js',
+        './src/modules/web/admin/farmCategoryRoute.js',
     ],
 };
 

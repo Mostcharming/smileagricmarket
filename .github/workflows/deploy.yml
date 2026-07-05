@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install SSH password helper
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Deploy latest main
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          APP_DIR: ${{ secrets.APP_DIR }}
+        run: |
+          sshpass -p "$SSH_PASSWORD" ssh \
+            -p "$SERVER_PORT" \
+            -o StrictHostKeyChecking=no \
+            "$SSH_USERNAME@$SSH_HOST" << EOF
+            set -e
+            cd "$APP_DIR"
+            git pull origin main
+            npm ci
+            npm run migrate
+            pm2 restart all
+            pm2 save
+          EOF
