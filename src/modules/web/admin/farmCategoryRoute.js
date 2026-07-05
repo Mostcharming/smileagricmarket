@@ -329,7 +329,7 @@ router.put('/farm-categories/:categoryId', verifyAdminToken, updateFarmCategory)
  *     tags:
  *       - Web Admin Farm Categories
  *     summary: Delete Farm Category
- *     description: Delete a farm category (only if it has no milestones)
+ *     description: Delete a farm category (only if it has no milestones or investments)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -367,7 +367,7 @@ router.put('/farm-categories/:categoryId', verifyAdminToken, updateFarmCategory)
  *       404:
  *         description: Farm category not found
  *       409:
- *         description: Conflict - Category has milestones and cannot be deleted
+ *         description: Conflict - Category has milestones or investments and cannot be deleted
  *       500:
  *         description: Internal server error
  */

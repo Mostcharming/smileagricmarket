@@ -5,7 +5,7 @@ const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
 
 const models = defineModels(sequelize);
-const { FarmCategory, Milestone } = models;
+const { FarmCategory, Milestone, Investment } = models;
 
 // ==================== FARM CATEGORY FUNCTIONS ====================
 
@@ -201,6 +201,14 @@ async function deleteFarmCategory(req, res) {
 
         if (milestoneCount > 0) {
             return res.fail('Cannot delete a category that has milestones. Please delete all milestones first.', 409);
+        }
+
+        const investmentCount = await Investment.count({
+            where: { farmCategoryId: categoryId }
+        });
+
+        if (investmentCount > 0) {
+            return res.fail('Cannot delete a category that has investments. Please delete all investments first.', 409);
         }
 
         await category.destroy();

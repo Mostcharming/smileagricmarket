@@ -16,6 +16,8 @@ module.exports = (sequelize) => {
         UserFarmMilestone: require('./UserFarmMilestone')(sequelize),
         UserFarmInvestment: require('./UserFarmInvestment')(sequelize),
         FarmDocument: require('./FarmDocument')(sequelize),
+        Investment: require('./Investment')(sequelize),
+        InvestmentMilestone: require('./InvestmentMilestone')(sequelize),
     };
 
     // Define associations
@@ -28,6 +30,29 @@ module.exports = (sequelize) => {
     models.Milestone.belongsTo(models.FarmCategory, {
         foreignKey: 'farmCategoryId',
         as: 'FarmCategory'
+    });
+
+    // Investment product associations
+    models.FarmCategory.hasMany(models.Investment, {
+        foreignKey: 'farmCategoryId',
+        as: 'Investments',
+        onDelete: 'RESTRICT'
+    });
+
+    models.Investment.belongsTo(models.FarmCategory, {
+        foreignKey: 'farmCategoryId',
+        as: 'FarmCategory'
+    });
+
+    models.Investment.hasMany(models.InvestmentMilestone, {
+        foreignKey: 'investmentId',
+        as: 'Milestones',
+        onDelete: 'CASCADE'
+    });
+
+    models.InvestmentMilestone.belongsTo(models.Investment, {
+        foreignKey: 'investmentId',
+        as: 'Investment'
     });
 
     // User Notifications associations

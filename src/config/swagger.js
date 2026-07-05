@@ -349,6 +349,177 @@ const options = {
                         },
                     },
                 },
+                InvestmentMilestoneInput: {
+                    type: 'object',
+                    required: ['name', 'fundReleasePercentage'],
+                    properties: {
+                        name: {
+                            type: 'string',
+                            description: 'Investment milestone name',
+                            example: 'Land preparation',
+                        },
+                        fundReleasePercentage: {
+                            type: 'number',
+                            minimum: 0,
+                            maximum: 100,
+                            description: 'Percentage of funds released at this milestone',
+                            example: 25,
+                        },
+                        order: {
+                            type: 'integer',
+                            description: 'Milestone order/sequence',
+                            example: 1,
+                        },
+                        isActive: {
+                            type: 'boolean',
+                            description: 'Whether milestone is active',
+                            example: true,
+                        },
+                    },
+                },
+                InvestmentMilestone: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                        },
+                        investmentId: {
+                            type: 'string',
+                            format: 'uuid',
+                        },
+                        name: {
+                            type: 'string',
+                        },
+                        fundReleasePercentage: {
+                            type: 'number',
+                        },
+                        order: {
+                            type: 'integer',
+                        },
+                        isActive: {
+                            type: 'boolean',
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
+                Investment: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Investment unique identifier',
+                        },
+                        farmCategoryId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Related farm category ID',
+                        },
+                        farmCategory: {
+                            $ref: '#/components/schemas/FarmCategory',
+                        },
+                        name: {
+                            type: 'string',
+                            description: 'Investment name',
+                        },
+                        description: {
+                            type: 'string',
+                            description: 'Investment description',
+                        },
+                        roiPercentage: {
+                            type: 'number',
+                            description: 'Expected return percentage',
+                        },
+                        durationValue: {
+                            type: 'integer',
+                            description: 'Investment duration number',
+                        },
+                        durationUnit: {
+                            type: 'string',
+                            enum: ['weeks', 'months', 'years'],
+                            description: 'Investment duration unit',
+                        },
+                        duration: {
+                            type: 'object',
+                            properties: {
+                                value: {
+                                    type: 'integer',
+                                },
+                                unit: {
+                                    type: 'string',
+                                    enum: ['weeks', 'months', 'years'],
+                                },
+                                label: {
+                                    type: 'string',
+                                    example: '12 months',
+                                },
+                            },
+                        },
+                        fundingRules: {
+                            type: 'object',
+                            properties: {
+                                minGoal: {
+                                    type: 'number',
+                                    description: 'Minimum total funding goal',
+                                },
+                                maxGoal: {
+                                    type: 'number',
+                                    description: 'Maximum total funding goal',
+                                },
+                                currency: {
+                                    type: 'string',
+                                    example: 'NGN',
+                                },
+                            },
+                        },
+                        investmentLimit: {
+                            type: 'object',
+                            properties: {
+                                minGoal: {
+                                    type: 'number',
+                                    description: 'Minimum amount an investor can invest',
+                                },
+                                maxGoal: {
+                                    type: 'number',
+                                    description: 'Maximum amount an investor can invest',
+                                },
+                                currency: {
+                                    type: 'string',
+                                    example: 'NGN',
+                                },
+                            },
+                        },
+                        currency: {
+                            type: 'string',
+                            example: 'NGN',
+                        },
+                        isActive: {
+                            type: 'boolean',
+                        },
+                        milestones: {
+                            type: 'array',
+                            items: {
+                                $ref: '#/components/schemas/InvestmentMilestone',
+                            },
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                        updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
             },
         },
     },
@@ -366,6 +537,7 @@ const options = {
         './src/modules/web/route.js',
         './src/modules/web/admin/route.js',
         './src/modules/web/admin/farmCategoryRoute.js',
+        './src/modules/web/admin/investmentRoute.js',
     ],
 };
 

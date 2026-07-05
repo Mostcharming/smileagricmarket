@@ -17,6 +17,7 @@ const {
 
 // Import farmCategoryRouter
 const farmCategoryRouter = require('./farmCategoryRoute');
+const investmentRouter = require('./investmentRoute');
 
 /**
  * Middleware to verify admin token
@@ -828,5 +829,6 @@ router.post('/kyc/reject', verifyAdminToken, rejectKYC);
 
 // Mount farm category routes
 router.use('/', farmCategoryRouter);
+router.use('/', investmentRouter);
 
 module.exports = router;
