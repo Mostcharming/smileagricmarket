@@ -87,6 +87,10 @@ const verifyAdminToken = (req, res, next) => {
  *                 type: string
  *                 enum: [weeks, months, years]
  *                 example: months
+ *               riskLevel:
+ *                 type: string
+ *                 enum: [low, medium, high]
+ *                 example: medium
  *               fundingMinGoal:
  *                 type: number
  *                 example: 1000000
@@ -269,6 +273,9 @@ router.get('/investments/:investmentId', verifyAdminToken, getInvestmentById);
  *               durationUnit:
  *                 type: string
  *                 enum: [weeks, months, years]
+ *               riskLevel:
+ *                 type: string
+ *                 enum: [low, medium, high]
  *               fundingMinGoal:
  *                 type: number
  *               fundingMaxGoal:

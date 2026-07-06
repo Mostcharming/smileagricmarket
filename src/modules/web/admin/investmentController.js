@@ -8,6 +8,7 @@ const models = defineModels(sequelize);
 const { FarmCategory, Investment, InvestmentMilestone } = models;
 
 const DURATION_UNITS = ['weeks', 'months', 'years'];
+const RISK_LEVELS = ['low', 'medium', 'high'];
 
 function firstDefined(...values) {
     return values.find(value => value !== undefined);
@@ -163,6 +164,16 @@ function normalizeInvestmentPayload(body, options = {}) {
             errors.push('durationUnit must be one of weeks, months, years');
         } else {
             payload.durationUnit = normalizedDurationUnit;
+        }
+    }
+
+    const riskLevel = firstDefined(body.riskLevel, body.risk?.level);
+    if (riskLevel !== undefined) {
+        const normalizedRiskLevel = String(riskLevel || '').trim().toLowerCase();
+        if (!RISK_LEVELS.includes(normalizedRiskLevel)) {
+            errors.push('riskLevel must be one of low, medium, high');
+        } else {
+            payload.riskLevel = normalizedRiskLevel;
         }
     }
 
@@ -332,6 +343,7 @@ function formatInvestment(investment) {
             unit: data.durationUnit,
             label: `${data.durationValue} ${data.durationUnit}`
         },
+        riskLevel: data.riskLevel || 'medium',
         fundingRules: {
             minGoal: formatMoney(data.fundingMinGoal),
             maxGoal: formatMoney(data.fundingMaxGoal),

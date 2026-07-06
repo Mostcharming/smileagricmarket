@@ -7,6 +7,7 @@ const adminRouter = require('./admin/route');
 const dashboardRouter = require('./dashboard/route');
 const farmsRouter = require('./farms/route');
 const farmCategoriesRouter = require('./farmCategories/route');
+const investmentsRouter = require('./investments/route');
 
 const router = require('express').Router();
 
@@ -29,6 +30,9 @@ router.use('/profile', profileRouter);
 
 // Dashboard routes - requires authentication
 router.use('/dashboard', dashboardRouter);
+
+// Investments routes - requires authentication
+router.use('/investments', investmentsRouter);
 
 // Farms routes - requires authentication
 router.use('/farms', farmsRouter);

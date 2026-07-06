@@ -55,6 +55,16 @@ module.exports = (sequelize) => {
             },
             comment: 'Investment duration unit'
         },
+        riskLevel: {
+            type: DataTypes.STRING(20),
+            allowNull: false,
+            defaultValue: 'medium',
+            field: 'risk_level',
+            validate: {
+                isIn: [['low', 'medium', 'high']]
+            },
+            comment: 'Investment risk level'
+        },
         fundingMinGoal: {
             type: DataTypes.DECIMAL(15, 2),
             allowNull: false,
@@ -106,6 +116,9 @@ module.exports = (sequelize) => {
             },
             {
                 fields: ['name']
+            },
+            {
+                fields: ['risk_level']
             }
         ]
     });
