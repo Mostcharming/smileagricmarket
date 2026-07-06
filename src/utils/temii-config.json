@@ -7,11 +7,13 @@
     "baseUrl": "https://v3.api.termii.com/api/sms/send"
   },
   "email": {
-    "name": "temii",
-    "provider": "temii",
-    "apiKey": "TLtIqOjKCRgvXDCmKHMgzAQEXSApvkRYVOwLTHRpRMFKnyxjvCkeZMhsuiSySh",
-    "baseUrl": "https://v3.api.termii.com/api/email/send",
-    "fromEmail": "noreply@smileagrimarket.com",
-    "fromName": "Smile Agrimarket"
+    "name": "mailgun",
+    "provider": "mailgun",
+    "username": "api",
+    "apiKey": "MAILGUN_API_KEY",
+    "domain": "sandboxf91d921e9f8c42ad8e840a968c4ee9aa.mailgun.org",
+    "fromEmail": "postmaster@sandboxf91d921e9f8c42ad8e840a968c4ee9aa.mailgun.org",
+    "fromName": "Mailgun Sandbox",
+    "defaultSubject": "Smile Agrimarket"
   }
 }

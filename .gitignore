@@ -2,6 +2,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+src/utils/temii-config.local.json
 logs/
 uploads/
 temp/
