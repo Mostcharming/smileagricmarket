@@ -3,9 +3,19 @@
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
+const { toBackendApiUrl } = require('../../../utils/url');
 
 const models = defineModels(sequelize);
-const { Investment, FarmCategory, UserFarm, UserFarmInvestment, User } = models;
+const {
+    Investment,
+    FarmCategory,
+    UserFarm,
+    UserFarmInvestment,
+    User,
+    FarmDocument,
+    UserFarmMilestone,
+    Milestone
+} = models;
 
 const DURATION_UNITS = ['weeks', 'months', 'years'];
 const RISK_LEVELS = ['low', 'medium', 'high'];
@@ -145,18 +155,103 @@ function getFundingStatus(rawStatus, fundingReceived, totalExpectedFunding) {
     return rawStatus || 'pending';
 }
 
-function formatInvestmentFarm(farm, template) {
+function formatFarmImage(req, document) {
+    const data = document.toJSON ? document.toJSON() : document;
+    return {
+        id: data.id,
+        fileName: data.fileName,
+        fileUrl: toBackendApiUrl(req, data.fileUrl),
+        mimeType: data.mimeType
+    };
+}
+
+function getFarmImages(req, documents = []) {
+    if (!Array.isArray(documents)) return [];
+
+    return documents
+        .filter(document => document.documentType === 'picture')
+        .map(document => formatFarmImage(req, document));
+}
+
+function getFarmImage(req, documents = []) {
+    return getFarmImages(req, documents)[0] || null;
+}
+
+function getMilestoneStatus(milestone, index, firstIncompleteIndex) {
+    if (milestone.isCompleted) return 'completed';
+    if (index === firstIncompleteIndex) return 'in_progress';
+    return 'not_started';
+}
+
+function formatFarmMilestones(milestones = []) {
+    const sortedMilestones = [...milestones].sort((a, b) => {
+        const aData = a.toJSON ? a.toJSON() : a;
+        const bData = b.toJSON ? b.toJSON() : b;
+        const aOrder = aData.Milestone?.order ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = bData.Milestone?.order ?? Number.MAX_SAFE_INTEGER;
+
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return new Date(aData.createdAt || 0) - new Date(bData.createdAt || 0);
+    });
+    const firstIncompleteIndex = sortedMilestones.findIndex(milestone => {
+        const data = milestone.toJSON ? milestone.toJSON() : milestone;
+        return !data.isCompleted;
+    });
+
+    const formattedMilestones = sortedMilestones.map((milestone, index) => {
+        const data = milestone.toJSON ? milestone.toJSON() : milestone;
+        const milestoneData = data.Milestone || {};
+        const status = getMilestoneStatus(data, index, firstIncompleteIndex);
+
+        return {
+            id: data.id,
+            userFarmMilestoneId: data.id,
+            milestoneId: data.milestoneId,
+            name: milestoneData.name || null,
+            order: milestoneData.order ?? null,
+            amount: toMoney(data.amount),
+            isCompleted: !!data.isCompleted,
+            status,
+            completedAt: data.completedAt,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt
+        };
+    });
+    const completedMilestones = formattedMilestones.filter(milestone => milestone.status === 'completed').length;
+    const inProgressMilestones = formattedMilestones.filter(milestone => milestone.status === 'in_progress').length;
+    const notStartedMilestones = formattedMilestones.filter(milestone => milestone.status === 'not_started').length;
+    const totalMilestones = formattedMilestones.length;
+
+    return {
+        milestones: formattedMilestones,
+        stats: {
+            totalMilestones,
+            completedMilestones,
+            inProgressMilestones,
+            notStartedMilestones,
+            completionPercentage: totalMilestones > 0
+                ? Math.round((completedMilestones / totalMilestones) * 100)
+                : 0
+        }
+    };
+}
+
+function formatInvestmentFarm(req, farm, template, options = {}) {
+    const { includeImages = false, includeMilestones = false } = options;
     const data = farm.toJSON ? farm.toJSON() : farm;
     const farmInvestment = data.Investment || {};
     const fundingReceived = toMoney(farmInvestment.investmentReceived);
     const totalExpectedFunding = farmInvestment.expectedInvestment !== null && farmInvestment.expectedInvestment !== undefined
         ? toMoney(farmInvestment.expectedInvestment)
         : toMoney(template.fundingMaxGoal);
-
-    return {
+    const images = getFarmImages(req, data.Documents);
+    const image = images[0] || null;
+    const formattedFarm = {
         id: data.id,
         farmId: data.id,
         farmName: data.name,
+        image,
+        imageUrl: image?.fileUrl || null,
         farmCategory: data.Category ? {
             id: data.Category.id,
             name: data.Category.name
@@ -190,6 +285,18 @@ function formatInvestmentFarm(farm, template) {
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
     };
+
+    if (includeImages) {
+        formattedFarm.images = images;
+    }
+
+    if (includeMilestones) {
+        const { milestones, stats } = formatFarmMilestones(data.SelectedMilestones);
+        formattedFarm.milestones = milestones;
+        formattedFarm.milestoneStats = stats;
+    }
+
+    return formattedFarm;
 }
 
 async function getInvestments(req, res) {
@@ -332,6 +439,16 @@ async function getInvestments(req, res) {
                     attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentStatus', 'currency'],
                     where: farmInvestmentWhere,
                     required: !!fundingStatuses
+                },
+                {
+                    model: FarmDocument,
+                    as: 'Documents',
+                    attributes: ['id', 'documentType', 'fileName', 'fileUrl', 'mimeType', 'createdAt'],
+                    where: { documentType: 'picture' },
+                    required: false,
+                    separate: true,
+                    limit: 1,
+                    order: [['createdAt', 'ASC']]
                 }
             ],
             attributes: ['id', 'farmCategoryId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt'],
@@ -344,7 +461,7 @@ async function getInvestments(req, res) {
         const investments = farms
             .map(farm => {
                 const template = templateByCategory.get(farm.farmCategoryId);
-                return template ? formatInvestmentFarm(farm, template) : null;
+                return template ? formatInvestmentFarm(req, farm, template) : null;
             })
             .filter(Boolean);
         const totalPages = Math.ceil(count / limit);
@@ -368,6 +485,116 @@ async function getInvestments(req, res) {
     }
 }
 
+async function getInvestmentById(req, res) {
+    try {
+        const userId = req.user?.id;
+        const { farmId } = req.params;
+
+        if (!userId) {
+            return res.fail('User not authenticated', 401);
+        }
+
+        if (!farmId) {
+            return res.fail('Farm ID is required', 400);
+        }
+
+        const farm = await UserFarm.findOne({
+            where: {
+                id: farmId,
+                isActive: true,
+                verificationStatus: 'approved',
+                userId: {
+                    [Op.in]: sequelize.literal("(SELECT user_id FROM kyc WHERE status = 'approved')")
+                }
+            },
+            include: [
+                {
+                    model: FarmCategory,
+                    as: 'Category',
+                    attributes: ['id', 'name', 'description'],
+                    required: true
+                },
+                {
+                    model: User,
+                    as: 'User',
+                    attributes: ['id', 'fullName'],
+                    required: true
+                },
+                {
+                    model: UserFarmInvestment,
+                    as: 'Investment',
+                    attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentStatus', 'currency'],
+                    where: { isActive: true },
+                    required: false
+                },
+                {
+                    model: FarmDocument,
+                    as: 'Documents',
+                    attributes: ['id', 'documentType', 'fileName', 'fileUrl', 'mimeType', 'createdAt'],
+                    where: { documentType: 'picture' },
+                    required: false,
+                    separate: true,
+                    order: [['createdAt', 'ASC']]
+                },
+                {
+                    model: UserFarmMilestone,
+                    as: 'SelectedMilestones',
+                    attributes: ['id', 'milestoneId', 'isCompleted', 'completedAt', 'amount', 'createdAt', 'updatedAt'],
+                    include: [{
+                        model: Milestone,
+                        as: 'Milestone',
+                        attributes: ['id', 'name', 'order']
+                    }],
+                    required: false,
+                    separate: true
+                }
+            ],
+            attributes: ['id', 'farmCategoryId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt']
+        });
+
+        if (!farm) {
+            return res.fail('Investment not found', 404);
+        }
+
+        const template = await Investment.findOne({
+            where: {
+                farmCategoryId: farm.farmCategoryId,
+                isActive: true
+            },
+            attributes: [
+                'id',
+                'farmCategoryId',
+                'name',
+                'roiPercentage',
+                'durationValue',
+                'durationUnit',
+                'riskLevel',
+                'fundingMaxGoal',
+                'investmentMinGoal',
+                'currency',
+                'createdAt'
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+
+        if (!template) {
+            return res.fail('Investment template not found for this farm category', 404);
+        }
+
+        return res.success(
+            formatInvestmentFarm(req, farm, template, {
+                includeImages: true,
+                includeMilestones: true
+            }),
+            'Investment details retrieved successfully'
+        );
+    } catch (error) {
+        console.error('Get user investment details error:', error);
+        return res.fail('Failed to retrieve investment details', 500);
+    }
+}
+
 module.exports = {
-    getInvestments
+    getInvestments,
+    getInvestmentById
 };
