@@ -348,7 +348,7 @@ async function forgot(req, res) {
 
         const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
 
-        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email'], true, models);
+        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms'], true, models);
 
         return res.success(
             { message: 'Password reset link sent' },
@@ -389,7 +389,7 @@ async function resendResetToken(req, res) {
 
         const resetLink = `${process.env.FE_URL || 'http://localhost:3001'}/reset-password/${resetToken}`;
 
-        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms', 'email'], true, models);
+        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms'], true, models);
 
         return res.success(
             { message: 'Password reset link sent' },

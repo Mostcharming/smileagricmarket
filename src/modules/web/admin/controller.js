@@ -260,7 +260,7 @@ async function approveKYC(req, res) {
                     'user',
                     'KYC_APPROVED_TEMPLATE',
                     {},
-                    ['sms', 'email'],
+                    ['sms'],
                     true,
                     models
                 );
@@ -328,7 +328,7 @@ async function rejectKYC(req, res) {
                     'user',
                     'KYC_REJECTED_TEMPLATE',
                     { reason: rejectionReason.trim() },
-                    ['sms', 'email'],
+                    ['sms'],
                     true,
                     models
                 );
@@ -560,7 +560,7 @@ async function approveUserFarm(req, res) {
                     'user',
                     'FARM_APPROVED_TEMPLATE',
                     { farmName: farm.name },
-                    ['sms', 'email'],
+                    ['sms'],
                     true,
                     models
                 );
@@ -625,7 +625,7 @@ async function rejectUserFarm(req, res) {
                     'user',
                     'FARM_REJECTED_TEMPLATE',
                     { farmName: farm.name, reason: note.trim() },
-                    ['sms', 'email'],
+                    ['sms'],
                     true,
                     models
                 );
