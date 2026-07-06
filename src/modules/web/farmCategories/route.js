@@ -11,8 +11,8 @@ const {
  *   get:
  *     tags:
  *       - Web Farm Categories
- *     summary: Get all farm categories
- *     description: Retrieve a list of all active farm categories
+ *     summary: Get investable farm categories
+ *     description: Retrieve active farm categories that have active investments
  *     security:
  *       - bearerAuth: []
  *     responses:

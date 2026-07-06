@@ -4,7 +4,7 @@ const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 
 const models = defineModels(sequelize);
-const { FarmCategory, Milestone } = models;
+const { FarmCategory, Milestone, Investment } = models;
 
 /**
  * Get all farm categories
@@ -16,6 +16,15 @@ async function getCategories(req, res) {
         const categories = await FarmCategory.findAll({
             where: { isActive: true },
             attributes: ['id', 'name', 'description'],
+            include: [
+                {
+                    model: Investment,
+                    as: 'Investments',
+                    attributes: [],
+                    required: true,
+                    where: { isActive: true }
+                }
+            ],
             order: [['name', 'ASC']]
         });
 
