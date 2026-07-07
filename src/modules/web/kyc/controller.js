@@ -10,7 +10,7 @@ const { User, KYC } = models;
 async function submitKYC(req, res) {
     try {
         const userId = req.user?.id;
-        const { identificationType, identificationNumber } = req.body;
+        const { identificationType, identificationNumber, dateOfBirth } = req.body;
 
         if (!userId) {
             return res.fail('User not authenticated', 401);
