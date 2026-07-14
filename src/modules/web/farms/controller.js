@@ -284,7 +284,13 @@ async function createFarm(req, res) {
         // Create associated investment record
         await UserFarmInvestment.create({
             userFarmId: farm.id,
-            currency: 'USD'
+            currency: currency || 'USD',
+            expectedInvestment: investmentAmount ? parseFloat(investmentAmount) : null,
+            investmentReceived: 0.00,
+            investmentPending: investmentAmount ? parseFloat(investmentAmount) : null,
+            investmentStatus: 'pending',
+            notes: null,
+            isActive: true
         });
 
         // Add selected milestones if provided

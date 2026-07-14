@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getInvestments, getInvestmentById } = require('./controller');
+const { getInvestments, getInvestmentById, investInFarm } = require('./controller');
 
 /**
  * @swagger
@@ -618,5 +618,136 @@ router.get('/', getInvestments);
  *         description: Failed to retrieve investment details
  */
 router.get('/:farmId', getInvestmentById);
+
+/**
+ * @swagger
+ * /web/investments/{farmId}/invest:
+ *   post:
+ *     tags:
+ *       - Web Investments
+ *     summary: Invest in another user's farm
+ *     description: Records an investment payment and atomically increases the farm's received funding. Paystack fields are reserved, but gateway initialization is deferred until the Paystack account is configured.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: farmId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: header
+ *         name: Idempotency-Key
+ *         required: false
+ *         schema:
+ *           type: string
+ *           maxLength: 100
+ *         description: A unique client-generated key that safely prevents duplicate investments when retrying a request.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 format: double
+ *                 minimum: 0.01
+ *                 example: 250000
+ *               currency:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 3
+ *                 example: NGN
+ *               idempotencyKey:
+ *                 type: string
+ *                 maxLength: 100
+ *                 description: Body alternative to the Idempotency-Key header.
+ *     responses:
+ *       201:
+ *         description: Investment recorded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Investment recorded successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     payment:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         reference:
+ *                           type: string
+ *                         amount:
+ *                           type: number
+ *                           example: 250000
+ *                         currency:
+ *                           type: string
+ *                           example: NGN
+ *                         gateway:
+ *                           type: string
+ *                           example: paystack
+ *                         status:
+ *                           type: string
+ *                           example: recorded
+ *                     investment:
+ *                       type: object
+ *                       properties:
+ *                         farmId:
+ *                           type: string
+ *                           format: uuid
+ *                         fundingReceived:
+ *                           type: number
+ *                           example: 1500000
+ *                         totalExpectedFunding:
+ *                           type: number
+ *                           example: 5000000
+ *                         remainingFunding:
+ *                           type: number
+ *                           example: 3500000
+ *                         percentFunded:
+ *                           type: number
+ *                           example: 30
+ *                         fundingStatus:
+ *                           type: string
+ *                           example: partial
+ *                     gateway:
+ *                       type: object
+ *                       properties:
+ *                         provider:
+ *                           type: string
+ *                           example: paystack
+ *                         initialized:
+ *                           type: boolean
+ *                           example: false
+ *       200:
+ *         description: An idempotent retry returned the existing payment
+ *       400:
+ *         description: Invalid amount, currency, or investment limit
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Approved KYC is required or the user owns the farm
+ *       404:
+ *         description: Farm or investment template not found
+ *       409:
+ *         description: Farm is fully funded, unavailable, or the idempotency key conflicts
+ *       500:
+ *         description: Failed to process investment
+ */
+router.post('/:farmId/invest', investInFarm);
 
 module.exports = router;

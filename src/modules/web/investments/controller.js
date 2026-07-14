@@ -1,5 +1,6 @@
 'use strict';
 
+const { randomBytes } = require('crypto');
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
@@ -11,11 +12,16 @@ const {
     FarmCategory,
     UserFarm,
     UserFarmInvestment,
+    InvestmentPayment,
     User,
+    KYC,
     FarmDocument,
     UserFarmMilestone,
     Milestone
 } = models;
+
+const PAYSTACK_GATEWAY = 'paystack';
+const PAYSTACK_NOT_CONFIGURED_MESSAGE = 'Paystack initialization is not configured yet; the payment was recorded internally.';
 
 const DURATION_UNITS = ['weeks', 'months', 'years'];
 const RISK_LEVELS = ['low', 'medium', 'high'];
@@ -27,6 +33,71 @@ function firstDefined(...values) {
 function toMoney(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toMoneyCents(value) {
+    const normalized = String(value ?? '').trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
+
+    const amount = Number(normalized);
+    const cents = Math.round(amount * 100);
+    return Number.isFinite(amount) && Number.isSafeInteger(cents) ? cents : null;
+}
+
+function fromMoneyCents(value) {
+    return Number((value / 100).toFixed(2));
+}
+
+function generatePaymentReference() {
+    return `SMILE-INV-${Date.now()}-${randomBytes(6).toString('hex').toUpperCase()}`;
+}
+
+function getIdempotencyKey(req) {
+    const value = req.get('Idempotency-Key') || req.body?.idempotencyKey;
+    if (value === undefined || value === null || String(value).trim() === '') return null;
+
+    const key = String(value).trim();
+    return key.length <= 100 ? key : undefined;
+}
+
+function formatInvestmentPayment(payment) {
+    const data = payment.toJSON ? payment.toJSON() : payment;
+    return {
+        id: data.id,
+        reference: data.reference,
+        farmId: data.userFarmId,
+        investmentTemplateId: data.investmentId,
+        amount: toMoney(data.amount),
+        currency: data.currency,
+        gateway: data.gateway,
+        gatewayReference: data.gatewayReference,
+        authorizationUrl: data.authorizationUrl,
+        status: data.status,
+        paidAt: data.paidAt,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt
+    };
+}
+
+function formatFundingSummary(farmId, farmInvestment, totalExpectedFunding) {
+    const fundingReceived = toMoney(farmInvestment.investmentReceived);
+    const expectedFunding = toMoney(totalExpectedFunding);
+    return {
+        farmId,
+        fundingReceived,
+        totalExpectedFunding: expectedFunding,
+        remainingFunding: Math.max(Number((expectedFunding - fundingReceived).toFixed(2)), 0),
+        percentFunded: getPercentFunded(fundingReceived, expectedFunding),
+        fundingStatus: getFundingStatus(farmInvestment.investmentStatus, fundingReceived, expectedFunding)
+    };
+}
+
+class InvestmentRequestError extends Error {
+    constructor(message, statusCode) {
+        super(message);
+        this.name = 'InvestmentRequestError';
+        this.statusCode = statusCode;
+    }
 }
 
 function normalizeDurationUnit(value) {
@@ -594,7 +665,280 @@ async function getInvestmentById(req, res) {
     }
 }
 
+async function investInFarm(req, res) {
+    try {
+        const investorId = req.user?.id;
+        const { farmId } = req.params;
+        const amountValue = firstDefined(req.body?.amount, req.body?.investmentAmount);
+        const amountInCents = toMoneyCents(amountValue);
+        const requestedCurrency = req.body?.currency
+            ? String(req.body.currency).trim().toUpperCase()
+            : null;
+        const idempotencyKey = getIdempotencyKey(req);
+
+        if (!investorId) {
+            return res.fail('User not authenticated', 401);
+        }
+
+        if (!farmId) {
+            return res.fail('Farm ID is required', 400);
+        }
+
+        if (amountInCents === null || amountInCents <= 0) {
+            return res.fail('amount must be a positive number with no more than two decimal places', 400);
+        }
+
+        if (requestedCurrency && !/^[A-Z]{3}$/.test(requestedCurrency)) {
+            return res.fail('currency must be a valid three-letter currency code', 400);
+        }
+
+        if (idempotencyKey === undefined) {
+            return res.fail('Idempotency-Key cannot be longer than 100 characters', 400);
+        }
+
+        const approvedKyc = await KYC.findOne({
+            where: {
+                userId: investorId,
+                status: 'approved'
+            },
+            attributes: ['id']
+        });
+
+        if (!approvedKyc) {
+            return res.fail('Approved KYC is required before investing', 403);
+        }
+
+        const result = await sequelize.transaction(async transaction => {
+            const farm = await UserFarm.findOne({
+                where: {
+                    id: farmId,
+                    isActive: true,
+                    verificationStatus: 'approved',
+                    userId: {
+                        [Op.in]: sequelize.literal("(SELECT user_id FROM kyc WHERE status = 'approved')")
+                    }
+                },
+                attributes: ['id', 'userId', 'farmCategoryId', 'name', 'currency'],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!farm) {
+                throw new InvestmentRequestError('Investment farm not found or is not available', 404);
+            }
+
+            if (farm.userId === investorId) {
+                throw new InvestmentRequestError('You cannot invest in your own farm', 403);
+            }
+
+            const farmInvestment = await UserFarmInvestment.findOne({
+                where: {
+                    userFarmId: farm.id,
+                    isActive: true
+                },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!farmInvestment) {
+                throw new InvestmentRequestError('This farm is not open for investment', 409);
+            }
+
+            const investmentTemplate = await Investment.findOne({
+                where: {
+                    farmCategoryId: farm.farmCategoryId,
+                    isActive: true
+                },
+                attributes: [
+                    'id',
+                    'investmentMinGoal',
+                    'investmentMaxGoal',
+                    'fundingMaxGoal',
+                    'currency',
+                    'createdAt'
+                ],
+                order: [['createdAt', 'DESC']],
+                transaction
+            });
+
+            if (!investmentTemplate) {
+                throw new InvestmentRequestError('Investment template not found for this farm category', 404);
+            }
+
+            const totalExpectedInCents = toMoneyCents(
+                farmInvestment.expectedInvestment ?? investmentTemplate.fundingMaxGoal
+            );
+            const fundingReceivedInCents = toMoneyCents(farmInvestment.investmentReceived) ?? 0;
+            const minimumInvestmentInCents = toMoneyCents(investmentTemplate.investmentMinGoal) ?? 0;
+            const maximumInvestmentInCents = toMoneyCents(investmentTemplate.investmentMaxGoal);
+
+            if (totalExpectedInCents === null || totalExpectedInCents <= 0) {
+                throw new InvestmentRequestError('This farm does not have a valid funding target', 409);
+            }
+
+            if (idempotencyKey) {
+                const existingPayment = await InvestmentPayment.findOne({
+                    where: {
+                        investorId,
+                        idempotencyKey
+                    },
+                    transaction
+                });
+
+                if (existingPayment) {
+                    const existingAmountInCents = toMoneyCents(existingPayment.amount);
+                    if (existingPayment.userFarmId !== farm.id || existingAmountInCents !== amountInCents) {
+                        throw new InvestmentRequestError(
+                            'This Idempotency-Key has already been used for another investment request',
+                            409
+                        );
+                    }
+
+                    return {
+                        payment: existingPayment,
+                        farmInvestment,
+                        totalExpectedFunding: fromMoneyCents(totalExpectedInCents),
+                        created: false
+                    };
+                }
+            }
+
+            const remainingFundingInCents = Math.max(totalExpectedInCents - fundingReceivedInCents, 0);
+            if (remainingFundingInCents === 0) {
+                throw new InvestmentRequestError('This farm has already reached its funding target', 409);
+            }
+
+            if (amountInCents < minimumInvestmentInCents && amountInCents !== remainingFundingInCents) {
+                throw new InvestmentRequestError(
+                    `Minimum investment is ${fromMoneyCents(minimumInvestmentInCents)}`,
+                    400
+                );
+            }
+
+            if (maximumInvestmentInCents !== null && amountInCents > maximumInvestmentInCents) {
+                throw new InvestmentRequestError(
+                    `Maximum investment is ${fromMoneyCents(maximumInvestmentInCents)}`,
+                    400
+                );
+            }
+
+            if (amountInCents > remainingFundingInCents) {
+                throw new InvestmentRequestError(
+                    `Investment amount exceeds the remaining funding of ${fromMoneyCents(remainingFundingInCents)}`,
+                    409
+                );
+            }
+
+            const currency = String(
+                farmInvestment.currency || investmentTemplate.currency || farm.currency || 'NGN'
+            ).toUpperCase();
+
+            if (requestedCurrency && requestedCurrency !== currency) {
+                throw new InvestmentRequestError(`Investment currency must be ${currency}`, 400);
+            }
+
+            // Temporary pre-Paystack flow. Once credentials are available, initialize
+            // Paystack here as pending and move the funding update to verified payment handling.
+            const paymentDefaults = {
+                investorId,
+                userFarmId: farm.id,
+                userFarmInvestmentId: farmInvestment.id,
+                investmentId: investmentTemplate.id,
+                reference: generatePaymentReference(),
+                idempotencyKey,
+                amount: fromMoneyCents(amountInCents),
+                currency,
+                gateway: PAYSTACK_GATEWAY,
+                gatewayReference: null,
+                authorizationUrl: null,
+                status: 'recorded',
+                paidAt: null,
+                gatewayResponse: {
+                    integrationStatus: 'not_configured',
+                    message: PAYSTACK_NOT_CONFIGURED_MESSAGE
+                }
+            };
+
+            let payment;
+            let created = true;
+
+            if (idempotencyKey) {
+                [payment, created] = await InvestmentPayment.findOrCreate({
+                    where: {
+                        investorId,
+                        idempotencyKey
+                    },
+                    defaults: paymentDefaults,
+                    transaction
+                });
+
+                if (!created) {
+                    const existingAmountInCents = toMoneyCents(payment.amount);
+                    if (payment.userFarmId !== farm.id || existingAmountInCents !== amountInCents) {
+                        throw new InvestmentRequestError(
+                            'This Idempotency-Key has already been used for another investment request',
+                            409
+                        );
+                    }
+
+                    return {
+                        payment,
+                        farmInvestment,
+                        totalExpectedFunding: fromMoneyCents(totalExpectedInCents),
+                        created: false
+                    };
+                }
+            } else {
+                payment = await InvestmentPayment.create(paymentDefaults, { transaction });
+            }
+
+            const nextFundingReceivedInCents = fundingReceivedInCents + amountInCents;
+            const nextInvestmentStatus = nextFundingReceivedInCents >= totalExpectedInCents
+                ? 'completed'
+                : 'partial';
+
+            await farmInvestment.update({
+                expectedInvestment: fromMoneyCents(totalExpectedInCents),
+                investmentReceived: fromMoneyCents(nextFundingReceivedInCents),
+                investmentPending: fromMoneyCents(
+                    Math.max(totalExpectedInCents - nextFundingReceivedInCents, 0)
+                ),
+                investmentStatus: nextInvestmentStatus
+            }, { transaction });
+
+            return {
+                payment,
+                farmInvestment,
+                totalExpectedFunding: fromMoneyCents(totalExpectedInCents),
+                created
+            };
+        });
+
+        return res.success({
+            payment: formatInvestmentPayment(result.payment),
+            investment: formatFundingSummary(
+                farmId,
+                result.farmInvestment,
+                result.totalExpectedFunding
+            ),
+            gateway: {
+                provider: PAYSTACK_GATEWAY,
+                initialized: false,
+                message: PAYSTACK_NOT_CONFIGURED_MESSAGE
+            }
+        }, result.created ? 'Investment recorded successfully' : 'Investment request already recorded', result.created ? 201 : 200);
+    } catch (error) {
+        if (error instanceof InvestmentRequestError) {
+            return res.fail(error.message, error.statusCode);
+        }
+
+        console.error('Invest in farm error:', error);
+        return res.fail('Failed to process investment', 500);
+    }
+}
+
 module.exports = {
     getInvestments,
-    getInvestmentById
+    getInvestmentById,
+    investInFarm
 };

@@ -18,6 +18,7 @@ module.exports = (sequelize) => {
         FarmDocument: require('./FarmDocument')(sequelize),
         Investment: require('./Investment')(sequelize),
         InvestmentMilestone: require('./InvestmentMilestone')(sequelize),
+        InvestmentPayment: require('./InvestmentPayment')(sequelize),
     };
 
     // Define associations
@@ -174,6 +175,51 @@ module.exports = (sequelize) => {
     models.UserFarmInvestment.belongsTo(models.UserFarm, {
         foreignKey: 'userFarmId',
         as: 'Farm'
+    });
+
+    // Payments made by users into investable farms
+    models.User.hasMany(models.InvestmentPayment, {
+        foreignKey: 'investorId',
+        as: 'InvestmentPayments',
+        onDelete: 'RESTRICT'
+    });
+
+    models.InvestmentPayment.belongsTo(models.User, {
+        foreignKey: 'investorId',
+        as: 'Investor'
+    });
+
+    models.UserFarm.hasMany(models.InvestmentPayment, {
+        foreignKey: 'userFarmId',
+        as: 'Payments',
+        onDelete: 'RESTRICT'
+    });
+
+    models.InvestmentPayment.belongsTo(models.UserFarm, {
+        foreignKey: 'userFarmId',
+        as: 'Farm'
+    });
+
+    models.UserFarmInvestment.hasMany(models.InvestmentPayment, {
+        foreignKey: 'userFarmInvestmentId',
+        as: 'Payments',
+        onDelete: 'RESTRICT'
+    });
+
+    models.InvestmentPayment.belongsTo(models.UserFarmInvestment, {
+        foreignKey: 'userFarmInvestmentId',
+        as: 'FarmInvestment'
+    });
+
+    models.Investment.hasMany(models.InvestmentPayment, {
+        foreignKey: 'investmentId',
+        as: 'Payments',
+        onDelete: 'RESTRICT'
+    });
+
+    models.InvestmentPayment.belongsTo(models.Investment, {
+        foreignKey: 'investmentId',
+        as: 'InvestmentTemplate'
     });
 
     // Farm Documents associations
