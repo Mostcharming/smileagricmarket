@@ -220,6 +220,7 @@ async function getKYCList(req, res) {
             include: [
                 {
                     model: User,
+                    as: 'User',
                     attributes: ['id', 'fullName', 'phoneNumber', 'email']
                 }
             ],

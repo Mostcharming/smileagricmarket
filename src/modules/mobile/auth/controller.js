@@ -13,6 +13,25 @@ const { User, TempOtp, KYC } = models;
 const OTP_EXPIRY_MINUTES = 30;
 const DEV_OVERRIDE_OTP = '777666';
 
+function getResetNotificationChannels(user) {
+    return [
+        user?.email ? 'email' : null,
+        user?.phoneNumber ? 'sms' : null
+    ].filter(Boolean);
+}
+
+async function sendNotificationSafely(user, templateName, shortCodes, channels) {
+    if (!user || !channels.length) {
+        return;
+    }
+
+    try {
+        await notify(user, 'user', templateName, shortCodes, channels, true, models);
+    } catch (error) {
+        console.error(`Failed to send ${templateName} notification:`, error);
+    }
+}
+
 async function requestOtp(req, res) {
     try {
         const { phoneNumber } = req.body;
@@ -292,6 +311,13 @@ async function setPassword(req, res) {
             isPhoneVerified: true
         });
 
+        await sendNotificationSafely(
+            newUser,
+            'WELCOME_EMAIL_TEMPLATE',
+            {},
+            newUser.email ? ['email'] : []
+        );
+
         const token = signToken(newUser);
 
         const approvedKYC = await KYC.findOne({
@@ -347,7 +373,12 @@ async function forgot(req, res) {
 
         const resetLink = `${process.env.FE_URL || "https://app.smileagrimarket.com"}/reset-password/${resetToken}`;
 
-        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms'], true, models);
+        await sendNotificationSafely(
+            user,
+            'PASSWORD_RESET_TEMPLATE',
+            { resetLink, expiryTime: '1 hour' },
+            getResetNotificationChannels(user)
+        );
 
         return res.success(
             { message: 'Password reset link sent' },
@@ -388,7 +419,12 @@ async function resendResetToken(req, res) {
 
         const resetLink = `${process.env.FE_URL || "https://app.smileagrimarket.com"}/reset-password/${resetToken}`;
 
-        await notify(user, 'user', 'PASSWORD_RESET_TEMPLATE', { resetLink }, ['sms'], true, models);
+        await sendNotificationSafely(
+            user,
+            'PASSWORD_RESET_TEMPLATE',
+            { resetLink, expiryTime: '1 hour' },
+            getResetNotificationChannels(user)
+        );
 
         return res.success(
             { message: 'Password reset link sent' },
@@ -470,6 +506,13 @@ async function reset(req, res) {
             resetTokenExpiry: null
         });
 
+        await sendNotificationSafely(
+            user,
+            'PASSWORD_RESET_SUCCESS_TEMPLATE',
+            {},
+            user.email ? ['email'] : []
+        );
+
         const token = signToken(user);
 
         const approvedKYC = await KYC.findOne({
@@ -531,6 +574,13 @@ async function signupWithPassword(req, res) {
             gender: gender || null,
             isPhoneVerified: true
         });
+
+        await sendNotificationSafely(
+            newUser,
+            'WELCOME_EMAIL_TEMPLATE',
+            {},
+            newUser.email ? ['email'] : []
+        );
 
         const token = signToken(newUser);
 

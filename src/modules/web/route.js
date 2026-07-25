@@ -8,6 +8,7 @@ const dashboardRouter = require('./dashboard/route');
 const farmsRouter = require('./farms/route');
 const farmCategoriesRouter = require('./farmCategories/route');
 const investmentsRouter = require('./investments/route');
+const betaSignupsRouter = require('./betaSignups/route');
 
 const router = require('express').Router();
 
@@ -15,6 +16,9 @@ router.use(responseFormatter);
 
 // Auth routes - no security middleware needed
 router.use('/auth', authRouter);
+
+// Public landing-page beta signup route
+router.use('/beta-signups', betaSignupsRouter);
 
 // Admin routes - has its own authentication
 router.use('/admin', adminRouter);

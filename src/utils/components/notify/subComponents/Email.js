@@ -2,6 +2,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const Mailgun = require('mailgun.js');
 const NotifyProcess = require('./NotifyProcess');
+const { renderEmailTemplate } = require('../../../emailTemplateRenderer');
 
 class Email extends NotifyProcess {
     constructor(config, user = null) {
@@ -26,7 +27,13 @@ class Email extends NotifyProcess {
     }
 
     async send() {
-        const message = await this.getMessage();
+        const fallbackBody = await this.getMessage();
+        const message = renderEmailTemplate(this.templateName, {
+            user: this.user,
+            shortCodes: this.shortCodes,
+            subject: this.subject,
+            fallbackBody
+        });
 
         if (message) {
             const emailConfig = this.config.email;

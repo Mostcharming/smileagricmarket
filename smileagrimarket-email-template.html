@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title>{{email_subject}}</title>
+    <style>
+      @media screen and (max-width: 620px) {
+        .email-shell { width: 100% !important; }
+        .email-pad { padding-left: 20px !important; padding-right: 20px !important; }
+        .hero-title { font-size: 26px !important; line-height: 32px !important; }
+        .body-copy { font-size: 15px !important; line-height: 24px !important; }
+        .button-link { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+        .mobile-center { text-align: center !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0; padding:0; width:100%; background:#eef5ea; font-family:Arial, Helvetica, sans-serif; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; mso-hide:all;">
+      {{preheader_text}}
+    </div>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; background:#eef5ea;">
+      <tr>
+        <td align="center" style="padding:32px 12px;">
+          <table role="presentation" class="email-shell" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:600px; background:#ffffff; border-radius:8px; overflow:hidden; border:1px solid #d9e8d3;">
+            <tr>
+              <td style="background:#0f3f05; padding:0;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td class="email-pad mobile-center" style="padding:28px 36px 26px;">
+                      <a href="{{website_url}}" target="_blank" style="text-decoration:none;">
+                        <img src="{{logo_url}}" width="220" alt="SmileAgriMarket" style="display:inline-block; width:220px; max-width:78%; height:auto; border:0; outline:none; text-decoration:none;">
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="email-pad" style="padding:0 36px 34px;">
+                      <p style="margin:0 0 12px; color:#98e36d; font-size:13px; line-height:18px; font-weight:700; letter-spacing:0; text-transform:uppercase;">
+                        {{email_label}}
+                      </p>
+                      <h1 class="hero-title" style="margin:0; color:#ffffff; font-size:32px; line-height:38px; font-weight:800; letter-spacing:0;">
+                        {{email_title}}
+                      </h1>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="email-pad" style="padding:34px 36px 8px;">
+                <p class="body-copy" style="margin:0 0 18px; color:#193018; font-size:16px; line-height:26px;">
+                  Hi {{first_name}},
+                </p>
+
+                {{body_html}}
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="{{supporting_panel_display}}">
+                  <tr>
+                    <td style="padding:18px 18px 16px; background:#f3f8f0; border:1px solid #dcebd5; border-radius:8px;">
+                      <p style="margin:0 0 6px; color:#0f3f05; font-size:14px; line-height:20px; font-weight:700;">
+                        {{panel_title}}
+                      </p>
+                      <p class="body-copy" style="margin:0; color:#40553d; font-size:15px; line-height:24px;">
+                        {{panel_text}}
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+
+                {{body_html_after_panel}}
+
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:28px 0 24px; {{primary_cta_display}}">
+                  <tr>
+                    <td align="center" bgcolor="#63c83d" style="border-radius:6px;">
+                      <a class="button-link" href="{{primary_cta_url}}" target="_blank" style="display:inline-block; padding:14px 24px; color:#0f3f05; font-size:15px; line-height:20px; font-weight:800; text-decoration:none; border-radius:6px;">
+                        {{primary_cta_label}}
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                {{body_html_after_cta}}
+
+                <p class="body-copy" style="margin:0 0 22px; color:#193018; font-size:16px; line-height:26px;">
+                  {{closing_text}}
+                </p>
+
+                <p style="margin:0 0 26px; color:#193018; font-size:16px; line-height:24px; font-weight:700;">
+                  The AgriMarket Team
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="email-pad" style="padding:0 36px 32px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="height:1px; line-height:1px; background:#d9e8d3; font-size:1px;">&nbsp;</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="email-pad" style="padding:0 36px 36px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td class="mobile-center" style="vertical-align:top;">
+                      <p style="margin:0 0 8px; color:#40553d; font-size:13px; line-height:20px;">
+                        SmileAgriMarket helps farmers, buyers, and agriculture businesses connect with more confidence.
+                      </p>
+                      <p style="margin:0; color:#71806e; font-size:12px; line-height:18px;">
+                        You are receiving this email because you interacted with SmileAgriMarket.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top:18px;">
+                      <p class="mobile-center" style="margin:0; color:#71806e; font-size:12px; line-height:18px;">
+                        <a href="{{website_url}}" target="_blank" style="color:#1f7a12; text-decoration:underline;">{{website_domain}}</a>
+                        <span style="color:#9aad95;"> | </span>
+                        <a href="{{support_url}}" target="_blank" style="color:#1f7a12; text-decoration:underline;">Support</a>
+                        <span style="color:#9aad95; {{unsubscribe_separator_display}}"> | </span>
+                        <a href="{{unsubscribe_url}}" target="_blank" style="color:#1f7a12; text-decoration:underline; {{unsubscribe_display}}">Unsubscribe</a>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <table role="presentation" class="email-shell" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:600px;">
+            <tr>
+              <td align="center" style="padding:18px 20px 0;">
+                <p style="margin:0; color:#71806e; font-size:11px; line-height:18px;">
+                  {{company_address}}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

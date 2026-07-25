@@ -64,7 +64,7 @@ function uploadProfileImage(fieldName = 'picture') {
                 req.profileImage = {
                     filename: req.file.filename,
                     path: req.file.path,
-                    url: `/upload/${req.file.filename}`
+                    url: `/upload/profiles/${req.file.filename}`
                 };
             }
 

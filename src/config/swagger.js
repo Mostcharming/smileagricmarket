@@ -532,6 +532,7 @@ const options = {
         './src/modules/mobile/auth/route.js',
         './src/modules/mobile/kyc/route.js',
         './src/modules/web/auth/route.js',
+        './src/modules/web/betaSignups/route.js',
         './src/modules/web/kyc/route.js',
 
         './src/modules/web/farmCategories/route.js',

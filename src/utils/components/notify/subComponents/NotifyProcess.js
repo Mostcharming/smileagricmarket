@@ -1,5 +1,14 @@
 const templateLoader = require("../../../notificationTemplateLoader");
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 class NotifyProcess {
     constructor() {
         this.templateName = null;
@@ -47,16 +56,23 @@ class NotifyProcess {
 
             if (this.shortCodes) {
                 for (const [code, value] of Object.entries(this.shortCodes)) {
+                    const replacement = this.notifyConfig === 'email'
+                        ? escapeHtml(value)
+                        : String(value);
+
                     // Replace both {{code}} and {code}
-                    message = message.replace(new RegExp(`{{${code}}}`, 'g'), String(value));
-                    message = message.replace(new RegExp(`{${code}}`, 'g'), String(value));
+                    message = message.replace(new RegExp(`{{${code}}}`, 'g'), replacement);
+                    message = message.replace(new RegExp(`{${code}}`, 'g'), replacement);
                 }
             }
 
             // Replace firstName if available
             if (this.user && this.user.firstName) {
-                message = message.replace(/{{firstName}}/g, this.user.firstName);
-                message = message.replace(/{firstName}/g, this.user.firstName);
+                const firstName = this.notifyConfig === 'email'
+                    ? escapeHtml(this.user.firstName)
+                    : this.user.firstName;
+                message = message.replace(/{{firstName}}/g, firstName);
+                message = message.replace(/{firstName}/g, firstName);
             }
 
             this.getSubject();

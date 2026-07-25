@@ -255,12 +255,17 @@ async function approveKYC(req, res) {
 
         if (user) {
             try {
+                const channels = [
+                    user.email ? 'email' : null,
+                    user.phoneNumber ? 'sms' : null
+                ].filter(Boolean);
+
                 await notify(
                     user,
                     'user',
                     'KYC_APPROVED_TEMPLATE',
                     {},
-                    ['sms'],
+                    channels,
                     true,
                     models
                 );
@@ -323,12 +328,20 @@ async function rejectKYC(req, res) {
 
         if (user) {
             try {
+                const channels = [
+                    user.email ? 'email' : null,
+                    user.phoneNumber ? 'sms' : null
+                ].filter(Boolean);
+
                 await notify(
                     user,
                     'user',
                     'KYC_REJECTED_TEMPLATE',
-                    { reason: rejectionReason.trim() },
-                    ['sms'],
+                    {
+                        reason: rejectionReason.trim(),
+                        rejectionReason: rejectionReason.trim()
+                    },
+                    channels,
                     true,
                     models
                 );

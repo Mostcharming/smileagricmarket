@@ -19,6 +19,7 @@ module.exports = (sequelize) => {
         Investment: require('./Investment')(sequelize),
         InvestmentMilestone: require('./InvestmentMilestone')(sequelize),
         InvestmentPayment: require('./InvestmentPayment')(sequelize),
+        BetaSignup: require('./BetaSignup')(sequelize),
     };
 
     // Define associations

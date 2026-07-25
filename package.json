@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest",
+    "test:endpoints": "node scripts/test-endpoints.js",
     "lint": "eslint src/",
     "format": "prettier --write 'src/**/*.js'",
     "migrate": "npx sequelize-cli db:migrate",

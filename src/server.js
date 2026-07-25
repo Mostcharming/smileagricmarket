@@ -42,7 +42,14 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-  origin: ['https://app.smileagrimarket.com', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5011'],
+  origin: [
+    'https://smileagrimarket.com',
+    'https://www.smileagrimarket.com',
+    'https://app.smileagrimarket.com',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5011'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   credentials: true,
