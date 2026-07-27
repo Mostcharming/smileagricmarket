@@ -99,7 +99,7 @@ const options = {
                         },
                         role: {
                             type: 'string',
-                            enum: ['super_admin', 'admin', 'moderator'],
+                            enum: ['super_admin', 'admin', 'moderator', 'marketing_admin'],
                             description: 'Admin role',
                         },
                         isActive: {
@@ -116,6 +116,64 @@ const options = {
                             format: 'date-time',
                         },
                         updatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                        },
+                    },
+                },
+                MarketingAdmin: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Marketing admin unique identifier',
+                        },
+                        fullName: {
+                            type: 'string',
+                            description: 'Marketing admin full name',
+                        },
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                            description: 'Marketing admin email address',
+                        },
+                        role: {
+                            type: 'string',
+                            enum: ['marketing_admin'],
+                        },
+                        lastLoginAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                        },
+                    },
+                },
+                BetaSignup: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                        },
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                        },
+                        firstName: {
+                            type: 'string',
+                            nullable: true,
+                        },
+                        source: {
+                            type: 'string',
+                            example: 'landing_page',
+                        },
+                        confirmationEmailSentAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                        },
+                        createdAt: {
                             type: 'string',
                             format: 'date-time',
                         },
@@ -545,6 +603,7 @@ const options = {
         './src/modules/web/admin/route.js',
         './src/modules/web/admin/farmCategoryRoute.js',
         './src/modules/web/admin/investmentRoute.js',
+        './src/modules/web/marketingAdmin/route.js',
     ],
 };
 

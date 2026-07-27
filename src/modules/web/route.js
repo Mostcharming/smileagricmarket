@@ -4,6 +4,7 @@ const authRouter = require('./auth/route');
 const kycRouter = require('./kyc/route');
 const profileRouter = require('./profile/route');
 const adminRouter = require('./admin/route');
+const marketingAdminRouter = require('./marketingAdmin/route');
 const dashboardRouter = require('./dashboard/route');
 const farmsRouter = require('./farms/route');
 const farmCategoriesRouter = require('./farmCategories/route');
@@ -22,6 +23,9 @@ router.use('/beta-signups', betaSignupsRouter);
 
 // Admin routes - has its own authentication
 router.use('/admin', adminRouter);
+
+// Marketing admin routes - has its own restricted authentication
+router.use('/marketing-admin', marketingAdminRouter);
 
 // All other routes require authentication
 router.use(securityMiddleware);

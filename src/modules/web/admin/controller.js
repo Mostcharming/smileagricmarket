@@ -13,14 +13,20 @@ const { Admin, User, KYC } = models;
 
 async function login(req, res) {
     try {
-        const { email, password } = req.body;
+        const email = typeof req.body?.email === 'string'
+            ? req.body.email.trim().toLowerCase()
+            : '';
+        const password = req.body?.password;
 
-        if (!email || !password) {
+        if (!email || typeof password !== 'string' || !password) {
             return res.fail('Email and password are required', 400);
         }
 
         const admin = await Admin.findOne({
-            where: { email }
+            where: {
+                email,
+                role: { [Op.ne]: 'marketing_admin' }
+            }
         });
 
         if (!admin) {

@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const assert = require('node:assert/strict');
+const bcrypt = require('bcrypt');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { Op } = require('sequelize');
@@ -13,7 +14,9 @@ sequelize.options.logging = false;
 
 const models = defineModels(sequelize);
 const {
+    Admin,
     AdminNotification,
+    BetaSignup,
     FarmCategory,
     FarmDocument,
     Investment,
@@ -34,6 +37,9 @@ const origin = (process.env.ENDPOINT_TEST_ORIGIN || `http://localhost:${process.
     .replace(/\/+$/, '');
 const apiRoot = `${origin}/v1`;
 const runId = `e2e-${Date.now()}`;
+const betaSignupEmail = `beta-${runId}@example.test`;
+const marketingAdminEmail = `marketing-${runId}@example.test`;
+const marketingAdminPassword = 'EndpointMarketing123!';
 const runDigits = Date.now().toString().slice(-7);
 const coveredOperations = new Set();
 const createdPhones = [];
@@ -445,6 +451,15 @@ async function cleanup() {
     await AdminNotification.destroy({
         where: { title: { [Op.like]: `%${runId}%` } }
     }).catch(() => {});
+    await BetaSignup.destroy({
+        where: { email: betaSignupEmail }
+    }).catch(() => {});
+    await Admin.destroy({
+        where: {
+            email: marketingAdminEmail,
+            role: 'marketing_admin'
+        }
+    }).catch(() => {});
 }
 
 async function run() {
@@ -482,6 +497,11 @@ async function run() {
         expectedStatus: 401,
         expectError: true
     });
+    await httpCheck('marketing admin auth guard', 'GET', '/web/marketing-admin/beta-signups', {
+        expectedStatus: 401,
+        expectError: true,
+        cover: false
+    });
 
     const adminLogin = await httpCheck('admin login', 'POST', '/web/admin/login', {
         body: {
@@ -491,6 +511,84 @@ async function run() {
     });
     const adminToken = adminLogin.body.data.token;
     assert.ok(adminToken, 'Admin login did not return a token');
+
+    await Admin.create({
+        fullName: `Marketing Admin ${runId}`,
+        email: marketingAdminEmail,
+        password: await bcrypt.hash(marketingAdminPassword, 10),
+        role: 'marketing_admin',
+        isActive: true
+    });
+
+    await httpCheck('public beta signup', 'POST', '/web/beta-signups', {
+        body: {
+            email: betaSignupEmail,
+            firstName: `Beta ${runId}`
+        },
+        expectedStatus: 201
+    });
+
+    await httpCheck('marketing admin rejected by regular admin login', 'POST', '/web/admin/login', {
+        body: {
+            email: marketingAdminEmail,
+            password: marketingAdminPassword
+        },
+        expectedStatus: 401,
+        expectError: true,
+        cover: false
+    });
+
+    const marketingLogin = await httpCheck(
+        'marketing admin login',
+        'POST',
+        '/web/marketing-admin/login',
+        {
+            body: {
+                email: marketingAdminEmail,
+                password: marketingAdminPassword
+            }
+        }
+    );
+    const marketingToken = marketingLogin.body.data.token;
+    assert.ok(marketingToken, 'Marketing admin login did not return a token');
+
+    await httpCheck(
+        'regular admin rejected from marketing routes',
+        'GET',
+        '/web/marketing-admin/beta-signups',
+        {
+            headers: bearer(adminToken),
+            expectedStatus: 403,
+            expectError: true,
+            cover: false
+        }
+    );
+
+    const betaSignups = await httpCheck(
+        'marketing admin lists beta signups',
+        'GET',
+        '/web/marketing-admin/beta-signups',
+        {
+            actualPath: `/web/marketing-admin/beta-signups?query=${encodeURIComponent(runId)}&page=1&limit=20`,
+            headers: bearer(marketingToken)
+        }
+    );
+    assert.ok(
+        betaSignups.body.data.signups.some(signup => signup.email === betaSignupEmail),
+        'Created beta signup was missing from the marketing admin list'
+    );
+
+    const betaExport = await httpCheck(
+        'marketing admin downloads all beta signups',
+        'GET',
+        '/web/marketing-admin/beta-signups/download',
+        {
+            actualPath: `/web/marketing-admin/beta-signups/download?query=${encodeURIComponent(runId)}`,
+            headers: bearer(marketingToken)
+        }
+    );
+    assert.match(betaExport.body, new RegExp(betaSignupEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(betaExport.headers.get('content-disposition') || '', /attachment; filename="beta-signups-\d{4}-\d{2}-\d{2}\.csv"/);
 
     const webUsers = await exerciseAuthSurface('/web', 1);
     const mobileUsers = await exerciseAuthSurface('/mobile', 3);
