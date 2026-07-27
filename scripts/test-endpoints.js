@@ -917,6 +917,47 @@ async function run() {
         'Idempotency replay created a second payment'
     );
 
+    const portfolio = await httpCheck('web portfolio summary', 'GET', '/web/portfolio', {
+        headers: bearer(mobileUsers.primary.token)
+    });
+    assert.equal(portfolio.body.data.summary.totalInvested.amount, 50000);
+    assert.equal(portfolio.body.data.summary.totalFarmsInvested.count, 1);
+    assert.equal(portfolio.body.data.summary.totalExpectedReturns.amount, 9250);
+    assert.equal(portfolio.body.data.summary.totalEarnedReturns.amount, 0);
+
+    const activePortfolioFarms = await httpCheck('web active portfolio farms', 'GET', '/web/portfolio/farms', {
+        actualPath: '/web/portfolio/farms?status=active',
+        headers: bearer(mobileUsers.primary.token)
+    });
+    assert.equal(activePortfolioFarms.body.data.total, 1);
+    assert.equal(activePortfolioFarms.body.data.farms[0].farmId, farmId);
+    assert.equal(activePortfolioFarms.body.data.farms[0].userInvestment.amountInvested, 50000);
+
+    const portfolioFarmDetails = await httpCheck(
+        'web portfolio farm details',
+        'GET',
+        '/web/portfolio/farms/{farmId}',
+        {
+            actualPath: `/web/portfolio/farms/${farmId}`,
+            headers: bearer(mobileUsers.primary.token)
+        }
+    );
+    assert.equal(portfolioFarmDetails.body.data.farmId, farmId);
+    assert.ok(Array.isArray(portfolioFarmDetails.body.data.images));
+    assert.ok(Array.isArray(portfolioFarmDetails.body.data.documents));
+    assert.ok(Array.isArray(portfolioFarmDetails.body.data.milestones));
+    assert.equal(portfolioFarmDetails.body.data.userInvestment.amountInvested, 50000);
+    assert.equal(
+        portfolioFarmDetails.body.data.milestoneStats.total,
+        portfolioFarmDetails.body.data.milestones.length
+    );
+
+    const completedPortfolioFarms = await httpCheck('web completed portfolio farms', 'GET', '/web/portfolio/farms', {
+        actualPath: '/web/portfolio/farms?status=completed',
+        headers: bearer(mobileUsers.primary.token)
+    });
+    assert.equal(completedPortfolioFarms.body.data.total, 0);
+
     await httpCheck('web dashboard overview', 'GET', '/web/dashboard', {
         headers: bearer(webUsers.primary.token)
     });

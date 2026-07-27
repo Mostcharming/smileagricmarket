@@ -610,6 +610,7 @@ const options = {
         './src/modules/web/farmCategories/route.js',
         './src/modules/web/dashboard/route.js',
         './src/modules/web/investments/route.js',
+        './src/modules/web/portfolio/route.js',
         './src/modules/web/farms/route.js',
         './src/modules/web/profile/route.js',
         './src/modules/mobile/route.js',
