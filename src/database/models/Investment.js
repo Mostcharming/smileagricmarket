@@ -34,6 +34,18 @@ module.exports = (sequelize) => {
             field: 'description',
             comment: 'Investment description'
         },
+        startDate: {
+            type: DataTypes.DATEONLY,
+            allowNull: true,
+            field: 'start_date',
+            comment: 'Date the investment template starts'
+        },
+        endDate: {
+            type: DataTypes.DATEONLY,
+            allowNull: true,
+            field: 'end_date',
+            comment: 'Date the investment template ends'
+        },
         roiPercentage: {
             type: DataTypes.DECIMAL(10, 2),
             allowNull: false,
@@ -107,6 +119,20 @@ module.exports = (sequelize) => {
         tableName: 'investments',
         timestamps: true,
         underscored: true,
+        validate: {
+            validDateRange() {
+                const hasStartDate = this.startDate !== null && this.startDate !== undefined;
+                const hasEndDate = this.endDate !== null && this.endDate !== undefined;
+
+                if (hasStartDate !== hasEndDate) {
+                    throw new Error('startDate and endDate must both be provided');
+                }
+
+                if (hasStartDate && this.endDate < this.startDate) {
+                    throw new Error('endDate must be greater than or equal to startDate');
+                }
+            }
+        },
         indexes: [
             {
                 fields: ['farm_category_id']

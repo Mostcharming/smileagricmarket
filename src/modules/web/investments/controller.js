@@ -329,10 +329,14 @@ function formatInvestmentFarm(req, farm, template, options = {}) {
         } : null,
         investmentTemplate: {
             id: template.id,
-            name: template.name
+            name: template.name,
+            startDate: template.startDate,
+            endDate: template.endDate
         },
         roi: toMoney(template.roiPercentage),
         roiPercentage: toMoney(template.roiPercentage),
+        startDate: template.startDate,
+        endDate: template.endDate,
         duration: {
             value: template.durationValue,
             unit: template.durationUnit,
@@ -442,6 +446,8 @@ async function getInvestments(req, res) {
                 'id',
                 'farmCategoryId',
                 'name',
+                'startDate',
+                'endDate',
                 'roiPercentage',
                 'durationValue',
                 'durationUnit',
@@ -636,6 +642,8 @@ async function getInvestmentById(req, res) {
                 'id',
                 'farmCategoryId',
                 'name',
+                'startDate',
+                'endDate',
                 'roiPercentage',
                 'durationValue',
                 'durationUnit',

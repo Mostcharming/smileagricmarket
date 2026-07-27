@@ -102,6 +102,39 @@ function parseBoolean(value, fieldName, errors) {
     return undefined;
 }
 
+function parseDateOnly(value, fieldName, errors, options = {}) {
+    const { required = false } = options;
+
+    if (value === undefined || value === null || value === '') {
+        if (required) {
+            errors.push(`${fieldName} is required`);
+            return undefined;
+        }
+
+        return value === null ? null : undefined;
+    }
+
+    if (typeof value !== 'string') {
+        errors.push(`${fieldName} must be a valid date in YYYY-MM-DD format`);
+        return undefined;
+    }
+
+    const normalized = value.trim();
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const parsed = match ? new Date(`${normalized}T00:00:00.000Z`) : null;
+
+    if (
+        !match
+        || Number.isNaN(parsed.getTime())
+        || parsed.toISOString().slice(0, 10) !== normalized
+    ) {
+        errors.push(`${fieldName} must be a valid date in YYYY-MM-DD format`);
+        return undefined;
+    }
+
+    return normalized;
+}
+
 function parseCurrency(value, errors) {
     if (value === undefined || value === null || value === '') {
         return 'NGN';
@@ -177,6 +210,17 @@ function normalizeInvestmentPayload(body, options = {}) {
         }
     }
 
+    const startDate = firstDefined(body.startDate, body.start_date);
+    const endDate = firstDefined(body.endDate, body.end_date);
+    const parsedStartDate = parseDateOnly(startDate, 'startDate', errors, {
+        required: requireAll
+    });
+    const parsedEndDate = parseDateOnly(endDate, 'endDate', errors, {
+        required: requireAll
+    });
+    if (parsedStartDate !== undefined) payload.startDate = parsedStartDate;
+    if (parsedEndDate !== undefined) payload.endDate = parsedEndDate;
+
     const fundingMinGoal = firstDefined(body.fundingMinGoal, body.fundingRules?.minGoal);
     const fundingMaxGoal = firstDefined(body.fundingMaxGoal, body.fundingRules?.maxGoal);
     const parsedFundingMinGoal = parseMoney(fundingMinGoal, 'fundingMinGoal', errors, { required: requireAll });
@@ -228,6 +272,24 @@ function normalizeInvestmentPayload(body, options = {}) {
         nextInvestmentMax > nextFundingMax
     ) {
         errors.push('investmentMaxGoal cannot be greater than fundingMaxGoal');
+    }
+
+    const nextStartDate = payload.startDate !== undefined
+        ? payload.startDate
+        : currentInvestment?.startDate ?? null;
+    const nextEndDate = payload.endDate !== undefined
+        ? payload.endDate
+        : currentInvestment?.endDate ?? null;
+
+    if (
+        !requireAll
+        && (nextStartDate === null) !== (nextEndDate === null)
+    ) {
+        errors.push('startDate and endDate must both be provided');
+    }
+
+    if (nextStartDate && nextEndDate && nextEndDate < nextStartDate) {
+        errors.push('endDate must be greater than or equal to startDate');
     }
 
     return { payload, errors };
@@ -335,6 +397,8 @@ function formatInvestment(investment) {
         } : null,
         name: data.name,
         description: data.description,
+        startDate: data.startDate,
+        endDate: data.endDate,
         roiPercentage: formatMoney(data.roiPercentage),
         durationValue: data.durationValue,
         durationUnit: data.durationUnit,

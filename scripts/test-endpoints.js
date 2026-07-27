@@ -318,6 +318,8 @@ function investmentPayload(categoryId, suffix) {
         name: `Investment ${runId} ${suffix}`,
         description: 'Endpoint test investment',
         farmCategoryId: categoryId,
+        startDate: '2026-08-01',
+        endDate: '2027-07-31',
         roiPercentage: 18.5,
         durationValue: 12,
         durationUnit: 'months',
@@ -654,6 +656,8 @@ async function run() {
         body: investmentPayload(categoryId, 'primary'),
         expectedStatus: 201
     });
+    assert.equal(investmentCreated.body.data.startDate, '2026-08-01');
+    assert.equal(investmentCreated.body.data.endDate, '2027-07-31');
     const investmentId = investmentCreated.body.data.id;
     await httpCheck('admin list investments', 'GET', '/web/admin/investments', {
         actualPath: `/web/admin/investments?farmCategoryId=${categoryId}&activeOnly=true`,
@@ -663,11 +667,17 @@ async function run() {
         actualPath: `/web/admin/investments/${investmentId}`,
         headers: bearer(adminToken)
     });
-    await httpCheck('admin update investment', 'PUT', '/web/admin/investments/{investmentId}', {
+    const investmentUpdated = await httpCheck('admin update investment', 'PUT', '/web/admin/investments/{investmentId}', {
         actualPath: `/web/admin/investments/${investmentId}`,
         headers: bearer(adminToken),
-        body: { description: 'Updated endpoint investment', riskLevel: 'low' }
+        body: {
+            description: 'Updated endpoint investment',
+            riskLevel: 'low',
+            endDate: '2027-08-31'
+        }
     });
+    assert.equal(investmentUpdated.body.data.startDate, '2026-08-01');
+    assert.equal(investmentUpdated.body.data.endDate, '2027-08-31');
 
     const investmentMilestone = await httpCheck(
         'admin create investment milestone',
@@ -870,14 +880,18 @@ async function run() {
         actualPath: `/web/investments?farmCategoryId=${categoryId}&riskLevel=low&durationValue=12&durationUnit=months&location=Ibadan`,
         headers: bearer(mobileUsers.primary.token)
     });
-    assert.ok(
-        investments.body.data.investments.some(investment => investment.id === farmId),
-        'Approved farm was missing from the web investment list'
-    );
-    await httpCheck('web get investment details', 'GET', '/web/investments/{farmId}', {
+    const listedInvestment = investments.body.data.investments
+        .find(investment => investment.id === farmId);
+    assert.ok(listedInvestment, 'Approved farm was missing from the web investment list');
+    assert.equal(listedInvestment.startDate, '2026-08-01');
+    assert.equal(listedInvestment.endDate, '2027-08-31');
+
+    const investmentDetails = await httpCheck('web get investment details', 'GET', '/web/investments/{farmId}', {
         actualPath: `/web/investments/${farmId}`,
         headers: bearer(mobileUsers.primary.token)
     });
+    assert.equal(investmentDetails.body.data.startDate, '2026-08-01');
+    assert.equal(investmentDetails.body.data.endDate, '2027-08-31');
 
     const idempotencyKey = `${runId}-investment`;
     const investmentPayment = await httpCheck('web invest in farm', 'POST', '/web/investments/{farmId}/invest', {

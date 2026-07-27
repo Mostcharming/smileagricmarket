@@ -60,6 +60,8 @@ const verifyAdminToken = (req, res, next) => {
  *             required:
  *               - name
  *               - farmCategoryId
+ *               - startDate
+ *               - endDate
  *               - roiPercentage
  *               - durationValue
  *               - durationUnit
@@ -77,6 +79,16 @@ const verifyAdminToken = (req, res, next) => {
  *               farmCategoryId:
  *                 type: string
  *                 format: uuid
+ *               startDate:
+ *                 type: string
+ *                 format: date
+ *                 description: Date the investment template starts
+ *                 example: '2026-08-01'
+ *               endDate:
+ *                 type: string
+ *                 format: date
+ *                 description: Date the investment template ends; must be on or after startDate
+ *                 example: '2027-07-31'
  *               roiPercentage:
  *                 type: number
  *                 example: 18.5
@@ -266,6 +278,16 @@ router.get('/investments/:investmentId', verifyAdminToken, getInvestmentById);
  *               farmCategoryId:
  *                 type: string
  *                 format: uuid
+ *               startDate:
+ *                 type: string
+ *                 format: date
+ *                 nullable: true
+ *                 description: Date the investment template starts; provide together with endDate
+ *               endDate:
+ *                 type: string
+ *                 format: date
+ *                 nullable: true
+ *                 description: Date the investment template ends; provide together with startDate
  *               roiPercentage:
  *                 type: number
  *               durationValue:

@@ -131,12 +131,32 @@ const { getInvestments, getInvestmentById, investInFarm } = require('./controlle
  *                               name:
  *                                 type: string
  *                                 example: Rice Growth Plan
+ *                               startDate:
+ *                                 type: string
+ *                                 format: date
+ *                                 nullable: true
+ *                                 example: '2026-08-01'
+ *                               endDate:
+ *                                 type: string
+ *                                 format: date
+ *                                 nullable: true
+ *                                 example: '2027-07-31'
  *                           roi:
  *                             type: number
  *                             example: 18.5
  *                           roiPercentage:
  *                             type: number
  *                             example: 18.5
+ *                           startDate:
+ *                             type: string
+ *                             format: date
+ *                             nullable: true
+ *                             example: '2026-08-01'
+ *                           endDate:
+ *                             type: string
+ *                             format: date
+ *                             nullable: true
+ *                             example: '2027-07-31'
  *                           duration:
  *                             type: object
  *                             properties:
@@ -250,8 +270,12 @@ const { getInvestments, getInvestmentById, investInFarm } = require('./controlle
  *                     investmentTemplate:
  *                       id: ba34bf03-2e08-49de-8243-3a9f36f0aaf6
  *                       name: Rice Growth Plan
+ *                       startDate: '2026-08-01'
+ *                       endDate: '2027-07-31'
  *                     roi: 18.5
  *                     roiPercentage: 18.5
+ *                     startDate: '2026-08-01'
+ *                     endDate: '2027-07-31'
  *                     duration:
  *                       value: 6
  *                       unit: months
@@ -387,12 +411,32 @@ router.get('/', getInvestments);
  *                         name:
  *                           type: string
  *                           example: Rice Growth Plan
+ *                         startDate:
+ *                           type: string
+ *                           format: date
+ *                           nullable: true
+ *                           example: '2026-08-01'
+ *                         endDate:
+ *                           type: string
+ *                           format: date
+ *                           nullable: true
+ *                           example: '2027-07-31'
  *                     roi:
  *                       type: number
  *                       example: 18.5
  *                     roiPercentage:
  *                       type: number
  *                       example: 18.5
+ *                     startDate:
+ *                       type: string
+ *                       format: date
+ *                       nullable: true
+ *                       example: '2026-08-01'
+ *                     endDate:
+ *                       type: string
+ *                       format: date
+ *                       nullable: true
+ *                       example: '2027-07-31'
  *                     duration:
  *                       type: object
  *                       properties:
@@ -546,8 +590,12 @@ router.get('/', getInvestments);
  *                 investmentTemplate:
  *                   id: ba34bf03-2e08-49de-8243-3a9f36f0aaf6
  *                   name: Rice Growth Plan
+ *                   startDate: '2026-08-01'
+ *                   endDate: '2027-07-31'
  *                 roi: 18.5
  *                 roiPercentage: 18.5
+ *                 startDate: '2026-08-01'
+ *                 endDate: '2027-07-31'
  *                 duration:
  *                   value: 6
  *                   unit: months
