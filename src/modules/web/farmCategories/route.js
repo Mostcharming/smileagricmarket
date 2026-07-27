@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
     getCategories,
-    getMilestonesByCategory
+    getMilestonesByCategory,
+    getInvestmentTemplate
 } = require('./controller');
 
 /**
@@ -12,7 +13,7 @@ const {
  *     tags:
  *       - Web Farm Categories
  *     summary: Get investable farm categories
- *     description: Retrieve active farm categories that have active investments
+ *     description: Retrieve active farm categories with their active admin investment templates and investment milestones
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -35,6 +36,14 @@ const {
  *                         type: string
  *                       description:
  *                         type: string
+ *                       investmentTemplate:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Latest active investment template for the category
+ *                       investmentTemplates:
+ *                         type: array
+ *                         items:
+ *                           type: object
  *       500:
  *         description: Internal server error
  */
@@ -42,12 +51,39 @@ router.get('/', getCategories);
 
 /**
  * @swagger
+ * /web/farm-categories/{categoryId}/investment-template:
+ *   get:
+ *     tags:
+ *       - Web Farm Categories
+ *     summary: Get a category investment template
+ *     description: Retrieve the latest active admin investment template, its funding rules, and selectable milestones. All active templates are also returned when a category has more than one.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: categoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Investment template retrieved successfully
+ *       404:
+ *         description: Active category, investment template, or milestones not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/:categoryId/investment-template', getInvestmentTemplate);
+
+/**
+ * @swagger
  * /web/farm-categories/{categoryId}/milestones:
  *   get:
  *     tags:
  *       - Web Farm Categories
- *     summary: Get milestones by category
- *     description: Retrieve all milestones for a specific farm category
+ *     summary: Get selectable investment milestones by category
+ *     description: Compatibility endpoint that returns the active admin investment template and its selectable investment milestones
  *     security:
  *       - bearerAuth: []
  *     parameters:

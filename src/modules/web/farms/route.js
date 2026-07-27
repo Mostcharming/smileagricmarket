@@ -199,8 +199,8 @@ router.get('/:farmId', getFarmById);
  *   post:
  *     tags:
  *       - Web Farms
- *     summary: Create a new farm with documents
- *     description: Create a new user farm with farm pictures, documents, and selected milestones. Farm starts with pending verification status.
+ *     summary: Create a farm funding request
+ *     description: Create a pending farm using an active category investment template, one selected investment milestone, one funding goal, farm photos, and farm documents.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -212,6 +212,12 @@ router.get('/:farmId', getFarmById);
  *             required:
  *               - farmCategoryId
  *               - name
+ *               - plotSize
+ *               - address
+ *               - selectedMilestoneId
+ *               - fundingGoalAmount
+ *               - photos
+ *               - documents
  *             properties:
  *               farmCategoryId:
  *                 type: string
@@ -223,38 +229,44 @@ router.get('/:farmId', getFarmById);
  *               description:
  *                 type: string
  *                 description: Farm description
- *               location:
+ *               address:
  *                 type: string
- *                 description: Farm location
- *               size:
+ *                 description: Farm address/location
+ *               plotSize:
  *                 type: number
- *                 description: Farm size (in hectares or other unit)
- *               investmentAmount:
+ *                 minimum: 0
+ *                 exclusiveMinimum: true
+ *                 description: Farm plot size
+ *               fundingGoalAmount:
  *                 type: number
- *                 description: Initial investment amount for the farm
- *               currency:
+ *                 minimum: 0
+ *                 exclusiveMinimum: true
+ *                 description: One-time funding goal; must be within the selected template's funding range
+ *               investmentId:
  *                 type: string
- *                 description: Currency code (e.g., USD, EUR, GBP) - defaults to USD
- *               selectedMilestones:
+ *                 format: uuid
+ *                 description: Optional template ID; when supplied it must match the selected milestone
+ *               selectedMilestoneId:
  *                 type: string
- *                 description: JSON array of milestone objects with amount (e.g., [{"milestoneId":"id1","amount":5000},{"milestoneId":"id2","amount":3000}])
- *               pictures:
+ *                 format: uuid
+ *                 description: ID of one active milestone belonging to the category's active investment template
+ *               photos:
  *                 type: array
  *                 items:
  *                   type: string
  *                   format: binary
- *                 description: Farm pictures (jpg, png, webp - max 10 files, 50MB total)
+ *                 description: Farm photos (jpg, png, webp; max 10 files and 50MB per file)
  *               documents:
  *                 type: array
  *                 items:
  *                   type: string
  *                   format: binary
- *                 description: Farm documents (pdf - max 10 files, 50MB total)
+ *                 description: Farm documents (PDF; max 10 files and 50MB per file)
  *     responses:
  *       201:
  *         description: Farm created successfully with pending verification status
  *       400:
- *         description: Missing required fields or invalid data
+ *         description: Missing required fields, goal outside the template range, or milestone/template mismatch
  *       401:
  *         description: User not authenticated
  *       404:
@@ -293,16 +305,13 @@ router.post('/', uploadFarmDocuments, createFarm);
  *                 type: string
  *               description:
  *                 type: string
- *               location:
+ *               address:
  *                 type: string
- *               size:
+ *               plotSize:
  *                 type: number
- *               investmentAmount:
+ *               fundingGoalAmount:
  *                 type: number
- *                 description: Investment amount for the farm
- *               currency:
- *                 type: string
- *                 description: Currency code (e.g., USD, EUR, GBP)
+ *                 description: Updated one-time funding goal within the investment template range
  *               isActive:
  *                 type: boolean
  *     responses:
@@ -357,8 +366,8 @@ router.delete('/:farmId', deleteFarm);
  *   post:
  *     tags:
  *       - Web Farms
- *     summary: Add milestones to a farm
- *     description: Add selected milestones to an existing farm.
+ *     summary: Change the farm funding milestone
+ *     description: Replace the farm's selected investment-template milestone. Funding is still entered once at farm level.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -376,26 +385,15 @@ router.delete('/:farmId', deleteFarm);
  *           schema:
  *             type: object
  *             required:
- *               - milestones
+ *               - selectedMilestoneId
  *             properties:
- *               milestones:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required:
- *                     - milestoneId
- *                     - amount
- *                   properties:
- *                     milestoneId:
- *                       type: string
- *                       format: uuid
- *                     amount:
- *                       type: number
- *                       format: float
- *                 description: Array of milestone objects including amount
+ *               selectedMilestoneId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Active investment milestone from the farm's stored investment template
  *     responses:
  *       200:
- *         description: Milestones added successfully
+ *         description: Funding milestone updated successfully
  *       400:
  *         description: Invalid request data
  *       401:
@@ -403,7 +401,7 @@ router.delete('/:farmId', deleteFarm);
  *       404:
  *         description: Farm not found
  *       500:
- *         description: Failed to add milestones
+ *         description: Failed to update funding milestone
  */
 router.post('/:farmId/milestones', addMilestonesToFarm);
 

@@ -17,7 +17,8 @@ const {
     KYC,
     FarmDocument,
     UserFarmMilestone,
-    Milestone
+    Milestone,
+    InvestmentMilestone
 } = models;
 
 const PAYSTACK_GATEWAY = 'paystack';
@@ -258,8 +259,10 @@ function formatFarmMilestones(milestones = []) {
     const sortedMilestones = [...milestones].sort((a, b) => {
         const aData = a.toJSON ? a.toJSON() : a;
         const bData = b.toJSON ? b.toJSON() : b;
-        const aOrder = aData.Milestone?.order ?? Number.MAX_SAFE_INTEGER;
-        const bOrder = bData.Milestone?.order ?? Number.MAX_SAFE_INTEGER;
+        const aOrder = (aData.InvestmentMilestone || aData.Milestone)?.order
+            ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = (bData.InvestmentMilestone || bData.Milestone)?.order
+            ?? Number.MAX_SAFE_INTEGER;
 
         if (aOrder !== bOrder) return aOrder - bOrder;
         return new Date(aData.createdAt || 0) - new Date(bData.createdAt || 0);
@@ -271,15 +274,21 @@ function formatFarmMilestones(milestones = []) {
 
     const formattedMilestones = sortedMilestones.map((milestone, index) => {
         const data = milestone.toJSON ? milestone.toJSON() : milestone;
-        const milestoneData = data.Milestone || {};
+        const milestoneData = data.InvestmentMilestone || data.Milestone || {};
         const status = getMilestoneStatus(data, index, firstIncompleteIndex);
 
         return {
             id: data.id,
             userFarmMilestoneId: data.id,
-            milestoneId: data.milestoneId,
+            milestoneId: data.investmentMilestoneId || data.milestoneId,
+            milestoneType: data.investmentMilestoneId
+                ? 'investment_template'
+                : 'farm_category',
             name: milestoneData.name || null,
             order: milestoneData.order ?? null,
+            fundReleasePercentage: milestoneData.fundReleasePercentage === undefined
+                ? null
+                : toMoney(milestoneData.fundReleasePercentage),
             amount: toMoney(data.amount),
             isCompleted: !!data.isCompleted,
             status,
@@ -461,6 +470,10 @@ async function getInvestments(req, res) {
         });
 
         const templateByCategory = getTemplateByCategory(investmentTemplates);
+        const templateById = new Map(investmentTemplates.map(investment => {
+            const data = investment.toJSON ? investment.toJSON() : investment;
+            return [data.id, data];
+        }));
         const categoryIdsWithTemplates = [...templateByCategory.keys()];
 
         if (categoryIdsWithTemplates.length === 0) {
@@ -528,7 +541,7 @@ async function getInvestments(req, res) {
                     order: [['createdAt', 'ASC']]
                 }
             ],
-            attributes: ['id', 'farmCategoryId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt'],
+            attributes: ['id', 'farmCategoryId', 'investmentId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt'],
             distinct: true,
             order: [['createdAt', 'DESC']],
             limit,
@@ -537,7 +550,9 @@ async function getInvestments(req, res) {
 
         const investments = farms
             .map(farm => {
-                const template = templateByCategory.get(farm.farmCategoryId);
+                const template = farm.investmentId
+                    ? templateById.get(farm.investmentId)
+                    : templateByCategory.get(farm.farmCategoryId);
                 return template ? formatInvestmentFarm(req, farm, template) : null;
             })
             .filter(Boolean);
@@ -616,17 +631,26 @@ async function getInvestmentById(req, res) {
                 {
                     model: UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'milestoneId', 'isCompleted', 'completedAt', 'amount', 'createdAt', 'updatedAt'],
-                    include: [{
-                        model: Milestone,
-                        as: 'Milestone',
-                        attributes: ['id', 'name', 'order']
-                    }],
+                    attributes: ['id', 'milestoneId', 'investmentMilestoneId', 'isCompleted', 'completedAt', 'amount', 'createdAt', 'updatedAt'],
+                    include: [
+                        {
+                            model: Milestone,
+                            as: 'Milestone',
+                            attributes: ['id', 'name', 'order'],
+                            required: false
+                        },
+                        {
+                            model: InvestmentMilestone,
+                            as: 'InvestmentMilestone',
+                            attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
+                            required: false
+                        }
+                    ],
                     required: false,
                     separate: true
                 }
             ],
-            attributes: ['id', 'farmCategoryId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt']
+            attributes: ['id', 'farmCategoryId', 'investmentId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt']
         });
 
         if (!farm) {
@@ -635,7 +659,9 @@ async function getInvestmentById(req, res) {
 
         const template = await Investment.findOne({
             where: {
-                farmCategoryId: farm.farmCategoryId,
+                ...(farm.investmentId
+                    ? { id: farm.investmentId }
+                    : { farmCategoryId: farm.farmCategoryId }),
                 isActive: true
             },
             attributes: [
@@ -726,7 +752,7 @@ async function investInFarm(req, res) {
                         [Op.in]: sequelize.literal("(SELECT user_id FROM kyc WHERE status = 'approved')")
                     }
                 },
-                attributes: ['id', 'userId', 'farmCategoryId', 'name', 'currency'],
+                attributes: ['id', 'userId', 'farmCategoryId', 'investmentId', 'name', 'currency'],
                 transaction,
                 lock: transaction.LOCK.UPDATE
             });
@@ -754,7 +780,9 @@ async function investInFarm(req, res) {
 
             const investmentTemplate = await Investment.findOne({
                 where: {
-                    farmCategoryId: farm.farmCategoryId,
+                    ...(farm.investmentId
+                        ? { id: farm.investmentId }
+                        : { farmCategoryId: farm.farmCategoryId }),
                     isActive: true
                 },
                 attributes: [

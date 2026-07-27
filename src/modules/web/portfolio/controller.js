@@ -10,6 +10,7 @@ const {
     FarmCategory,
     FarmDocument,
     Investment,
+    InvestmentMilestone,
     InvestmentPayment,
     Milestone,
     User,
@@ -271,17 +272,34 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
                     attributes: [
                         'id',
                         'milestoneId',
+                        'investmentMilestoneId',
                         'isCompleted',
                         'completedAt',
                         'amount',
                         'createdAt',
                         'updatedAt'
                     ],
-                    include: [{
-                        model: Milestone,
-                        as: 'Milestone',
-                        attributes: ['id', 'name', 'order', 'isActive']
-                    }]
+                    include: [
+                        {
+                            model: Milestone,
+                            as: 'Milestone',
+                            attributes: ['id', 'name', 'order', 'isActive'],
+                            required: false
+                        },
+                        {
+                            model: InvestmentMilestone,
+                            as: 'InvestmentMilestone',
+                            attributes: [
+                                'id',
+                                'investmentId',
+                                'name',
+                                'fundReleasePercentage',
+                                'order',
+                                'isActive'
+                            ],
+                            required: false
+                        }
+                    ]
                 }
             ]
         });
@@ -397,11 +415,19 @@ function formatDocument(req, document) {
 }
 
 function formatMilestone(milestone) {
+    const milestoneData = milestone.InvestmentMilestone || milestone.Milestone;
+
     return {
         id: milestone.id,
-        milestoneId: milestone.milestoneId,
-        name: milestone.Milestone?.name || null,
-        order: milestone.Milestone?.order ?? null,
+        milestoneId: milestone.investmentMilestoneId || milestone.milestoneId,
+        milestoneType: milestone.investmentMilestoneId
+            ? 'investment_template'
+            : 'farm_category',
+        name: milestoneData?.name || null,
+        order: milestoneData?.order ?? null,
+        fundReleasePercentage: milestoneData?.fundReleasePercentage === undefined
+            ? null
+            : toNumber(milestoneData.fundReleasePercentage),
         amount: toNumber(milestone.amount),
         isCompleted: !!milestone.isCompleted,
         status: milestone.isCompleted ? 'completed' : 'pending',

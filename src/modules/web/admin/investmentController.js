@@ -5,7 +5,13 @@ const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
 
 const models = defineModels(sequelize);
-const { FarmCategory, Investment, InvestmentMilestone } = models;
+const {
+    FarmCategory,
+    Investment,
+    InvestmentMilestone,
+    UserFarm,
+    UserFarmMilestone
+} = models;
 
 const DURATION_UNITS = ['weeks', 'months', 'years'];
 const RISK_LEVELS = ['low', 'medium', 'high'];
@@ -616,6 +622,36 @@ async function updateInvestment(req, res) {
             if (!category) {
                 return res.fail('Farm category not found', 404);
             }
+
+            if (payload.farmCategoryId !== investment.farmCategoryId) {
+                const linkedFarmCount = await UserFarm.count({
+                    where: { investmentId }
+                });
+                if (linkedFarmCount > 0) {
+                    return res.fail(
+                        'Cannot change the farm category because farms already use this investment template',
+                        409
+                    );
+                }
+            }
+        }
+
+        if (milestones) {
+            const assignedMilestoneCount = await UserFarmMilestone.count({
+                include: [{
+                    model: InvestmentMilestone,
+                    as: 'InvestmentMilestone',
+                    required: true,
+                    where: { investmentId }
+                }]
+            });
+
+            if (assignedMilestoneCount > 0) {
+                return res.fail(
+                    'Cannot replace milestones because one or more farms use this investment template; update milestones individually instead',
+                    409
+                );
+            }
         }
 
         transaction = await sequelize.transaction();
@@ -661,6 +697,16 @@ async function deleteInvestment(req, res) {
         const investment = await Investment.findByPk(investmentId);
         if (!investment) {
             return res.fail('Investment not found', 404);
+        }
+
+        const linkedFarmCount = await UserFarm.count({
+            where: { investmentId }
+        });
+        if (linkedFarmCount > 0) {
+            return res.fail(
+                'Cannot delete an investment template that is used by a farm',
+                409
+            );
         }
 
         await investment.destroy();
@@ -763,6 +809,18 @@ async function updateInvestmentMilestone(req, res) {
             }
         }
 
+        if (payload.isActive === false) {
+            const assignmentCount = await UserFarmMilestone.count({
+                where: { investmentMilestoneId: milestone.id }
+            });
+            if (assignmentCount > 0) {
+                return res.fail(
+                    'Cannot deactivate an investment milestone that is selected by a farm',
+                    409
+                );
+            }
+        }
+
         await milestone.update(payload);
 
         return res.success(formatMilestone(milestone), 'Investment milestone updated successfully');
@@ -783,6 +841,16 @@ async function deleteInvestmentMilestone(req, res) {
         const milestone = await InvestmentMilestone.findByPk(milestoneId);
         if (!milestone) {
             return res.fail('Investment milestone not found', 404);
+        }
+
+        const assignmentCount = await UserFarmMilestone.count({
+            where: { investmentMilestoneId: milestone.id }
+        });
+        if (assignmentCount > 0) {
+            return res.fail(
+                'Cannot delete an investment milestone that is selected by a farm',
+                409
+            );
         }
 
         await milestone.destroy();

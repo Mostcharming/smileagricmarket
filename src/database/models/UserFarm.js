@@ -21,6 +21,17 @@ module.exports = (sequelize) => {
             allowNull: false,
             field: 'farm_category_id'
         },
+        investmentId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: 'investment_id',
+            references: {
+                model: 'investments',
+                key: 'id'
+            },
+            onDelete: 'RESTRICT',
+            comment: 'Admin investment template selected for this farm'
+        },
         name: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -49,7 +60,7 @@ module.exports = (sequelize) => {
             type: DataTypes.DECIMAL(15, 2),
             allowNull: true,
             field: 'investment_amount',
-            comment: 'Initial investment amount for the farm'
+            comment: 'One-time funding goal amount requested for the farm'
         },
         currency: {
             type: DataTypes.STRING(3),
@@ -88,6 +99,9 @@ module.exports = (sequelize) => {
             },
             {
                 fields: ['farm_category_id']
+            },
+            {
+                fields: ['investment_id']
             },
             {
                 fields: ['user_id', 'is_active']

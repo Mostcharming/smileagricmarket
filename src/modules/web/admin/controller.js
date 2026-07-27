@@ -374,7 +374,14 @@ async function rejectKYC(req, res) {
 }
 
 // ==================== ADMIN USER FARMS ====================
-const { UserFarm, FarmCategory, UserFarmInvestment, UserFarmMilestone, FarmDocument } = models;
+const {
+    UserFarm,
+    FarmCategory,
+    UserFarmInvestment,
+    UserFarmMilestone,
+    FarmDocument,
+    Investment
+} = models;
 
 // List all user farms (admin)
 async function listAllUserFarms(req, res) {
@@ -461,6 +468,18 @@ async function getUserFarmDetails(req, res) {
                     attributes: ['id', 'name', 'description']
                 },
                 {
+                    model: Investment,
+                    as: 'InvestmentTemplate',
+                    attributes: [
+                        'id',
+                        'name',
+                        'roiPercentage',
+                        'fundingMinGoal',
+                        'fundingMaxGoal',
+                        'currency'
+                    ]
+                },
+                {
                     model: UserFarmInvestment,
                     as: 'Investment',
                     attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentPending', 'investmentStatus', 'currency', 'notes']
@@ -468,12 +487,21 @@ async function getUserFarmDetails(req, res) {
                 {
                     model: UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'isCompleted', 'completedAt', 'amount'],
-                    include: [{
-                        model: models.Milestone,
-                        as: 'Milestone',
-                        attributes: ['id', 'name', 'order']
-                    }]
+                    attributes: ['id', 'milestoneId', 'investmentMilestoneId', 'isCompleted', 'completedAt', 'amount'],
+                    include: [
+                        {
+                            model: models.Milestone,
+                            as: 'Milestone',
+                            attributes: ['id', 'name', 'order'],
+                            required: false
+                        },
+                        {
+                            model: models.InvestmentMilestone,
+                            as: 'InvestmentMilestone',
+                            attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
+                            required: false
+                        }
+                    ]
                 },
                 {
                     model: FarmDocument,

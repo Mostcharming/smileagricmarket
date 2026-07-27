@@ -18,8 +18,19 @@ module.exports = (sequelize) => {
         },
         milestoneId: {
             type: DataTypes.UUID,
-            allowNull: false,
+            allowNull: true,
             field: 'milestone_id'
+        },
+        investmentMilestoneId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: 'investment_milestone_id',
+            references: {
+                model: 'investment_milestones',
+                key: 'id'
+            },
+            onDelete: 'RESTRICT',
+            comment: 'Investment-template milestone selected for the funding request'
         },
         isCompleted: {
             type: DataTypes.BOOLEAN,
@@ -53,13 +64,30 @@ module.exports = (sequelize) => {
                 fields: ['milestone_id']
             },
             {
+                fields: ['investment_milestone_id']
+            },
+            {
                 fields: ['user_farm_id', 'milestone_id'],
+                unique: true
+            },
+            {
+                fields: ['user_farm_id', 'investment_milestone_id'],
                 unique: true
             },
             {
                 fields: ['is_completed']
             }
-        ]
+        ],
+        validate: {
+            exactlyOneMilestoneSource() {
+                const hasLegacyMilestone = !!this.milestoneId;
+                const hasInvestmentMilestone = !!this.investmentMilestoneId;
+
+                if (hasLegacyMilestone === hasInvestmentMilestone) {
+                    throw new Error('Exactly one milestone source is required');
+                }
+            }
+        }
     });
 
     return UserFarmMilestone;

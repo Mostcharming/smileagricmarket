@@ -332,6 +332,8 @@ router.get('/investments/:investmentId', verifyAdminToken, getInvestmentById);
  *         description: Bad request
  *       404:
  *         description: Investment or farm category not found
+ *       409:
+ *         description: Template category or milestones cannot be replaced because a farm already uses them
  */
 router.put('/investments/:investmentId', verifyAdminToken, updateInvestment);
 
@@ -357,6 +359,8 @@ router.put('/investments/:investmentId', verifyAdminToken, updateInvestment);
  *         description: Investment deleted successfully
  *       404:
  *         description: Investment not found
+ *       409:
+ *         description: Investment template is already used by a farm
  */
 router.delete('/investments/:investmentId', verifyAdminToken, deleteInvestment);
 
@@ -432,6 +436,8 @@ router.post('/investments/:investmentId/milestones', verifyAdminToken, createInv
  *         description: Bad request
  *       404:
  *         description: Investment milestone not found
+ *       409:
+ *         description: Investment milestone is selected by a farm and cannot be deactivated
  */
 router.put('/investment-milestones/:milestoneId', verifyAdminToken, updateInvestmentMilestone);
 
@@ -456,6 +462,8 @@ router.put('/investment-milestones/:milestoneId', verifyAdminToken, updateInvest
  *         description: Investment milestone deleted successfully
  *       404:
  *         description: Investment milestone not found
+ *       409:
+ *         description: Investment milestone is selected by a farm
  */
 router.delete('/investment-milestones/:milestoneId', verifyAdminToken, deleteInvestmentMilestone);
 

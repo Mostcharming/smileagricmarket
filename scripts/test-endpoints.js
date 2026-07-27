@@ -332,23 +332,21 @@ function investmentPayload(categoryId, suffix) {
     };
 }
 
-async function createFarm(token, categoryId, name, selectedMilestones = [], includeFiles = false) {
-    const files = includeFiles
-        ? [
-            {
-                field: 'pictures',
-                bytes: pngBytes,
-                type: 'image/png',
-                name: `${runId}-farm.png`
-            },
-            {
-                field: 'documents',
-                bytes: pdfBytes,
-                type: 'application/pdf',
-                name: `${runId}-farm.pdf`
-            }
-        ]
-        : [];
+async function createFarm(token, categoryId, name, selectedMilestoneId) {
+    const files = [
+        {
+            field: 'photos',
+            bytes: pngBytes,
+            type: 'image/png',
+            name: `${runId}-farm.png`
+        },
+        {
+            field: 'documents',
+            bytes: pdfBytes,
+            type: 'application/pdf',
+            name: `${runId}-farm.pdf`
+        }
+    ];
 
     return httpCheck('web create farm', 'POST', '/web/farms', {
         headers: bearer(token),
@@ -356,11 +354,10 @@ async function createFarm(token, categoryId, name, selectedMilestones = [], incl
             farmCategoryId: categoryId,
             name,
             description: 'Endpoint test farm',
-            location: 'Lagos',
-            size: '12.5',
-            investmentAmount: '500000',
-            currency: 'NGN',
-            selectedMilestones
+            address: 'Lagos',
+            plotSize: '12.5',
+            fundingGoalAmount: '500000',
+            selectedMilestoneId
         }, files),
         expectedStatus: 201
     });
@@ -696,8 +693,33 @@ async function run() {
         headers: bearer(adminToken),
         body: { name: `Release updated ${runId}`, fundReleasePercentage: 30, order: 2 }
     });
+
+    const secondInvestmentMilestone = await httpCheck(
+        'admin create second investment milestone',
+        'POST',
+        '/web/admin/investments/{investmentId}/milestones',
+        {
+            actualPath: `/web/admin/investments/${investmentId}/milestones`,
+            headers: bearer(adminToken),
+            body: { name: `Second release ${runId}`, fundReleasePercentage: 20, order: 3 },
+            expectedStatus: 201
+        }
+    );
+    const secondInvestmentMilestoneId = secondInvestmentMilestone.body.data.id;
+
+    const disposableInvestmentMilestone = await httpCheck(
+        'admin create disposable investment milestone',
+        'POST',
+        '/web/admin/investments/{investmentId}/milestones',
+        {
+            actualPath: `/web/admin/investments/${investmentId}/milestones`,
+            headers: bearer(adminToken),
+            body: { name: `Disposable release ${runId}`, fundReleasePercentage: 10, order: 4 },
+            expectedStatus: 201
+        }
+    );
     await httpCheck('admin delete investment milestone', 'DELETE', '/web/admin/investment-milestones/{milestoneId}', {
-        actualPath: `/web/admin/investment-milestones/${investmentMilestoneId}`,
+        actualPath: `/web/admin/investment-milestones/${disposableInvestmentMilestone.body.data.id}`,
         headers: bearer(adminToken)
     });
 
@@ -795,15 +817,45 @@ async function run() {
         actualPath: `/web/farm-categories/${categoryId}/milestones`,
         headers: bearer(webUsers.primary.token)
     });
+    await httpCheck('web get farm category investment template', 'GET', '/web/farm-categories/{categoryId}/investment-template', {
+        actualPath: `/web/farm-categories/${categoryId}/investment-template`,
+        headers: bearer(webUsers.primary.token)
+    });
 
     const mainFarm = await createFarm(
         webUsers.primary.token,
         categoryId,
         `Primary Farm ${runId}`,
-        [{ milestoneId: milestoneOneId, amount: 150000 }],
-        true
+        investmentMilestoneId
     );
     const farmId = mainFarm.body.data.id;
+    assert.equal(mainFarm.body.data.fundingGoalAmount, 500000);
+    assert.equal(
+        mainFarm.body.data.selectedMilestone.id,
+        investmentMilestoneId
+    );
+    await httpCheck(
+        'admin cannot delete selected investment milestone',
+        'DELETE',
+        '/web/admin/investment-milestones/{milestoneId}',
+        {
+            actualPath: `/web/admin/investment-milestones/${investmentMilestoneId}`,
+            headers: bearer(adminToken),
+            expectedStatus: 409,
+            expectError: true
+        }
+    );
+    await httpCheck(
+        'admin cannot delete investment template used by farm',
+        'DELETE',
+        '/web/admin/investments/{investmentId}',
+        {
+            actualPath: `/web/admin/investments/${investmentId}`,
+            headers: bearer(adminToken),
+            expectedStatus: 409,
+            expectError: true
+        }
+    );
     const initialPicture = mainFarm.body.data.Documents.find(document => document.documentType === 'picture');
     assert.ok(initialPicture, 'Farm create did not return its uploaded picture');
     await assertPublicFile('farm picture is publicly accessible', initialPicture.fileUrl);
@@ -811,7 +863,8 @@ async function run() {
     const disposableFarm = await createFarm(
         webUsers.primary.token,
         categoryId,
-        `Disposable Farm ${runId}`
+        `Disposable Farm ${runId}`,
+        investmentMilestoneId
     );
     await httpCheck('web delete farm', 'DELETE', '/web/farms/{farmId}', {
         actualPath: `/web/farms/${disposableFarm.body.data.id}`,
@@ -833,10 +886,10 @@ async function run() {
     await httpCheck('web add farm milestones', 'POST', '/web/farms/{farmId}/milestones', {
         actualPath: `/web/farms/${farmId}/milestones`,
         headers: bearer(webUsers.primary.token),
-        body: { milestones: [{ milestoneId: milestoneTwoId, amount: 100000 }] }
+        body: { selectedMilestoneId: secondInvestmentMilestoneId }
     });
     await httpCheck('web remove farm milestone', 'DELETE', '/web/farms/{farmId}/milestones/{milestoneId}', {
-        actualPath: `/web/farms/${farmId}/milestones/${milestoneTwoId}`,
+        actualPath: `/web/farms/${farmId}/milestones/${secondInvestmentMilestoneId}`,
         headers: bearer(webUsers.primary.token)
     });
 

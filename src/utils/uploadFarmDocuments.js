@@ -37,32 +37,72 @@ const storage = multer ? multer.diskStorage({
     }
 }) : null;
 
-function fileFilterPictures(req, file, cb) {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Invalid picture type. Only JPEG/PNG/WEBP images are allowed'));
-}
+const PICTURE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const DOCUMENT_MIME_TYPES = ['application/pdf'];
 
-function fileFilterDocuments(req, file, cb) {
-    const allowed = ['application/pdf'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Invalid document type. Only PDF files are allowed'));
+function fileFilter(req, file, cb) {
+    if (
+        ['photos', 'pictures'].includes(file.fieldname)
+        && PICTURE_MIME_TYPES.includes(file.mimetype)
+    ) {
+        return cb(null, true);
+    }
+
+    if (
+        file.fieldname === 'documents'
+        && DOCUMENT_MIME_TYPES.includes(file.mimetype)
+    ) {
+        return cb(null, true);
+    }
+
+    if (['photos', 'pictures'].includes(file.fieldname)) {
+        return cb(new Error('Invalid photo type. Only JPEG/PNG/WEBP images are allowed'));
+    }
+
+    if (file.fieldname === 'documents') {
+        return cb(new Error('Invalid document type. Only PDF files are allowed'));
+    }
+
+    return cb(new Error(`Unexpected file field: ${file.fieldname}`));
 }
 
 const upload = multer ? multer({
     storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
+    fileFilter,
+    limits: {
+        fileSize: 50 * 1024 * 1024,
+        files: 20
+    }
 }) : null;
+
+function removeUploadedFiles(req) {
+    if (!req.files) return;
+
+    Object.values(req.files)
+        .flat()
+        .forEach(file => {
+            try {
+                if (file?.path && fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+            } catch (error) {
+                console.error('Failed to remove rejected farm upload:', error);
+            }
+        });
+}
 
 function uploadFarmDocuments(req, res, next) {
     ensureMulterAvailable();
 
     return upload.fields([
+        { name: 'photos', maxCount: 10 },
         { name: 'pictures', maxCount: 10 },
         { name: 'documents', maxCount: 10 }
     ])(req, res, function (err) {
         if (err) {
+            removeUploadedFiles(req);
             if (err.code === 'LIMIT_FILE_SIZE') return res.fail('File too large (max 50MB)', 400);
+            if (err.code === 'LIMIT_FILE_COUNT') return res.fail('Too many files (max 20)', 400);
             return res.fail(err.message || 'File upload error', 400);
         }
 
@@ -71,16 +111,14 @@ function uploadFarmDocuments(req, res, next) {
             documents: []
         };
 
-        // Process pictures
-        if (req.files && req.files.pictures && Array.isArray(req.files.pictures)) {
-            req.files.pictures.forEach(file => {
-                if (!fileFilterPictures(null, file, (err, success) => success)) {
-                    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-                    if (!allowed.includes(file.mimetype)) {
-                        throw new Error('Invalid picture type');
-                    }
-                }
-                req.farmFiles.pictures.push({
+        // "photos" is the new UX field; "pictures" remains accepted for compatibility.
+        const uploadedPictures = [
+            ...(req.files?.photos || []),
+            ...(req.files?.pictures || [])
+        ];
+
+        uploadedPictures.forEach(file => {
+            req.farmFiles.pictures.push({
                     filename: file.filename,
                     path: file.path,
                     url: `/upload/farm-documents/${file.filename}`,
@@ -88,15 +126,11 @@ function uploadFarmDocuments(req, res, next) {
                     size: file.size,
                     originalName: file.originalname
                 });
-            });
-        }
+        });
 
         // Process documents
         if (req.files && req.files.documents && Array.isArray(req.files.documents)) {
             req.files.documents.forEach(file => {
-                if (file.mimetype !== 'application/pdf') {
-                    throw new Error('Invalid document type. Only PDF is allowed');
-                }
                 req.farmFiles.documents.push({
                     filename: file.filename,
                     path: file.path,

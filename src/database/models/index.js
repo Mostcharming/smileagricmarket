@@ -57,6 +57,17 @@ module.exports = (sequelize) => {
         as: 'Investment'
     });
 
+    models.Investment.hasMany(models.UserFarm, {
+        foreignKey: 'investmentId',
+        as: 'UserFarms',
+        onDelete: 'RESTRICT'
+    });
+
+    models.UserFarm.belongsTo(models.Investment, {
+        foreignKey: 'investmentId',
+        as: 'InvestmentTemplate'
+    });
+
     // User Notifications associations
     models.User.hasMany(models.UserNotification, {
         foreignKey: 'userId',
@@ -149,6 +160,17 @@ module.exports = (sequelize) => {
     models.UserFarmMilestone.belongsTo(models.Milestone, {
         foreignKey: 'milestoneId',
         as: 'Milestone'
+    });
+
+    models.InvestmentMilestone.hasMany(models.UserFarmMilestone, {
+        foreignKey: 'investmentMilestoneId',
+        as: 'FarmAssignments',
+        onDelete: 'RESTRICT'
+    });
+
+    models.UserFarmMilestone.belongsTo(models.InvestmentMilestone, {
+        foreignKey: 'investmentMilestoneId',
+        as: 'InvestmentMilestone'
     });
 
     // Many-to-Many association through UserFarmMilestone

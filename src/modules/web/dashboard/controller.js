@@ -82,12 +82,21 @@ async function getUserDashboard(req, res) {
                 {
                     model: models.UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'isCompleted', 'completedAt'],
-                    include: [{
-                        model: models.Milestone,
-                        as: 'Milestone',
-                        attributes: ['id', 'name']
-                    }]
+                    attributes: ['id', 'milestoneId', 'investmentMilestoneId', 'isCompleted', 'completedAt'],
+                    include: [
+                        {
+                            model: models.Milestone,
+                            as: 'Milestone',
+                            attributes: ['id', 'name'],
+                            required: false
+                        },
+                        {
+                            model: models.InvestmentMilestone,
+                            as: 'InvestmentMilestone',
+                            attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage'],
+                            required: false
+                        }
+                    ]
                 }
             ],
             attributes: ['id', 'name', 'description', 'location', 'size', 'createdAt']

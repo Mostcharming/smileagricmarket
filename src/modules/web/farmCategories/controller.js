@@ -4,7 +4,111 @@ const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 
 const models = defineModels(sequelize);
-const { FarmCategory, Milestone, Investment } = models;
+const { FarmCategory, Investment, InvestmentMilestone } = models;
+
+function toNumber(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatInvestmentTemplate(investment) {
+    const data = investment?.toJSON ? investment.toJSON() : investment;
+    if (!data) return null;
+
+    return {
+        id: data.id,
+        farmCategoryId: data.farmCategoryId,
+        name: data.name,
+        description: data.description,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        roiPercentage: toNumber(data.roiPercentage),
+        duration: {
+            value: data.durationValue,
+            unit: data.durationUnit,
+            label: `${data.durationValue} ${data.durationUnit}`
+        },
+        riskLevel: data.riskLevel,
+        fundingRules: {
+            minGoal: toNumber(data.fundingMinGoal),
+            maxGoal: toNumber(data.fundingMaxGoal),
+            currency: data.currency
+        },
+        investmentLimit: {
+            minGoal: toNumber(data.investmentMinGoal),
+            maxGoal: toNumber(data.investmentMaxGoal),
+            currency: data.currency
+        },
+        currency: data.currency,
+        milestones: (data.Milestones || []).map(milestone => ({
+            id: milestone.id,
+            investmentId: milestone.investmentId,
+            name: milestone.name,
+            fundReleasePercentage: toNumber(milestone.fundReleasePercentage),
+            order: milestone.order
+        }))
+    };
+}
+
+function getActiveInvestmentInclude() {
+    return {
+        model: Investment,
+        as: 'Investments',
+        required: true,
+        where: { isActive: true },
+        attributes: [
+            'id',
+            'farmCategoryId',
+            'name',
+            'description',
+            'startDate',
+            'endDate',
+            'roiPercentage',
+            'durationValue',
+            'durationUnit',
+            'riskLevel',
+            'fundingMinGoal',
+            'fundingMaxGoal',
+            'investmentMinGoal',
+            'investmentMaxGoal',
+            'currency',
+            'createdAt'
+        ],
+        include: [{
+            model: InvestmentMilestone,
+            as: 'Milestones',
+            required: true,
+            where: { isActive: true },
+            attributes: [
+                'id',
+                'investmentId',
+                'name',
+                'fundReleasePercentage',
+                'order'
+            ]
+        }]
+    };
+}
+
+async function findCategoryWithInvestmentTemplates(categoryId) {
+    return FarmCategory.findOne({
+        where: {
+            id: categoryId,
+            isActive: true
+        },
+        attributes: ['id', 'name', 'description'],
+        include: [getActiveInvestmentInclude()],
+        order: [
+            [{ model: Investment, as: 'Investments' }, 'createdAt', 'DESC'],
+            [
+                { model: Investment, as: 'Investments' },
+                { model: InvestmentMilestone, as: 'Milestones' },
+                'order',
+                'ASC'
+            ]
+        ]
+    });
+}
 
 /**
  * Get all farm categories
@@ -16,20 +120,34 @@ async function getCategories(req, res) {
         const categories = await FarmCategory.findAll({
             where: { isActive: true },
             attributes: ['id', 'name', 'description'],
-            include: [
-                {
-                    model: Investment,
-                    as: 'Investments',
-                    attributes: [],
-                    required: true,
-                    where: { isActive: true }
-                }
-            ],
-            order: [['name', 'ASC']]
+            include: [getActiveInvestmentInclude()],
+            order: [
+                ['name', 'ASC'],
+                [{ model: Investment, as: 'Investments' }, 'createdAt', 'DESC'],
+                [
+                    { model: Investment, as: 'Investments' },
+                    { model: InvestmentMilestone, as: 'Milestones' },
+                    'order',
+                    'ASC'
+                ]
+            ]
+        });
+
+        const formattedCategories = categories.map(category => {
+            const data = category.toJSON();
+            const investmentTemplates = (data.Investments || []).map(formatInvestmentTemplate);
+
+            return {
+                id: data.id,
+                name: data.name,
+                description: data.description,
+                investmentTemplate: investmentTemplates[0] || null,
+                investmentTemplates
+            };
         });
 
         return res.success(
-            { categories },
+            { categories: formattedCategories },
             'Categories retrieved successfully'
         );
     } catch (error) {
@@ -51,35 +169,30 @@ async function getMilestonesByCategory(req, res) {
             return res.fail('Category ID is required', 400);
         }
 
-        // Check if category exists and is active
-        const category = await FarmCategory.findOne({
-            where: {
-                id: categoryId,
-                isActive: true
-            },
-            attributes: ['id', 'name', 'description']
-        });
-
+        const category = await findCategoryWithInvestmentTemplates(categoryId);
         if (!category) {
-            return res.fail('Category not found', 404);
+            return res.fail(
+                'Active category with an investment template and milestones not found',
+                404
+            );
         }
 
-        // Get all active milestones for the category
-        const milestones = await Milestone.findAll({
-            where: {
-                farmCategoryId: categoryId,
-                isActive: true
-            },
-            attributes: ['id', 'name', 'order'],
-            order: [['order', 'ASC'], ['name', 'ASC']]
-        });
+        const data = category.toJSON();
+        const investmentTemplates = (data.Investments || []).map(formatInvestmentTemplate);
+        const investmentTemplate = investmentTemplates[0];
 
         return res.success(
             {
-                category,
-                milestones
+                category: {
+                    id: data.id,
+                    name: data.name,
+                    description: data.description
+                },
+                investmentTemplate,
+                investmentTemplates,
+                milestones: investmentTemplate?.milestones || []
             },
-            'Milestones retrieved successfully'
+            'Investment template milestones retrieved successfully'
         );
     } catch (error) {
         console.error('Error fetching milestones:', error);
@@ -89,5 +202,6 @@ async function getMilestonesByCategory(req, res) {
 
 module.exports = {
     getCategories,
-    getMilestonesByCategory
+    getMilestonesByCategory,
+    getInvestmentTemplate: getMilestonesByCategory
 };
