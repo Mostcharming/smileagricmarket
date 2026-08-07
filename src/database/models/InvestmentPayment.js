@@ -65,6 +65,17 @@ module.exports = (sequelize) => {
             unique: true,
             field: 'gateway_reference'
         },
+        gatewayTransactionId: {
+            type: DataTypes.STRING(30),
+            allowNull: true,
+            field: 'gateway_transaction_id',
+            comment: 'Paystack transaction ID stored as text to preserve unsigned 64-bit precision'
+        },
+        accessCode: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+            field: 'access_code'
+        },
         authorizationUrl: {
             type: DataTypes.TEXT,
             allowNull: true,
@@ -96,6 +107,11 @@ module.exports = (sequelize) => {
             { fields: ['user_farm_investment_id'] },
             { fields: ['investment_id'] },
             { fields: ['status'] },
+            {
+                unique: true,
+                fields: ['gateway_transaction_id'],
+                name: 'investment_payments_gateway_transaction_id_unique'
+            },
             {
                 unique: true,
                 fields: ['investor_id', 'idempotency_key'],

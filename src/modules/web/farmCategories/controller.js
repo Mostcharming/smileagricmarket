@@ -77,7 +77,7 @@ function getActiveInvestmentInclude() {
         include: [{
             model: InvestmentMilestone,
             as: 'Milestones',
-            required: true,
+            required: false,
             where: { isActive: true },
             attributes: [
                 'id',

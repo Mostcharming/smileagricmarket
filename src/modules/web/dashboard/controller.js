@@ -70,14 +70,29 @@ async function getUserDashboard(req, res) {
             where: { userId, isActive: true },
             include: [
                 {
-                    model: models.FarmCategory,
-                    as: 'Category',
-                    attributes: ['id', 'name']
-                },
-                {
                     model: models.UserFarmInvestment,
                     as: 'Investment',
-                    attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentStatus', 'currency']
+                    attributes: [
+                        'id',
+                        'farmCategoryId',
+                        'investmentId',
+                        'expectedInvestment',
+                        'investmentReceived',
+                        'investmentStatus',
+                        'currency'
+                    ],
+                    include: [
+                        {
+                            model: models.FarmCategory,
+                            as: 'Category',
+                            attributes: ['id', 'name']
+                        },
+                        {
+                            model: models.Investment,
+                            as: 'InvestmentTemplate',
+                            attributes: ['id', 'name']
+                        }
+                    ]
                 },
                 {
                     model: models.UserFarmMilestone,
@@ -99,7 +114,7 @@ async function getUserDashboard(req, res) {
                     ]
                 }
             ],
-            attributes: ['id', 'name', 'description', 'location', 'size', 'createdAt']
+            attributes: ['id', 'name', 'location', 'size', 'createdAt']
         });
 
         return res.success({

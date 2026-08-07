@@ -17,6 +17,28 @@ module.exports = (sequelize) => {
             field: 'user_farm_id',
             comment: 'Reference to user farm'
         },
+        farmCategoryId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+            field: 'farm_category_id',
+            references: {
+                model: 'farm_categories',
+                key: 'id'
+            },
+            onDelete: 'RESTRICT',
+            comment: 'Farm category selected for this investment project'
+        },
+        investmentId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: 'investment_id',
+            references: {
+                model: 'investments',
+                key: 'id'
+            },
+            onDelete: 'RESTRICT',
+            comment: 'Admin template resolved from the selected farm category'
+        },
         expectedInvestment: {
             type: DataTypes.DECIMAL(15, 2),
             allowNull: true,
@@ -70,7 +92,15 @@ module.exports = (sequelize) => {
         underscored: true,
         indexes: [
             {
-                fields: ['user_farm_id']
+                fields: ['user_farm_id'],
+                unique: true,
+                name: 'user_farm_investments_user_farm_id_unique_idx'
+            },
+            {
+                fields: ['farm_category_id']
+            },
+            {
+                fields: ['investment_id']
             },
             {
                 fields: ['investment_status']

@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { getInvestments, getInvestmentById, investInFarm } = require('./controller');
+const {
+    getInvestments,
+    getInvestmentById,
+    investInFarm,
+    verifyInvestmentPayment
+} = require('./controller');
 
 /**
  * @swagger
@@ -674,7 +679,7 @@ router.get('/:farmId', getInvestmentById);
  *     tags:
  *       - Web Investments
  *     summary: Invest in another user's farm
- *     description: Records an investment payment and atomically increases the farm's received funding. Paystack fields are reserved, but gateway initialization is deferred until the Paystack account is configured.
+ *     description: Creates and saves an internal investment transaction, initializes Paystack from the backend, and returns the transaction ID, checkout URL, access code, and reference. Farm funding is credited only after a successful Paystack verification or signed webhook.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -716,7 +721,7 @@ router.get('/:farmId', getInvestmentById);
  *                 description: Body alternative to the Idempotency-Key header.
  *     responses:
  *       201:
- *         description: Investment recorded successfully
+ *         description: Paystack transaction initialized successfully
  *         content:
  *           application/json:
  *             schema:
@@ -731,14 +736,32 @@ router.get('/:farmId', getInvestmentById);
  *                 data:
  *                   type: object
  *                   properties:
+ *                     transactionId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Saved SmileAgriMarket investment transaction ID
  *                     payment:
  *                       type: object
  *                       properties:
  *                         id:
  *                           type: string
  *                           format: uuid
+ *                         transactionId:
+ *                           type: string
+ *                           format: uuid
  *                         reference:
  *                           type: string
+ *                           description: Unique reference sent to Paystack
+ *                         gatewayTransactionId:
+ *                           type: string
+ *                           nullable: true
+ *                           description: Paystack numeric transaction ID, populated by verification/webhook and stored as text for precision
+ *                         accessCode:
+ *                           type: string
+ *                           description: Access code used by Paystack Popup or mobile SDK
+ *                         authorizationUrl:
+ *                           type: string
+ *                           format: uri
  *                         amount:
  *                           type: number
  *                           example: 250000
@@ -750,7 +773,7 @@ router.get('/:farmId', getInvestmentById);
  *                           example: paystack
  *                         status:
  *                           type: string
- *                           example: recorded
+ *                           example: pending
  *                     investment:
  *                       type: object
  *                       properties:
@@ -780,7 +803,14 @@ router.get('/:farmId', getInvestmentById);
  *                           example: paystack
  *                         initialized:
  *                           type: boolean
- *                           example: false
+ *                           example: true
+ *                         reference:
+ *                           type: string
+ *                         authorizationUrl:
+ *                           type: string
+ *                           format: uri
+ *                         accessCode:
+ *                           type: string
  *       200:
  *         description: An idempotent retry returned the existing payment
  *       400:
@@ -795,7 +825,45 @@ router.get('/:farmId', getInvestmentById);
  *         description: Farm is fully funded, unavailable, or the idempotency key conflicts
  *       500:
  *         description: Failed to process investment
+ *       502:
+ *         description: Paystack rejected initialization or returned an invalid response
+ *       503:
+ *         description: Paystack is not configured or unavailable
  */
 router.post('/:farmId/invest', investInFarm);
+
+/**
+ * @swagger
+ * /web/investments/payments/{transactionId}/verify:
+ *   post:
+ *     tags:
+ *       - Web Investments
+ *     summary: Verify and settle a Paystack investment
+ *     description: Verifies the saved transaction with Paystack, confirms reference, amount, and currency, stores Paystack's transaction ID, and credits the farm exactly once when successful.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: transactionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Transaction ID returned by the invest endpoint
+ *     responses:
+ *       200:
+ *         description: Current verified transaction state
+ *       401:
+ *         description: User not authenticated
+ *       404:
+ *         description: Investment transaction not found
+ *       409:
+ *         description: Paystack reference, amount, or currency does not match
+ *       502:
+ *         description: Paystack verification failed
+ *       503:
+ *         description: Paystack is not configured or unavailable
+ */
+router.post('/payments/:transactionId/verify', verifyInvestmentPayment);
 
 module.exports = router;

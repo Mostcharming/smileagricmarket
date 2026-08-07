@@ -5,6 +5,7 @@ const {
     listUserFarms,
     getFarmById,
     createFarm,
+    createInvestmentProject,
     updateFarm,
     deleteFarm,
     addMilestonesToFarm,
@@ -20,7 +21,7 @@ const {
  *     tags:
  *       - Web Farms
  *     summary: List user farms with pagination and search
- *     description: Retrieve a paginated list of user farms with optional search functionality.
+ *     description: Retrieve the user's farms, their documentation, and optional investment project.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -41,7 +42,7 @@ const {
  *         name: search
  *         schema:
  *           type: string
- *         description: Search by farm name, description, or location
+ *         description: Search by farm name or location
  *     responses:
  *       200:
  *         description: Farms retrieved successfully
@@ -65,35 +66,14 @@ const {
  *                             format: uuid
  *                           name:
  *                             type: string
- *                           description:
- *                             type: string
  *                           location:
  *                             type: string
  *                           size:
  *                             type: number
- *                           investmentAmount:
- *                             type: number
- *                             description: Initial investment amount for the farm
- *                           currency:
- *                             type: string
- *                             description: Currency code (e.g., USD, EUR, GBP)
- *                           Category:
+ *                           investmentProject:
  *                             type: object
- *                           Investment:
- *                             type: object
- *                           SelectedMilestones:
- *                             type: array
- *                             items:
- *                               type: object
- *                               properties:
- *                                 id:
- *                                   type: string
- *                                   format: uuid
- *                                 isCompleted:
- *                                   type: boolean
- *                                 amount:
- *                                   type: number
- *                                   format: float
+ *                             nullable: true
+ *                             description: Category, resolved admin template, funding goal, and milestone progress
  *                           createdAt:
  *                             type: string
  *                             format: date-time
@@ -130,7 +110,7 @@ router.get('/', listUserFarms);
  *     tags:
  *       - Web Farms
  *     summary: Get farm details by ID
- *     description: Retrieve detailed information about a specific farm including investments and milestones.
+ *     description: Retrieve a farm's name, size, address, documentation, and optional investment project.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -158,23 +138,9 @@ router.get('/', listUserFarms);
  *                       type: string
  *                     name:
  *                       type: string
- *                     Category:
+ *                     investmentProject:
  *                       type: object
- *                     Investment:
- *                       type: object
- *                     SelectedMilestones:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                             format: uuid
- *                           isCompleted:
- *                             type: boolean
- *                           amount:
- *                             type: number
- *                             format: float
+ *                       nullable: true
  *                     stats:
  *                       type: object
  *                       properties:
@@ -199,8 +165,8 @@ router.get('/:farmId', getFarmById);
  *   post:
  *     tags:
  *       - Web Farms
- *     summary: Create a farm funding request
- *     description: Create a pending farm using an active category investment template, one selected investment milestone, one funding goal, farm photos, and farm documents.
+ *     summary: Create a farm
+ *     description: Create a pending farm with only its name, size, address, photos, and documents. Create its investment project separately after the farm exists.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -210,25 +176,15 @@ router.get('/:farmId', getFarmById);
  *           schema:
  *             type: object
  *             required:
- *               - farmCategoryId
  *               - name
  *               - plotSize
  *               - address
- *               - selectedMilestoneId
- *               - fundingGoalAmount
  *               - photos
  *               - documents
  *             properties:
- *               farmCategoryId:
- *                 type: string
- *                 format: uuid
- *                 description: ID of the farm category
  *               name:
  *                 type: string
  *                 description: Farm name
- *               description:
- *                 type: string
- *                 description: Farm description
  *               address:
  *                 type: string
  *                 description: Farm address/location
@@ -237,19 +193,6 @@ router.get('/:farmId', getFarmById);
  *                 minimum: 0
  *                 exclusiveMinimum: true
  *                 description: Farm plot size
- *               fundingGoalAmount:
- *                 type: number
- *                 minimum: 0
- *                 exclusiveMinimum: true
- *                 description: One-time funding goal; must be within the selected template's funding range
- *               investmentId:
- *                 type: string
- *                 format: uuid
- *                 description: Optional template ID; when supplied it must match the selected milestone
- *               selectedMilestoneId:
- *                 type: string
- *                 format: uuid
- *                 description: ID of one active milestone belonging to the category's active investment template
  *               photos:
  *                 type: array
  *                 items:
@@ -266,7 +209,7 @@ router.get('/:farmId', getFarmById);
  *       201:
  *         description: Farm created successfully with pending verification status
  *       400:
- *         description: Missing required fields, goal outside the template range, or milestone/template mismatch
+ *         description: Missing or invalid farm fields or documentation
  *       401:
  *         description: User not authenticated
  *       404:
@@ -275,6 +218,58 @@ router.get('/:farmId', getFarmById);
  *         description: Failed to create farm
  */
 router.post('/', uploadFarmDocuments, createFarm);
+
+/**
+ * @swagger
+ * /web/farms/{farmId}/investment-projects:
+ *   post:
+ *     tags:
+ *       - Web Farms
+ *     summary: Create an investment project for a farm
+ *     description: Select a farm category and funding goal. The backend automatically attaches the newest active investment template created by an admin for that category and initializes all active template milestones.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: farmId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - farmCategoryId
+ *               - fundingGoalAmount
+ *             properties:
+ *               farmCategoryId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Active farm category whose current admin template will be used
+ *               fundingGoalAmount:
+ *                 type: number
+ *                 minimum: 0
+ *                 exclusiveMinimum: true
+ *                 description: Funding goal within the category template's allowed funding range
+ *     responses:
+ *       201:
+ *         description: Investment project created successfully
+ *       400:
+ *         description: Invalid category or funding goal
+ *       401:
+ *         description: User not authenticated
+ *       404:
+ *         description: Farm, category, or active category template not found
+ *       409:
+ *         description: The farm already has an investment project
+ *       500:
+ *         description: Failed to create investment project
+ */
+router.post('/:farmId/investment-projects', createInvestmentProject);
 
 /**
  * @swagger
@@ -303,15 +298,10 @@ router.post('/', uploadFarmDocuments, createFarm);
  *             properties:
  *               name:
  *                 type: string
- *               description:
- *                 type: string
  *               address:
  *                 type: string
  *               plotSize:
  *                 type: number
- *               fundingGoalAmount:
- *                 type: number
- *                 description: Updated one-time funding goal within the investment template range
  *               isActive:
  *                 type: boolean
  *     responses:

@@ -11,6 +11,7 @@ const farmCategoriesRouter = require('./farmCategories/route');
 const investmentsRouter = require('./investments/route');
 const portfolioRouter = require('./portfolio/route');
 const betaSignupsRouter = require('./betaSignups/route');
+const paystackRouter = require('./paystack/route');
 
 const router = require('express').Router();
 
@@ -27,6 +28,9 @@ router.use('/admin', adminRouter);
 
 // Marketing admin routes - has its own restricted authentication
 router.use('/marketing-admin', marketingAdminRouter);
+
+// Paystack calls this signed public endpoint without a user bearer token.
+router.use('/payments/paystack', paystackRouter);
 
 // All other routes require authentication
 router.use(securityMiddleware);

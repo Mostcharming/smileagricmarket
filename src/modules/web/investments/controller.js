@@ -5,6 +5,16 @@ const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
 const { toBackendApiUrl } = require('../../../utils/url');
+const {
+    PaystackError,
+    getPaystackConfig,
+    initializeTransaction,
+    verifyTransaction
+} = require('../../../utils/paystack');
+const {
+    majorAmountToSubunit,
+    settlePaystackPayment
+} = require('./paymentService');
 
 const models = defineModels(sequelize);
 const {
@@ -22,7 +32,6 @@ const {
 } = models;
 
 const PAYSTACK_GATEWAY = 'paystack';
-const PAYSTACK_NOT_CONFIGURED_MESSAGE = 'Paystack initialization is not configured yet; the payment was recorded internally.';
 
 const DURATION_UNITS = ['weeks', 'months', 'years'];
 const RISK_LEVELS = ['low', 'medium', 'high'];
@@ -65,13 +74,17 @@ function formatInvestmentPayment(payment) {
     const data = payment.toJSON ? payment.toJSON() : payment;
     return {
         id: data.id,
+        transactionId: data.id,
         reference: data.reference,
         farmId: data.userFarmId,
+        investmentProjectId: data.userFarmInvestmentId,
         investmentTemplateId: data.investmentId,
         amount: toMoney(data.amount),
         currency: data.currency,
         gateway: data.gateway,
         gatewayReference: data.gatewayReference,
+        gatewayTransactionId: data.gatewayTransactionId,
+        accessCode: data.accessCode,
         authorizationUrl: data.authorizationUrl,
         status: data.status,
         paidAt: data.paidAt,
@@ -201,19 +214,6 @@ function normalizeFundingStatuses(value, errors) {
     return aliases[fundingStatus];
 }
 
-function getTemplateByCategory(investments) {
-    const templateByCategory = new Map();
-
-    investments.forEach(investment => {
-        const data = investment.toJSON ? investment.toJSON() : investment;
-        if (!templateByCategory.has(data.farmCategoryId)) {
-            templateByCategory.set(data.farmCategoryId, data);
-        }
-    });
-
-    return templateByCategory;
-}
-
 function getPercentFunded(fundingReceived, totalExpectedFunding) {
     if (totalExpectedFunding <= 0) return 0;
     const percent = (fundingReceived / totalExpectedFunding) * 100;
@@ -332,9 +332,10 @@ function formatInvestmentFarm(req, farm, template, options = {}) {
         farmName: data.name,
         image,
         imageUrl: image?.fileUrl || null,
-        farmCategory: data.Category ? {
-            id: data.Category.id,
-            name: data.Category.name
+        investmentProjectId: farmInvestment.id || null,
+        farmCategory: farmInvestment.Category ? {
+            id: farmInvestment.Category.id,
+            name: farmInvestment.Category.name
         } : null,
         investmentTemplate: {
             id: template.id,
@@ -410,10 +411,7 @@ async function getInvestments(req, res) {
             }
         };
 
-        if (farmCategoryId) {
-            templateWhere.farmCategoryId = farmCategoryId;
-            farmWhere.farmCategoryId = farmCategoryId;
-        }
+        if (farmCategoryId) templateWhere.farmCategoryId = farmCategoryId;
 
         const riskLevel = normalizeRiskLevel(req.query.riskLevel, errors);
         if (riskLevel) templateWhere.riskLevel = riskLevel;
@@ -425,7 +423,6 @@ async function getInvestments(req, res) {
         if (search) {
             farmWhere[Op.or] = [
                 { name: { [Op.iLike]: `%${search}%` } },
-                { description: { [Op.iLike]: `%${search}%` } },
                 { location: { [Op.iLike]: `%${search}%` } }
             ];
         }
@@ -440,67 +437,13 @@ async function getInvestments(req, res) {
             return res.fail(errors.join(', '), 400);
         }
 
-        const investmentTemplates = await Investment.findAll({
-            where: templateWhere,
-            include: [{
-                model: FarmCategory,
-                as: 'FarmCategory',
-                attributes: ['id', 'name', 'description'],
-                required: true,
-                where: {
-                    isActive: true
-                }
-            }],
-            attributes: [
-                'id',
-                'farmCategoryId',
-                'name',
-                'startDate',
-                'endDate',
-                'roiPercentage',
-                'durationValue',
-                'durationUnit',
-                'riskLevel',
-                'fundingMaxGoal',
-                'investmentMinGoal',
-                'currency',
-                'createdAt'
-            ],
-            order: [['createdAt', 'DESC']]
-        });
-
-        const templateByCategory = getTemplateByCategory(investmentTemplates);
-        const templateById = new Map(investmentTemplates.map(investment => {
-            const data = investment.toJSON ? investment.toJSON() : investment;
-            return [data.id, data];
-        }));
-        const categoryIdsWithTemplates = [...templateByCategory.keys()];
-
-        if (categoryIdsWithTemplates.length === 0) {
-            return res.success({
-                investments: [],
-                pagination: {
-                    page,
-                    limit,
-                    total: 0,
-                    totalPages: 0,
-                    hasNextPage: false,
-                    hasPreviousPage: false,
-                    startIndex: 0,
-                    endIndex: 0
-                }
-            }, 'Investments retrieved successfully');
-        }
-
-        if (!farmCategoryId) {
-            farmWhere.farmCategoryId = {
-                [Op.in]: categoryIdsWithTemplates
-            };
-        }
-
         const farmInvestmentWhere = {
             isActive: true
         };
+
+        if (farmCategoryId) {
+            farmInvestmentWhere.farmCategoryId = farmCategoryId;
+        }
 
         if (fundingStatuses) {
             farmInvestmentWhere.investmentStatus = {
@@ -512,12 +455,6 @@ async function getInvestments(req, res) {
             where: farmWhere,
             include: [
                 {
-                    model: FarmCategory,
-                    as: 'Category',
-                    attributes: ['id', 'name', 'description'],
-                    required: true
-                },
-                {
                     model: User,
                     as: 'User',
                     attributes: ['id', 'fullName'],
@@ -526,9 +463,47 @@ async function getInvestments(req, res) {
                 {
                     model: UserFarmInvestment,
                     as: 'Investment',
-                    attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentStatus', 'currency'],
+                    attributes: [
+                        'id',
+                        'farmCategoryId',
+                        'investmentId',
+                        'expectedInvestment',
+                        'investmentReceived',
+                        'investmentStatus',
+                        'currency'
+                    ],
                     where: farmInvestmentWhere,
-                    required: !!fundingStatuses
+                    required: true,
+                    include: [
+                        {
+                            model: FarmCategory,
+                            as: 'Category',
+                            attributes: ['id', 'name', 'description'],
+                            required: true,
+                            where: { isActive: true }
+                        },
+                        {
+                            model: Investment,
+                            as: 'InvestmentTemplate',
+                            attributes: [
+                                'id',
+                                'farmCategoryId',
+                                'name',
+                                'startDate',
+                                'endDate',
+                                'roiPercentage',
+                                'durationValue',
+                                'durationUnit',
+                                'riskLevel',
+                                'fundingMaxGoal',
+                                'investmentMinGoal',
+                                'currency',
+                                'createdAt'
+                            ],
+                            required: true,
+                            where: templateWhere
+                        }
+                    ]
                 },
                 {
                     model: FarmDocument,
@@ -541,7 +516,7 @@ async function getInvestments(req, res) {
                     order: [['createdAt', 'ASC']]
                 }
             ],
-            attributes: ['id', 'farmCategoryId', 'investmentId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt'],
+            attributes: ['id', 'name', 'location', 'size', 'createdAt', 'updatedAt'],
             distinct: true,
             order: [['createdAt', 'DESC']],
             limit,
@@ -550,9 +525,7 @@ async function getInvestments(req, res) {
 
         const investments = farms
             .map(farm => {
-                const template = farm.investmentId
-                    ? templateById.get(farm.investmentId)
-                    : templateByCategory.get(farm.farmCategoryId);
+                const template = farm.Investment?.InvestmentTemplate;
                 return template ? formatInvestmentFarm(req, farm, template) : null;
             })
             .filter(Boolean);
@@ -601,12 +574,6 @@ async function getInvestmentById(req, res) {
             },
             include: [
                 {
-                    model: FarmCategory,
-                    as: 'Category',
-                    attributes: ['id', 'name', 'description'],
-                    required: true
-                },
-                {
                     model: User,
                     as: 'User',
                     attributes: ['id', 'fullName'],
@@ -615,9 +582,47 @@ async function getInvestmentById(req, res) {
                 {
                     model: UserFarmInvestment,
                     as: 'Investment',
-                    attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentStatus', 'currency'],
+                    attributes: [
+                        'id',
+                        'farmCategoryId',
+                        'investmentId',
+                        'expectedInvestment',
+                        'investmentReceived',
+                        'investmentStatus',
+                        'currency'
+                    ],
                     where: { isActive: true },
-                    required: false
+                    required: true,
+                    include: [
+                        {
+                            model: FarmCategory,
+                            as: 'Category',
+                            attributes: ['id', 'name', 'description'],
+                            required: true,
+                            where: { isActive: true }
+                        },
+                        {
+                            model: Investment,
+                            as: 'InvestmentTemplate',
+                            attributes: [
+                                'id',
+                                'farmCategoryId',
+                                'name',
+                                'startDate',
+                                'endDate',
+                                'roiPercentage',
+                                'durationValue',
+                                'durationUnit',
+                                'riskLevel',
+                                'fundingMaxGoal',
+                                'investmentMinGoal',
+                                'currency',
+                                'createdAt'
+                            ],
+                            where: { isActive: true },
+                            required: true
+                        }
+                    ]
                 },
                 {
                     model: FarmDocument,
@@ -650,37 +655,14 @@ async function getInvestmentById(req, res) {
                     separate: true
                 }
             ],
-            attributes: ['id', 'farmCategoryId', 'investmentId', 'name', 'description', 'location', 'size', 'currency', 'createdAt', 'updatedAt']
+            attributes: ['id', 'name', 'location', 'size', 'createdAt', 'updatedAt']
         });
 
         if (!farm) {
             return res.fail('Investment not found', 404);
         }
 
-        const template = await Investment.findOne({
-            where: {
-                ...(farm.investmentId
-                    ? { id: farm.investmentId }
-                    : { farmCategoryId: farm.farmCategoryId }),
-                isActive: true
-            },
-            attributes: [
-                'id',
-                'farmCategoryId',
-                'name',
-                'startDate',
-                'endDate',
-                'roiPercentage',
-                'durationValue',
-                'durationUnit',
-                'riskLevel',
-                'fundingMaxGoal',
-                'investmentMinGoal',
-                'currency',
-                'createdAt'
-            ],
-            order: [['createdAt', 'DESC']]
-        });
+        const template = farm.Investment?.InvestmentTemplate;
 
         if (!template) {
             return res.fail('Investment template not found for this farm category', 404);
@@ -730,6 +712,15 @@ async function investInFarm(req, res) {
             return res.fail('Idempotency-Key cannot be longer than 100 characters', 400);
         }
 
+        getPaystackConfig();
+
+        const investor = await User.findByPk(investorId, {
+            attributes: ['id', 'email', 'fullName']
+        });
+        if (!investor?.email) {
+            return res.fail('A verified email address is required to pay with Paystack', 409);
+        }
+
         const approvedKyc = await KYC.findOne({
             where: {
                 userId: investorId,
@@ -752,7 +743,7 @@ async function investInFarm(req, res) {
                         [Op.in]: sequelize.literal("(SELECT user_id FROM kyc WHERE status = 'approved')")
                     }
                 },
-                attributes: ['id', 'userId', 'farmCategoryId', 'investmentId', 'name', 'currency'],
+                attributes: ['id', 'userId', 'name'],
                 transaction,
                 lock: transaction.LOCK.UPDATE
             });
@@ -780,9 +771,7 @@ async function investInFarm(req, res) {
 
             const investmentTemplate = await Investment.findOne({
                 where: {
-                    ...(farm.investmentId
-                        ? { id: farm.investmentId }
-                        : { farmCategoryId: farm.farmCategoryId }),
+                    id: farmInvestment.investmentId,
                     isActive: true
                 },
                 attributes: [
@@ -834,14 +823,30 @@ async function investInFarm(req, res) {
                         payment: existingPayment,
                         farmInvestment,
                         totalExpectedFunding: fromMoneyCents(totalExpectedInCents),
-                        created: false
+                        created: false,
+                        shouldInitialize: existingPayment.status === 'pending'
+                            && (!existingPayment.authorizationUrl || !existingPayment.accessCode)
                     };
                 }
             }
 
-            const remainingFundingInCents = Math.max(totalExpectedInCents - fundingReceivedInCents, 0);
+            const pendingReservation = await InvestmentPayment.sum('amount', {
+                where: {
+                    userFarmId: farm.id,
+                    status: 'pending'
+                },
+                transaction
+            });
+            const pendingReservationInCents = toMoneyCents(pendingReservation || 0) || 0;
+            const remainingFundingInCents = Math.max(
+                totalExpectedInCents - fundingReceivedInCents - pendingReservationInCents,
+                0
+            );
             if (remainingFundingInCents === 0) {
-                throw new InvestmentRequestError('This farm has already reached its funding target', 409);
+                throw new InvestmentRequestError(
+                    'This farm has no unreserved funding remaining',
+                    409
+                );
             }
 
             if (amountInCents < minimumInvestmentInCents && amountInCents !== remainingFundingInCents) {
@@ -866,32 +871,32 @@ async function investInFarm(req, res) {
             }
 
             const currency = String(
-                farmInvestment.currency || investmentTemplate.currency || farm.currency || 'NGN'
+                farmInvestment.currency || investmentTemplate.currency || 'NGN'
             ).toUpperCase();
 
             if (requestedCurrency && requestedCurrency !== currency) {
                 throw new InvestmentRequestError(`Investment currency must be ${currency}`, 400);
             }
 
-            // Temporary pre-Paystack flow. Once credentials are available, initialize
-            // Paystack here as pending and move the funding update to verified payment handling.
+            const reference = generatePaymentReference();
             const paymentDefaults = {
                 investorId,
                 userFarmId: farm.id,
                 userFarmInvestmentId: farmInvestment.id,
                 investmentId: investmentTemplate.id,
-                reference: generatePaymentReference(),
+                reference,
                 idempotencyKey,
                 amount: fromMoneyCents(amountInCents),
                 currency,
                 gateway: PAYSTACK_GATEWAY,
-                gatewayReference: null,
+                gatewayReference: reference,
+                gatewayTransactionId: null,
+                accessCode: null,
                 authorizationUrl: null,
-                status: 'recorded',
+                status: 'pending',
                 paidAt: null,
                 gatewayResponse: {
-                    integrationStatus: 'not_configured',
-                    message: PAYSTACK_NOT_CONFIGURED_MESSAGE
+                    initializationStatus: 'created'
                 }
             };
 
@@ -921,36 +926,97 @@ async function investInFarm(req, res) {
                         payment,
                         farmInvestment,
                         totalExpectedFunding: fromMoneyCents(totalExpectedInCents),
-                        created: false
+                        created: false,
+                        shouldInitialize: payment.status === 'pending'
+                            && (!payment.authorizationUrl || !payment.accessCode)
                     };
                 }
             } else {
                 payment = await InvestmentPayment.create(paymentDefaults, { transaction });
             }
 
-            const nextFundingReceivedInCents = fundingReceivedInCents + amountInCents;
-            const nextInvestmentStatus = nextFundingReceivedInCents >= totalExpectedInCents
-                ? 'completed'
-                : 'partial';
-
-            await farmInvestment.update({
-                expectedInvestment: fromMoneyCents(totalExpectedInCents),
-                investmentReceived: fromMoneyCents(nextFundingReceivedInCents),
-                investmentPending: fromMoneyCents(
-                    Math.max(totalExpectedInCents - nextFundingReceivedInCents, 0)
-                ),
-                investmentStatus: nextInvestmentStatus
-            }, { transaction });
-
             return {
                 payment,
                 farmInvestment,
                 totalExpectedFunding: fromMoneyCents(totalExpectedInCents),
-                created
+                created,
+                shouldInitialize: true
             };
         });
 
+        if (result.shouldInitialize) {
+            let paystackResponse;
+
+            try {
+                paystackResponse = await initializeTransaction({
+                    email: investor.email,
+                    amountInSubunit: amountInCents,
+                    currency: result.payment.currency,
+                    reference: result.payment.reference,
+                    metadata: {
+                        transactionId: result.payment.id,
+                        investorId,
+                        farmId,
+                        investmentTemplateId: result.payment.investmentId,
+                        farmName: req.body?.farmName || undefined
+                    }
+                });
+            } catch (error) {
+                await result.payment.update({
+                    status: 'failed',
+                    gatewayResponse: error instanceof PaystackError
+                        ? error.gatewayData || {
+                            code: error.code,
+                            message: error.message
+                        }
+                        : { message: 'Paystack initialization failed' }
+                });
+
+                if (error instanceof PaystackError) {
+                    return res.fail(
+                        error.message,
+                        error.statusCode,
+                        {
+                            transactionId: result.payment.id,
+                            payment: formatInvestmentPayment(result.payment)
+                        }
+                    );
+                }
+
+                throw error;
+            }
+
+            const gatewayData = paystackResponse.data || {};
+            if (
+                gatewayData.reference !== result.payment.reference
+                || !gatewayData.authorization_url
+                || !gatewayData.access_code
+            ) {
+                await result.payment.update({
+                    status: 'failed',
+                    gatewayResponse: paystackResponse
+                });
+
+                return res.fail(
+                    'Paystack returned incomplete initialization data',
+                    502,
+                    {
+                        transactionId: result.payment.id,
+                        payment: formatInvestmentPayment(result.payment)
+                    }
+                );
+            }
+
+            await result.payment.update({
+                gatewayReference: gatewayData.reference,
+                authorizationUrl: gatewayData.authorization_url,
+                accessCode: gatewayData.access_code,
+                gatewayResponse: paystackResponse
+            });
+        }
+
         return res.success({
+            transactionId: result.payment.id,
             payment: formatInvestmentPayment(result.payment),
             investment: formatFundingSummary(
                 farmId,
@@ -959,12 +1025,21 @@ async function investInFarm(req, res) {
             ),
             gateway: {
                 provider: PAYSTACK_GATEWAY,
-                initialized: false,
-                message: PAYSTACK_NOT_CONFIGURED_MESSAGE
+                initialized: !!result.payment.accessCode,
+                reference: result.payment.gatewayReference,
+                authorizationUrl: result.payment.authorizationUrl,
+                accessCode: result.payment.accessCode
             }
-        }, result.created ? 'Investment recorded successfully' : 'Investment request already recorded', result.created ? 201 : 200);
+        }, result.created
+            ? 'Paystack investment transaction initialized successfully'
+            : 'Investment transaction already exists',
+        result.created ? 201 : 200);
     } catch (error) {
         if (error instanceof InvestmentRequestError) {
+            return res.fail(error.message, error.statusCode);
+        }
+
+        if (error instanceof PaystackError) {
             return res.fail(error.message, error.statusCode);
         }
 
@@ -973,8 +1048,80 @@ async function investInFarm(req, res) {
     }
 }
 
+async function verifyInvestmentPayment(req, res) {
+    try {
+        const investorId = req.user?.id;
+        const { transactionId } = req.params;
+
+        if (!investorId) {
+            return res.fail('User not authenticated', 401);
+        }
+
+        const payment = await InvestmentPayment.findOne({
+            where: {
+                id: transactionId,
+                investorId
+            }
+        });
+        if (!payment) {
+            return res.fail('Investment transaction not found', 404);
+        }
+
+        let settlement;
+        if (payment.status === 'successful') {
+            settlement = await settlePaystackPayment(payment.id, {
+                id: payment.gatewayTransactionId,
+                reference: payment.reference,
+                amount: majorAmountToSubunit(payment.amount),
+                currency: payment.currency,
+                status: 'success',
+                paid_at: payment.paidAt
+            });
+        } else {
+            const paystackResponse = await verifyTransaction(payment.reference);
+            settlement = await settlePaystackPayment(
+                payment.id,
+                paystackResponse.data
+            );
+        }
+
+        if (settlement.error) {
+            return res.fail(
+                settlement.error,
+                settlement.statusCode,
+                {
+                    transactionId: payment.id,
+                    payment: formatInvestmentPayment(settlement.payment || payment)
+                }
+            );
+        }
+
+        return res.success({
+            transactionId: settlement.payment.id,
+            payment: formatInvestmentPayment(settlement.payment),
+            investment: formatFundingSummary(
+                settlement.payment.userFarmId,
+                settlement.farmInvestment,
+                settlement.farmInvestment.expectedInvestment
+            ),
+            credited: settlement.credited,
+            alreadySettled: settlement.alreadySettled
+        }, settlement.payment.status === 'successful'
+            ? 'Investment payment verified successfully'
+            : 'Investment payment is not yet successful');
+    } catch (error) {
+        if (error instanceof PaystackError) {
+            return res.fail(error.message, error.statusCode);
+        }
+
+        console.error('Verify investment payment error:', error);
+        return res.fail('Failed to verify investment payment', 500);
+    }
+}
+
 module.exports = {
     getInvestments,
     getInvestmentById,
-    investInFarm
+    investInFarm,
+    verifyInvestmentPayment
 };

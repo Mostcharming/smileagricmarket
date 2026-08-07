@@ -60,7 +60,12 @@ app.use(compression());
 
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({
+  limit: '10kb',
+  verify: (req, res, buffer) => {
+    req.rawBody = Buffer.from(buffer);
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 app.use(createRateLimitMiddleware({

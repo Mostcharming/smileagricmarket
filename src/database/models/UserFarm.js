@@ -16,33 +16,11 @@ module.exports = (sequelize) => {
             allowNull: false,
             field: 'user_id'
         },
-        farmCategoryId: {
-            type: DataTypes.UUID,
-            allowNull: false,
-            field: 'farm_category_id'
-        },
-        investmentId: {
-            type: DataTypes.UUID,
-            allowNull: true,
-            field: 'investment_id',
-            references: {
-                model: 'investments',
-                key: 'id'
-            },
-            onDelete: 'RESTRICT',
-            comment: 'Admin investment template selected for this farm'
-        },
         name: {
             type: DataTypes.STRING,
             allowNull: false,
             field: 'name',
             comment: 'Farm name'
-        },
-        description: {
-            type: DataTypes.TEXT,
-            allowNull: true,
-            field: 'description',
-            comment: 'Farm description'
         },
         location: {
             type: DataTypes.STRING,
@@ -55,19 +33,6 @@ module.exports = (sequelize) => {
             allowNull: true,
             field: 'size',
             comment: 'Size of the farm (in hectares or other unit)'
-        },
-        investmentAmount: {
-            type: DataTypes.DECIMAL(15, 2),
-            allowNull: true,
-            field: 'investment_amount',
-            comment: 'One-time funding goal amount requested for the farm'
-        },
-        currency: {
-            type: DataTypes.STRING(3),
-            allowNull: false,
-            defaultValue: 'USD',
-            field: 'currency',
-            comment: 'Currency code for investment amount (e.g., USD, EUR, GBP)'
         },
         isActive: {
             type: DataTypes.BOOLEAN,
@@ -96,12 +61,6 @@ module.exports = (sequelize) => {
         indexes: [
             {
                 fields: ['user_id']
-            },
-            {
-                fields: ['farm_category_id']
-            },
-            {
-                fields: ['investment_id']
             },
             {
                 fields: ['user_id', 'is_active']

@@ -406,24 +406,41 @@ async function listAllUserFarms(req, res) {
         if (verificationStatus) {
             whereClause.verificationStatus = verificationStatus;
         }
-        if (farmCategoryId) {
-            whereClause.farmCategoryId = farmCategoryId;
-        }
+        const buildInvestmentProjectInclude = () => ({
+            model: UserFarmInvestment,
+            as: 'Investment',
+            attributes: [
+                'id',
+                'farmCategoryId',
+                'investmentId',
+                'expectedInvestment',
+                'investmentReceived',
+                'investmentStatus',
+                'currency'
+            ],
+            required: !!farmCategoryId,
+            ...(farmCategoryId ? { where: { farmCategoryId } } : {}),
+            include: [{
+                model: FarmCategory,
+                as: 'Category',
+                attributes: ['id', 'name']
+            }]
+        });
 
         // Get total count
-        const total = await UserFarm.count({ where: whereClause });
+        const total = await UserFarm.count({
+            where: whereClause,
+            include: farmCategoryId ? [buildInvestmentProjectInclude()] : [],
+            distinct: true
+        });
 
         // Fetch farms with pagination
         const farms = await UserFarm.findAll({
             where: whereClause,
             include: [
-                {
-                    model: FarmCategory,
-                    as: 'Category',
-                    attributes: ['id', 'name']
-                }
+                buildInvestmentProjectInclude()
             ],
-            attributes: ['id', 'name', 'verificationStatus', 'location', 'farmCategoryId'],
+            attributes: ['id', 'name', 'verificationStatus', 'location', 'size'],
             order: [['createdAt', 'DESC']],
             limit,
             offset
@@ -463,26 +480,38 @@ async function getUserFarmDetails(req, res) {
             where: { id: farmId },
             include: [
                 {
-                    model: FarmCategory,
-                    as: 'Category',
-                    attributes: ['id', 'name', 'description']
-                },
-                {
-                    model: Investment,
-                    as: 'InvestmentTemplate',
-                    attributes: [
-                        'id',
-                        'name',
-                        'roiPercentage',
-                        'fundingMinGoal',
-                        'fundingMaxGoal',
-                        'currency'
-                    ]
-                },
-                {
                     model: UserFarmInvestment,
                     as: 'Investment',
-                    attributes: ['id', 'expectedInvestment', 'investmentReceived', 'investmentPending', 'investmentStatus', 'currency', 'notes']
+                    attributes: [
+                        'id',
+                        'farmCategoryId',
+                        'investmentId',
+                        'expectedInvestment',
+                        'investmentReceived',
+                        'investmentPending',
+                        'investmentStatus',
+                        'currency',
+                        'notes'
+                    ],
+                    include: [
+                        {
+                            model: FarmCategory,
+                            as: 'Category',
+                            attributes: ['id', 'name', 'description']
+                        },
+                        {
+                            model: Investment,
+                            as: 'InvestmentTemplate',
+                            attributes: [
+                                'id',
+                                'name',
+                                'roiPercentage',
+                                'fundingMinGoal',
+                                'fundingMaxGoal',
+                                'currency'
+                            ]
+                        }
+                    ]
                 },
                 {
                     model: UserFarmMilestone,

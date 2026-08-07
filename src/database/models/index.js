@@ -46,6 +46,28 @@ module.exports = (sequelize) => {
         as: 'FarmCategory'
     });
 
+    models.FarmCategory.hasMany(models.UserFarmInvestment, {
+        foreignKey: 'farmCategoryId',
+        as: 'InvestmentProjects',
+        onDelete: 'RESTRICT'
+    });
+
+    models.UserFarmInvestment.belongsTo(models.FarmCategory, {
+        foreignKey: 'farmCategoryId',
+        as: 'Category'
+    });
+
+    models.Investment.hasMany(models.UserFarmInvestment, {
+        foreignKey: 'investmentId',
+        as: 'InvestmentProjects',
+        onDelete: 'RESTRICT'
+    });
+
+    models.UserFarmInvestment.belongsTo(models.Investment, {
+        foreignKey: 'investmentId',
+        as: 'InvestmentTemplate'
+    });
+
     models.Investment.hasMany(models.InvestmentMilestone, {
         foreignKey: 'investmentId',
         as: 'Milestones',
@@ -55,17 +77,6 @@ module.exports = (sequelize) => {
     models.InvestmentMilestone.belongsTo(models.Investment, {
         foreignKey: 'investmentId',
         as: 'Investment'
-    });
-
-    models.Investment.hasMany(models.UserFarm, {
-        foreignKey: 'investmentId',
-        as: 'UserFarms',
-        onDelete: 'RESTRICT'
-    });
-
-    models.UserFarm.belongsTo(models.Investment, {
-        foreignKey: 'investmentId',
-        as: 'InvestmentTemplate'
     });
 
     // User Notifications associations
@@ -126,17 +137,6 @@ module.exports = (sequelize) => {
     models.UserFarm.belongsTo(models.User, {
         foreignKey: 'userId',
         as: 'User'
-    });
-
-    models.FarmCategory.hasMany(models.UserFarm, {
-        foreignKey: 'farmCategoryId',
-        as: 'UserFarms',
-        onDelete: 'RESTRICT'
-    });
-
-    models.UserFarm.belongsTo(models.FarmCategory, {
-        foreignKey: 'farmCategoryId',
-        as: 'Category'
     });
 
     // User Farm Milestones associations (Many-to-Many through UserFarmMilestone)

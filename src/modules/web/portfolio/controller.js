@@ -227,11 +227,6 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
             required: true,
             include: [
                 {
-                    model: FarmCategory,
-                    as: 'Category',
-                    attributes: ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
-                },
-                {
                     model: User,
                     as: 'User',
                     attributes: ['id', 'fullName', 'bio', 'profileImageUrl']
@@ -241,6 +236,8 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
                     as: 'Investment',
                     attributes: [
                         'id',
+                        'farmCategoryId',
+                        'investmentId',
                         'expectedInvestment',
                         'investmentReceived',
                         'investmentPending',
@@ -250,7 +247,12 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
                         'isActive',
                         'createdAt',
                         'updatedAt'
-                    ]
+                    ],
+                    include: [{
+                        model: FarmCategory,
+                        as: 'Category',
+                        attributes: ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
+                    }]
                 },
                 {
                     model: FarmDocument,
@@ -530,16 +532,15 @@ function formatPortfolioFarm(req, entries) {
         id: farm.id,
         farmId: farm.id,
         name: farm.name,
-        description: farm.description,
         location: farm.location,
         size: farm.size,
-        currency: farm.currency,
+        currency: funding.currency || DEFAULT_CURRENCY,
         isActive: farm.isActive,
         verificationStatus: farm.verificationStatus,
         rejectionNote: farm.rejectionNote,
         createdAt: farm.createdAt,
         updatedAt: farm.updatedAt,
-        category: farm.Category || null,
+        category: funding.Category || null,
         owner: farm.User ? {
             id: farm.User.id,
             name: farm.User.fullName,
@@ -554,7 +555,7 @@ function formatPortfolioFarm(req, entries) {
             expectedInvestment: toNumber(funding.expectedInvestment),
             investmentReceived: toNumber(funding.investmentReceived),
             investmentPending: toNumber(funding.investmentPending),
-            currency: funding.currency || farm.currency,
+            currency: funding.currency || DEFAULT_CURRENCY,
             status: funding.investmentStatus || null,
             notes: funding.notes || null,
             isActive: funding.isActive ?? null,

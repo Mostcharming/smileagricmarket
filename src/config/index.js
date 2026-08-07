@@ -52,4 +52,12 @@ const currentConfig =
         ? config.production
         : config.development;
 
+currentConfig.paystack = {
+    secretKey: process.env.PAYSTACK_SECRET_KEY || '',
+    baseUrl: (process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co').replace(/\/+$/, ''),
+    callbackUrl: process.env.PAYSTACK_CALLBACK_URL
+        || `${process.env.FE_URL || currentConfig.feUrl}/investments/payment/callback`,
+    timeoutMs: Math.max(Number(process.env.PAYSTACK_TIMEOUT_MS) || 15000, 1000)
+};
+
 module.exports = currentConfig;

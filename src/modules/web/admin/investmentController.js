@@ -9,7 +9,7 @@ const {
     FarmCategory,
     Investment,
     InvestmentMilestone,
-    UserFarm,
+    UserFarmInvestment,
     UserFarmMilestone
 } = models;
 
@@ -624,7 +624,7 @@ async function updateInvestment(req, res) {
             }
 
             if (payload.farmCategoryId !== investment.farmCategoryId) {
-                const linkedFarmCount = await UserFarm.count({
+                const linkedFarmCount = await UserFarmInvestment.count({
                     where: { investmentId }
                 });
                 if (linkedFarmCount > 0) {
@@ -699,7 +699,7 @@ async function deleteInvestment(req, res) {
             return res.fail('Investment not found', 404);
         }
 
-        const linkedFarmCount = await UserFarm.count({
+        const linkedFarmCount = await UserFarmInvestment.count({
             where: { investmentId }
         });
         if (linkedFarmCount > 0) {

@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const assert = require('node:assert/strict');
 const bcrypt = require('bcrypt');
+const { createHmac } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { Op } = require('sequelize');
@@ -332,7 +333,7 @@ function investmentPayload(categoryId, suffix) {
     };
 }
 
-async function createFarm(token, categoryId, name, selectedMilestoneId) {
+async function createFarm(token, name) {
     const files = [
         {
             field: 'photos',
@@ -351,16 +352,29 @@ async function createFarm(token, categoryId, name, selectedMilestoneId) {
     return httpCheck('web create farm', 'POST', '/web/farms', {
         headers: bearer(token),
         body: multipart({
-            farmCategoryId: categoryId,
             name,
-            description: 'Endpoint test farm',
             address: 'Lagos',
-            plotSize: '12.5',
-            fundingGoalAmount: '500000',
-            selectedMilestoneId
+            plotSize: '12.5'
         }, files),
         expectedStatus: 201
     });
+}
+
+async function createFarmInvestmentProject(token, farmId, categoryId) {
+    return httpCheck(
+        'web create farm investment project',
+        'POST',
+        '/web/farms/{farmId}/investment-projects',
+        {
+            actualPath: `/web/farms/${farmId}/investment-projects`,
+            headers: bearer(token),
+            body: {
+                farmCategoryId: categoryId,
+                fundingGoalAmount: 500000
+            },
+            expectedStatus: 201
+        }
+    );
 }
 
 async function cleanup() {
@@ -824,15 +838,42 @@ async function run() {
 
     const mainFarm = await createFarm(
         webUsers.primary.token,
-        categoryId,
-        `Primary Farm ${runId}`,
-        investmentMilestoneId
+        `Primary Farm ${runId}`
     );
     const farmId = mainFarm.body.data.id;
-    assert.equal(mainFarm.body.data.fundingGoalAmount, 500000);
+    assert.equal(mainFarm.body.data.investmentProject, null);
+    const mainInvestmentProject = await createFarmInvestmentProject(
+        webUsers.primary.token,
+        farmId,
+        categoryId
+    );
+    assert.equal(mainInvestmentProject.body.data.fundingGoalAmount, 500000);
     assert.equal(
-        mainFarm.body.data.selectedMilestone.id,
-        investmentMilestoneId
+        mainInvestmentProject.body.data.farmCategory.id,
+        categoryId
+    );
+    assert.equal(mainInvestmentProject.body.data.investmentTemplate.id, investmentId);
+    assert.ok(
+        mainInvestmentProject.body.data.milestones.some(
+            milestone => milestone.id === investmentMilestoneId
+        ),
+        'Investment project did not initialize its template milestones'
+    );
+    await httpCheck(
+        'web prevents duplicate farm investment project',
+        'POST',
+        '/web/farms/{farmId}/investment-projects',
+        {
+            actualPath: `/web/farms/${farmId}/investment-projects`,
+            headers: bearer(webUsers.primary.token),
+            body: {
+                farmCategoryId: categoryId,
+                fundingGoalAmount: 500000
+            },
+            expectedStatus: 409,
+            expectError: true,
+            cover: false
+        }
     );
     await httpCheck(
         'admin cannot delete selected investment milestone',
@@ -862,9 +903,7 @@ async function run() {
 
     const disposableFarm = await createFarm(
         webUsers.primary.token,
-        categoryId,
-        `Disposable Farm ${runId}`,
-        investmentMilestoneId
+        `Disposable Farm ${runId}`
     );
     await httpCheck('web delete farm', 'DELETE', '/web/farms/{farmId}', {
         actualPath: `/web/farms/${disposableFarm.body.data.id}`,
@@ -881,7 +920,7 @@ async function run() {
     await httpCheck('web update farm', 'PUT', '/web/farms/{farmId}', {
         actualPath: `/web/farms/${farmId}`,
         headers: bearer(webUsers.primary.token),
-        body: { description: 'Updated endpoint farm', location: 'Ibadan', size: 14 }
+        body: { location: 'Ibadan', size: 14 }
     });
     await httpCheck('web add farm milestones', 'POST', '/web/farms/{farmId}/milestones', {
         actualPath: `/web/farms/${farmId}/milestones`,
@@ -913,7 +952,7 @@ async function run() {
     });
 
     await httpCheck('admin list user farms', 'GET', '/web/admin/user-farms', {
-        actualPath: `/web/admin/user-farms?search=${encodeURIComponent(runId)}&page=1&limit=20`,
+        actualPath: `/web/admin/user-farms?search=${encodeURIComponent(runId)}&farmCategoryId=${categoryId}&page=1&limit=20`,
         headers: bearer(adminToken)
     });
     await httpCheck('admin get user farm', 'GET', '/web/admin/user-farms/{farmId}', {
@@ -946,29 +985,136 @@ async function run() {
     assert.equal(investmentDetails.body.data.startDate, '2026-08-01');
     assert.equal(investmentDetails.body.data.endDate, '2027-08-31');
 
+    const paystackConfigured = !!process.env.PAYSTACK_SECRET_KEY;
     const idempotencyKey = `${runId}-investment`;
-    const investmentPayment = await httpCheck('web invest in farm', 'POST', '/web/investments/{farmId}/invest', {
-        actualPath: `/web/investments/${farmId}/invest`,
-        headers: {
-            ...bearer(mobileUsers.primary.token),
-            'Idempotency-Key': idempotencyKey
-        },
-        body: { amount: 50000, currency: 'NGN' },
-        expectedStatus: 201
+    let paymentTransactionId;
+    let paymentReference;
+
+    if (paystackConfigured) {
+        const investmentPayment = await httpCheck('web initialize Paystack investment', 'POST', '/web/investments/{farmId}/invest', {
+            actualPath: `/web/investments/${farmId}/invest`,
+            headers: {
+                ...bearer(mobileUsers.primary.token),
+                'Idempotency-Key': idempotencyKey
+            },
+            body: { amount: 50000, currency: 'NGN' },
+            expectedStatus: 201
+        });
+        paymentTransactionId = investmentPayment.body.data.transactionId;
+        paymentReference = investmentPayment.body.data.payment.reference;
+        assert.equal(investmentPayment.body.data.payment.transactionId, paymentTransactionId);
+        assert.equal(investmentPayment.body.data.payment.status, 'pending');
+        assert.ok(investmentPayment.body.data.payment.accessCode);
+        assert.ok(investmentPayment.body.data.payment.authorizationUrl);
+
+        const fundingBeforeVerification = await UserFarmInvestment.findOne({
+            where: { userFarmId: farmId }
+        });
+        assert.equal(Number(fundingBeforeVerification.investmentReceived), 0);
+
+        const repeatedPayment = await httpCheck('web Paystack investment idempotency replay', 'POST', '/web/investments/{farmId}/invest', {
+            actualPath: `/web/investments/${farmId}/invest`,
+            headers: {
+                ...bearer(mobileUsers.primary.token),
+                'Idempotency-Key': idempotencyKey
+            },
+            body: { amount: 50000, currency: 'NGN' }
+        });
+        assert.equal(
+            repeatedPayment.body.data.transactionId,
+            paymentTransactionId,
+            'Idempotency replay created a second payment'
+        );
+
+        const verifiedPayment = await httpCheck(
+            'web verify Paystack investment',
+            'POST',
+            '/web/investments/payments/{transactionId}/verify',
+            {
+                actualPath: `/web/investments/payments/${paymentTransactionId}/verify`,
+                headers: bearer(mobileUsers.primary.token)
+            }
+        );
+        assert.equal(verifiedPayment.body.data.payment.status, 'successful');
+        assert.equal(
+            verifiedPayment.body.data.payment.gatewayTransactionId,
+            process.env.PAYSTACK_TEST_TRANSACTION_ID || '18446744073709551610'
+        );
+        assert.equal(verifiedPayment.body.data.investment.fundingReceived, 50000);
+    } else {
+        await httpCheck('web Paystack configuration required', 'POST', '/web/investments/{farmId}/invest', {
+            actualPath: `/web/investments/${farmId}/invest`,
+            headers: {
+                ...bearer(mobileUsers.primary.token),
+                'Idempotency-Key': idempotencyKey
+            },
+            body: { amount: 50000, currency: 'NGN' },
+            expectedStatus: 503,
+            expectError: true
+        });
+
+        const farmFunding = await UserFarmInvestment.findOne({
+            where: { userFarmId: farmId }
+        });
+        const seededPayment = await InvestmentPayment.create({
+            investorId: mobileUsers.primary.id,
+            userFarmId: farmId,
+            userFarmInvestmentId: farmFunding.id,
+            investmentId,
+            reference: `SMILE-INV-${runDigits}-SEEDED`,
+            amount: 50000,
+            currency: 'NGN',
+            gateway: 'paystack',
+            gatewayReference: `SMILE-INV-${runDigits}-SEEDED`,
+            gatewayTransactionId: `${runDigits}001`,
+            status: 'successful',
+            paidAt: new Date(),
+            gatewayResponse: { testSetup: true }
+        });
+        await farmFunding.update({
+            investmentReceived: 50000,
+            investmentPending: 450000,
+            investmentStatus: 'partial'
+        });
+        paymentTransactionId = seededPayment.id;
+        paymentReference = seededPayment.reference;
+
+        await httpCheck(
+            'web return already verified investment transaction',
+            'POST',
+            '/web/investments/payments/{transactionId}/verify',
+            {
+                actualPath: `/web/investments/payments/${paymentTransactionId}/verify`,
+                headers: bearer(mobileUsers.primary.token)
+            }
+        );
+    }
+
+    const webhookEvent = {
+        event: 'charge.success',
+        data: {
+            id: process.env.PAYSTACK_TEST_TRANSACTION_ID || `${runDigits}001`,
+            reference: paymentReference,
+            amount: 5000000,
+            currency: 'NGN',
+            status: 'success',
+            paid_at: new Date().toISOString()
+        }
+    };
+    const webhookBody = JSON.stringify(webhookEvent);
+    const webhookHeaders = paystackConfigured
+        ? {
+            'x-paystack-signature': createHmac(
+                'sha512',
+                process.env.PAYSTACK_SECRET_KEY
+            ).update(webhookBody).digest('hex')
+        }
+        : {};
+    await httpCheck('Paystack investment webhook', 'POST', '/web/payments/paystack/webhook', {
+        headers: webhookHeaders,
+        body: webhookEvent,
+        expectedStatus: paystackConfigured ? 200 : 503
     });
-    const repeatedPayment = await httpCheck('web investment idempotency replay', 'POST', '/web/investments/{farmId}/invest', {
-        actualPath: `/web/investments/${farmId}/invest`,
-        headers: {
-            ...bearer(mobileUsers.primary.token),
-            'Idempotency-Key': idempotencyKey
-        },
-        body: { amount: 50000, currency: 'NGN' }
-    });
-    assert.equal(
-        repeatedPayment.body.data.payment.id,
-        investmentPayment.body.data.payment.id,
-        'Idempotency replay created a second payment'
-    );
 
     const portfolio = await httpCheck('web portfolio summary', 'GET', '/web/portfolio', {
         headers: bearer(mobileUsers.primary.token)
