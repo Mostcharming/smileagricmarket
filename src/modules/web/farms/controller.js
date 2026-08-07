@@ -406,33 +406,26 @@ async function createFarm(req, res) {
             return failFarmCreation(req, res, 'name is required', 400);
         }
 
-        if (!location || String(location).trim() === '') {
-            return failFarmCreation(req, res, 'address is required', 400);
-        }
-
-        const { value: parsedPlotSize, error: plotSizeError } = parseRequiredPositiveNumber(
-            plotSize,
-            'plotSize'
-        );
-        if (plotSizeError) {
-            return failFarmCreation(req, res, plotSizeError, 400);
+        let parsedPlotSize = null;
+        if (plotSize !== undefined && plotSize !== null && String(plotSize).trim() !== '') {
+            const result = parseRequiredPositiveNumber(plotSize, 'plotSize');
+            if (result.error) {
+                return failFarmCreation(req, res, result.error, 400);
+            }
+            parsedPlotSize = result.value;
         }
 
         const photos = req.farmFiles?.pictures || [];
         const documents = req.farmFiles?.documents || [];
-        if (photos.length === 0) {
-            return failFarmCreation(req, res, 'At least one farm photo is required', 400);
-        }
-        if (documents.length === 0) {
-            return failFarmCreation(req, res, 'At least one farm document is required', 400);
-        }
 
         transaction = await sequelize.transaction();
 
         const farm = await UserFarm.create({
             userId,
             name,
-            location: String(location).trim(),
+            location: location === undefined || location === null || String(location).trim() === ''
+                ? null
+                : String(location).trim(),
             size: parsedPlotSize,
             isActive: true,
             verificationStatus: 'pending'
@@ -456,7 +449,9 @@ async function createFarm(req, res) {
                 mimeType: document.mimeType
             }))
         ];
-        await FarmDocument.bulkCreate(documentsToCreate, { transaction });
+        if (documentsToCreate.length > 0) {
+            await FarmDocument.bulkCreate(documentsToCreate, { transaction });
+        }
 
         await transaction.commit();
         transaction = null;

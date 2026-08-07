@@ -166,7 +166,7 @@ router.get('/:farmId', getFarmById);
  *     tags:
  *       - Web Farms
  *     summary: Create a farm
- *     description: Create a pending farm with only its name, size, address, photos, and documents. Create its investment project separately after the farm exists.
+ *     description: Create a pending farm. Only the farm name is required; size, address, photos, and documents can be added now or later. Create its investment project separately after the farm exists.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -177,10 +177,6 @@ router.get('/:farmId', getFarmById);
  *             type: object
  *             required:
  *               - name
- *               - plotSize
- *               - address
- *               - photos
- *               - documents
  *             properties:
  *               name:
  *                 type: string
@@ -209,7 +205,7 @@ router.get('/:farmId', getFarmById);
  *       201:
  *         description: Farm created successfully with pending verification status
  *       400:
- *         description: Missing or invalid farm fields or documentation
+ *         description: Missing name or invalid optional farm fields or documentation
  *       401:
  *         description: User not authenticated
  *       404:
