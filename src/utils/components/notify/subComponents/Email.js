@@ -1,6 +1,7 @@
 const axios = require('axios');
 const FormData = require('form-data');
 const Mailgun = require('mailgun.js');
+const nodemailer = require('nodemailer');
 const NotifyProcess = require('./NotifyProcess');
 const { renderEmailTemplate } = require('../../../emailTemplateRenderer');
 
@@ -56,6 +57,7 @@ class Email extends NotifyProcess {
         const methods = {
             temii: 'sendTemiiEmail',
             mailgun: 'sendMailgunEmail',
+            smtp: 'sendSmtpEmail',
         };
         return methods[name] || 'sendTemiiEmail';
     }
@@ -96,6 +98,49 @@ class Email extends NotifyProcess {
         return mg.messages.create(emailConfig.domain, {
             from: `${emailConfig.fromName || 'Smile Agrimarket'} <${emailConfig.fromEmail}>`,
             to: [recipient],
+            subject: this.subject || emailConfig.defaultSubject || 'Smile Agrimarket',
+            text: this.getPlainTextFromHtml(message),
+            html: message
+        });
+    }
+
+    async sendSmtpEmail(emailConfig, message) {
+        if (!this.email) {
+            throw new Error('Recipient email is required');
+        }
+
+        if (
+            !emailConfig.host
+            || !emailConfig.port
+            || !emailConfig.username
+            || !emailConfig.password
+            || !emailConfig.fromEmail
+        ) {
+            throw new Error('SMTP host, port, username, password, and fromEmail are required');
+        }
+
+        const port = Number(emailConfig.port);
+        if (!Number.isInteger(port) || port <= 0) {
+            throw new Error('SMTP port must be a valid positive integer');
+        }
+
+        const transporter = nodemailer.createTransport({
+            host: emailConfig.host,
+            port,
+            secure: emailConfig.secure === true || emailConfig.secure === 'true',
+            requireTLS: port === 587,
+            auth: {
+                user: emailConfig.username,
+                pass: emailConfig.password
+            }
+        });
+        const recipient = this.receiverName
+            ? `${this.receiverName} <${this.email}>`
+            : this.email;
+
+        return transporter.sendMail({
+            from: `${emailConfig.fromName || 'Smile Agrimarket'} <${emailConfig.fromEmail}>`,
+            to: recipient,
             subject: this.subject || emailConfig.defaultSubject || 'Smile Agrimarket',
             text: this.getPlainTextFromHtml(message),
             html: message

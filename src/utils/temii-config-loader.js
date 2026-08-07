@@ -36,7 +36,15 @@ function getTemiiConfig() {
     cachedConfig = mergeConfig(cachedConfig, {
         email: {
             provider: process.env.EMAIL_PROVIDER || cachedConfig.email?.provider,
-            username: process.env.MAILGUN_USERNAME || cachedConfig.email?.username,
+            host: process.env.SMTP_HOST || cachedConfig.email?.host,
+            port: process.env.SMTP_PORT || cachedConfig.email?.port,
+            secure: process.env.SMTP_SECURE === undefined
+                ? cachedConfig.email?.secure
+                : process.env.SMTP_SECURE === 'true',
+            username: process.env.SMTP_USERNAME
+                || process.env.MAILGUN_USERNAME
+                || cachedConfig.email?.username,
+            password: process.env.SMTP_PASSWORD || cachedConfig.email?.password,
             apiKey: process.env.MAILGUN_API_KEY || cachedConfig.email?.apiKey,
             domain: process.env.MAILGUN_DOMAIN || cachedConfig.email?.domain,
             fromEmail: process.env.EMAIL_FROM || cachedConfig.email?.fromEmail,
