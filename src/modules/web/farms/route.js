@@ -21,7 +21,7 @@ const {
  *     tags:
  *       - Web Farms
  *     summary: List user farms with pagination and search
- *     description: Retrieve the user's farms, their documentation, and optional investment project.
+ *     description: Retrieve the user's farms, each farm's independent verification status, documentation, and investment projects.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -70,10 +70,48 @@ const {
  *                             type: string
  *                           size:
  *                             type: number
- *                           investmentProject:
- *                             type: object
- *                             nullable: true
- *                             description: Category, resolved admin template, funding goal, and milestone progress
+ *                           verificationStatus:
+ *                             type: string
+ *                             enum: [pending, approved, rejected]
+ *                           investmentProjects:
+ *                             type: array
+ *                             description: Projects created under this farm, each with independent dates, lifecycle status, funding, and milestones
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                   format: uuid
+ *                                 startDate:
+ *                                   type: string
+ *                                   format: date
+ *                                 endDate:
+ *                                   type: string
+ *                                   format: date
+ *                                 investmentStatus:
+ *                                   type: string
+ *                                   enum: [not_started, funding_started, active, completed]
+ *                                 fundingGoalAmount:
+ *                                   type: number
+ *                                 amountRaised:
+ *                                   type: number
+ *                                 percentRaised:
+ *                                   type: number
+ *                                 completionPercentage:
+ *                                   type: number
+ *                                   description: Sum of completed milestone funding percentages
+ *                                 investorCount:
+ *                                   type: integer
+ *                           totalFundingGoalAmount:
+ *                             type: number
+ *                           totalFundsRaised:
+ *                             type: number
+ *                           percentRaised:
+ *                             type: number
+ *                           completionPercentage:
+ *                             type: number
+ *                           investorCount:
+ *                             type: integer
  *                           createdAt:
  *                             type: string
  *                             format: date-time
@@ -110,7 +148,7 @@ router.get('/', listUserFarms);
  *     tags:
  *       - Web Farms
  *     summary: Get farm details by ID
- *     description: Retrieve a farm's name, size, address, documentation, and optional investment project.
+ *     description: Retrieve a farm's verification status, details, documentation, and all investment projects.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -138,9 +176,55 @@ router.get('/', listUserFarms);
  *                       type: string
  *                     name:
  *                       type: string
- *                     investmentProject:
- *                       type: object
- *                       nullable: true
+ *                     verificationStatus:
+ *                       type: string
+ *                       enum: [pending, approved, rejected]
+ *                     investmentProjects:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           fundingGoalAmount:
+ *                             type: number
+ *                           amountRaised:
+ *                             type: number
+ *                           percentRaised:
+ *                             type: number
+ *                           completionPercentage:
+ *                             type: number
+ *                             description: Weighted milestone completion using each forked milestone percentage
+ *                           investorCount:
+ *                             type: integer
+ *                           milestones:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 selectionId:
+ *                                   type: string
+ *                                   format: uuid
+ *                                 name:
+ *                                   type: string
+ *                                 fundReleasePercentage:
+ *                                   type: number
+ *                                 allocatedAmount:
+ *                                   type: number
+ *                                 fundingStatus:
+ *                                   type: string
+ *                                   enum: [request_for_funding, processing_funding, completed]
+ *                     totalFundingGoalAmount:
+ *                       type: number
+ *                     totalFundsRaised:
+ *                       type: number
+ *                     percentRaised:
+ *                       type: number
+ *                     completionPercentage:
+ *                       type: number
+ *                     investorCount:
+ *                       type: integer
  *                     stats:
  *                       type: object
  *                       properties:
@@ -149,7 +233,7 @@ router.get('/', listUserFarms);
  *                         completedMilestones:
  *                           type: integer
  *                         completionPercentage:
- *                           type: integer
+ *                           type: number
  *       401:
  *         description: User not authenticated
  *       404:
@@ -222,7 +306,7 @@ router.post('/', uploadFarmDocuments, createFarm);
  *     tags:
  *       - Web Farms
  *     summary: Create an investment project for a farm
- *     description: Select a farm category and funding goal. The backend automatically attaches the newest active investment template created by an admin for that category and initializes all active template milestones.
+ *     description: Add an investment project to a farm. A farm may have multiple projects. The backend attaches the newest active template for the selected category, sets startDate to the project creation date, calculates endDate from the template duration, sets status to not_started, and initializes project-scoped milestones.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -260,8 +344,6 @@ router.post('/', uploadFarmDocuments, createFarm);
  *         description: User not authenticated
  *       404:
  *         description: Farm, category, or active category template not found
- *       409:
- *         description: The farm already has an investment project
  *       500:
  *         description: Failed to create investment project
  */
@@ -352,8 +434,8 @@ router.delete('/:farmId', deleteFarm);
  *   post:
  *     tags:
  *       - Web Farms
- *     summary: Change the farm funding milestone
- *     description: Replace the farm's selected investment-template milestone. Funding is still entered once at farm level.
+ *     summary: Request funding for an investment project milestone
+ *     description: Request funding for one of the milestones already forked from the admin template. No project milestones are removed or replaced. investmentProjectId is required when the farm has multiple projects.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -373,21 +455,27 @@ router.delete('/:farmId', deleteFarm);
  *             required:
  *               - selectedMilestoneId
  *             properties:
+ *               investmentProjectId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Project to update; optional only when the farm has exactly one project
  *               selectedMilestoneId:
  *                 type: string
  *                 format: uuid
- *                 description: Active investment milestone from the farm's stored investment template
+ *                 description: Template milestone ID stored in the selected project's forked milestone
  *     responses:
  *       200:
- *         description: Funding milestone updated successfully
+ *         description: Milestone funding requested successfully
  *       400:
  *         description: Invalid request data
  *       401:
  *         description: User not authenticated
  *       404:
  *         description: Farm not found
+ *       409:
+ *         description: Completed milestones cannot request funding again
  *       500:
- *         description: Failed to update funding milestone
+ *         description: Failed to request milestone funding
  */
 router.post('/:farmId/milestones', addMilestonesToFarm);
 
@@ -416,13 +504,22 @@ router.post('/:farmId/milestones', addMilestonesToFarm);
  *           type: string
  *           format: uuid
  *         description: Milestone unique identifier
+ *       - in: query
+ *         name: investmentProjectId
+ *         required: false
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Project scope; required when the same template milestone exists in multiple projects
  *     responses:
  *       200:
  *         description: Milestone removed successfully
  *       401:
  *         description: User not authenticated
  *       404:
- *         description: Farm not found
+ *         description: Farm or milestone not found
+ *       409:
+ *         description: Forked investment project milestones cannot be removed
  *       500:
  *         description: Failed to remove milestone
  */

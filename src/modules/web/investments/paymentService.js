@@ -2,6 +2,7 @@
 
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
+const { resolveInvestmentProjectStatus } = require('../../../utils/investmentProject');
 
 const models = defineModels(sequelize);
 const { InvestmentPayment, UserFarmInvestment } = models;
@@ -172,13 +173,17 @@ async function settlePaystackPayment(paymentId, gatewayData) {
             Number((expectedFunding - nextFundingReceived).toFixed(2)),
             0
         );
+        const nextInvestmentStatus = resolveInvestmentProjectStatus({
+            investmentStatus: farmInvestment.investmentStatus,
+            investmentReceived: nextFundingReceived,
+            expectedInvestment: expectedFunding,
+            endDate: farmInvestment.endDate
+        });
 
         await farmInvestment.update({
             investmentReceived: nextFundingReceived,
             investmentPending: nextFundingPending,
-            investmentStatus: nextFundingPending === 0
-                ? 'completed'
-                : 'partial'
+            investmentStatus: nextInvestmentStatus
         }, { transaction });
 
         await payment.update({

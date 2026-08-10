@@ -12,7 +12,8 @@ const {
     listAllUserFarms,
     getUserFarmDetails,
     approveUserFarm,
-    rejectUserFarm
+    rejectUserFarm,
+    updateUserFarmMilestoneStatus
 } = require('./controller');
 
 // Import farmCategoryRouter
@@ -826,6 +827,54 @@ router.post('/kyc/approve', verifyAdminToken, approveKYC);
  *         description: Internal server error
  */
 router.post('/kyc/reject', verifyAdminToken, rejectKYC);
+
+/**
+ * @swagger
+ * /web/admin/user-farm-milestones/{milestoneId}/status:
+ *   put:
+ *     tags:
+ *       - Web Admin
+ *     summary: Update an investment project milestone funding status
+ *     description: Move a forked user-project milestone through request_for_funding, processing_funding, or completed.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: milestoneId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User farm milestone assignment ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [request_for_funding, processing_funding, completed]
+ *     responses:
+ *       200:
+ *         description: Project milestone funding status updated successfully
+ *       400:
+ *         description: Invalid milestone ID or status
+ *       401:
+ *         description: Admin authentication required
+ *       404:
+ *         description: Investment project milestone not found
+ *       500:
+ *         description: Failed to update project milestone funding status
+ */
+router.put(
+    '/user-farm-milestones/:milestoneId/status',
+    verifyAdminToken,
+    updateUserFarmMilestoneStatus
+);
 
 // Mount farm category routes
 router.use('/', farmCategoryRouter);

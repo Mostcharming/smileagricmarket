@@ -10,6 +10,7 @@ const path = require('node:path');
 const { Op } = require('sequelize');
 const { sequelize } = require('../src/database');
 const defineModels = require('../src/database/models');
+const { calculateInvestmentProjectEndDate } = require('../src/utils/investmentProject');
 
 sequelize.options.logging = false;
 
@@ -159,6 +160,28 @@ async function readResetToken(phoneNumber) {
     const user = await User.findOne({ where: { phoneNumber } });
     assert.ok(user?.resetToken, `No reset token was stored for ${phoneNumber}`);
     return user.resetToken;
+}
+
+async function assertMissingAuthBodiesHandled(surface) {
+    const routes = [
+        'request-otp',
+        'resend-otp',
+        'verify-otp',
+        'signup',
+        'login',
+        'forgot-password',
+        'resend-reset-token',
+        'verify-reset-token',
+        'reset-password'
+    ];
+
+    for (const route of routes) {
+        await httpCheck(`${surface} ${route} rejects missing body`, 'POST', `${surface}/auth/${route}`, {
+            expectedStatus: 400,
+            expectError: true,
+            cover: false
+        });
+    }
 }
 
 async function exerciseAuthSurface(surface, indexBase) {
@@ -516,6 +539,9 @@ async function run() {
         cover: false
     });
 
+    await assertMissingAuthBodiesHandled('/web');
+    await assertMissingAuthBodiesHandled('/mobile');
+
     const adminLogin = await httpCheck('admin login', 'POST', '/web/admin/login', {
         body: {
             email: process.env.ENDPOINT_TEST_ADMIN_EMAIL || 'admin@smileagric.com',
@@ -853,14 +879,31 @@ async function run() {
         categoryId
     );
     assert.equal(mainInvestmentProject.body.data.investmentTemplate.id, investmentId);
+    const investmentProjectId = mainInvestmentProject.body.data.id;
+    const expectedProjectEndDate = calculateInvestmentProjectEndDate(
+        mainInvestmentProject.body.data.startDate,
+        12,
+        'months'
+    );
+    assert.equal(mainInvestmentProject.body.data.endDate, expectedProjectEndDate);
+    assert.equal(mainInvestmentProject.body.data.investmentStatus, 'not_started');
+    assert.equal(mainInvestmentProject.body.data.amountRaised, 0);
+    assert.equal(mainInvestmentProject.body.data.percentRaised, 0);
+    assert.equal(mainInvestmentProject.body.data.investorCount, 0);
     assert.ok(
         mainInvestmentProject.body.data.milestones.some(
             milestone => milestone.id === investmentMilestoneId
         ),
         'Investment project did not initialize its template milestones'
     );
-    await httpCheck(
-        'web prevents duplicate farm investment project',
+    const firstForkedMilestone = mainInvestmentProject.body.data.milestones.find(
+        milestone => milestone.id === investmentMilestoneId
+    );
+    assert.equal(firstForkedMilestone.fundReleasePercentage, 30);
+    assert.equal(firstForkedMilestone.allocatedAmount, 150000);
+    assert.equal(firstForkedMilestone.fundingStatus, 'request_for_funding');
+    const secondInvestmentProject = await httpCheck(
+        'web allows another investment project on the same farm',
         'POST',
         '/web/farms/{farmId}/investment-projects',
         {
@@ -870,8 +913,29 @@ async function run() {
                 farmCategoryId: categoryId,
                 fundingGoalAmount: 500000
             },
-            expectedStatus: 409,
-            expectError: true,
+            expectedStatus: 201,
+            cover: false
+        }
+    );
+    assert.notEqual(secondInvestmentProject.body.data.id, investmentProjectId);
+    await httpCheck(
+        'admin mark project milestone funding as processing',
+        'PUT',
+        '/web/admin/user-farm-milestones/{milestoneId}/status',
+        {
+            actualPath: `/web/admin/user-farm-milestones/${firstForkedMilestone.selectionId}/status`,
+            headers: bearer(adminToken),
+            body: { status: 'processing_funding' }
+        }
+    );
+    await httpCheck(
+        'admin complete project milestone funding',
+        'PUT',
+        '/web/admin/user-farm-milestones/{milestoneId}/status',
+        {
+            actualPath: `/web/admin/user-farm-milestones/${firstForkedMilestone.selectionId}/status`,
+            headers: bearer(adminToken),
+            body: { status: 'completed' },
             cover: false
         }
     );
@@ -913,10 +977,16 @@ async function run() {
         actualPath: `/web/farms?search=${encodeURIComponent(runId)}&page=1&limit=20`,
         headers: bearer(webUsers.primary.token)
     });
-    await httpCheck('web get farm', 'GET', '/web/farms/{farmId}', {
+    const farmDetails = await httpCheck('web get farm', 'GET', '/web/farms/{farmId}', {
         actualPath: `/web/farms/${farmId}`,
         headers: bearer(webUsers.primary.token)
     });
+    assert.equal(farmDetails.body.data.investmentProjects.length, 2);
+    assert.equal(farmDetails.body.data.totalFundingGoalAmount, 1000000);
+    assert.equal(farmDetails.body.data.totalFundsRaised, 0);
+    assert.equal(farmDetails.body.data.percentRaised, 0);
+    assert.equal(farmDetails.body.data.completionPercentage, 15);
+    assert.equal(farmDetails.body.data.investorCount, 0);
     await httpCheck('web update farm', 'PUT', '/web/farms/{farmId}', {
         actualPath: `/web/farms/${farmId}`,
         headers: bearer(webUsers.primary.token),
@@ -925,11 +995,16 @@ async function run() {
     await httpCheck('web add farm milestones', 'POST', '/web/farms/{farmId}/milestones', {
         actualPath: `/web/farms/${farmId}/milestones`,
         headers: bearer(webUsers.primary.token),
-        body: { selectedMilestoneId: secondInvestmentMilestoneId }
+        body: {
+            investmentProjectId,
+            selectedMilestoneId: secondInvestmentMilestoneId
+        }
     });
     await httpCheck('web remove farm milestone', 'DELETE', '/web/farms/{farmId}/milestones/{milestoneId}', {
-        actualPath: `/web/farms/${farmId}/milestones/${secondInvestmentMilestoneId}`,
-        headers: bearer(webUsers.primary.token)
+        actualPath: `/web/farms/${farmId}/milestones/${secondInvestmentMilestoneId}?investmentProjectId=${investmentProjectId}`,
+        headers: bearer(webUsers.primary.token),
+        expectedStatus: 409,
+        expectError: true
     });
 
     const uploadedDocuments = await httpCheck('web upload farm documents', 'POST', '/web/farms/{farmId}/documents', {
@@ -972,18 +1047,29 @@ async function run() {
         actualPath: `/web/investments?farmCategoryId=${categoryId}&riskLevel=low&durationValue=12&durationUnit=months&location=Ibadan`,
         headers: bearer(mobileUsers.primary.token)
     });
-    const listedInvestment = investments.body.data.investments
-        .find(investment => investment.id === farmId);
-    assert.ok(listedInvestment, 'Approved farm was missing from the web investment list');
-    assert.equal(listedInvestment.startDate, '2026-08-01');
-    assert.equal(listedInvestment.endDate, '2027-08-31');
+    const listedInvestmentFarm = investments.body.data.investments
+        .find(investment => investment.farmId === farmId);
+    assert.ok(listedInvestmentFarm, 'Approved farm was missing from the web investment list');
+    assert.equal(listedInvestmentFarm.investmentProjectCount, 2);
+    assert.equal(listedInvestmentFarm.totalFundingAmount, 1000000);
+    assert.equal(listedInvestmentFarm.amountRaised, 0);
+    assert.equal(listedInvestmentFarm.investorCount, 0);
+    assert.deepEqual(listedInvestmentFarm.owner.rating, { average: null, count: 0 });
+    const listedInvestmentProject = listedInvestmentFarm.investmentProjects
+        .find(project => project.id === investmentProjectId);
+    assert.equal(listedInvestmentProject.startDate, mainInvestmentProject.body.data.startDate);
+    assert.equal(listedInvestmentProject.endDate, expectedProjectEndDate);
 
     const investmentDetails = await httpCheck('web get investment details', 'GET', '/web/investments/{farmId}', {
         actualPath: `/web/investments/${farmId}`,
         headers: bearer(mobileUsers.primary.token)
     });
-    assert.equal(investmentDetails.body.data.startDate, '2026-08-01');
-    assert.equal(investmentDetails.body.data.endDate, '2027-08-31');
+    assert.equal(investmentDetails.body.data.investmentProjects.length, 2);
+    const detailedInvestmentProject = investmentDetails.body.data.investmentProjects
+        .find(project => project.id === investmentProjectId);
+    assert.equal(detailedInvestmentProject.startDate, mainInvestmentProject.body.data.startDate);
+    assert.equal(detailedInvestmentProject.endDate, expectedProjectEndDate);
+    assert.equal(detailedInvestmentProject.milestones.length, 2);
 
     const paystackConfigured = !!process.env.PAYSTACK_SECRET_KEY;
     const idempotencyKey = `${runId}-investment`;
@@ -991,8 +1077,8 @@ async function run() {
     let paymentReference;
 
     if (paystackConfigured) {
-        const investmentPayment = await httpCheck('web initialize Paystack investment', 'POST', '/web/investments/{farmId}/invest', {
-            actualPath: `/web/investments/${farmId}/invest`,
+        const investmentPayment = await httpCheck('web initialize Paystack investment', 'POST', '/web/investments/{investmentProjectId}/invest', {
+            actualPath: `/web/investments/${investmentProjectId}/invest`,
             headers: {
                 ...bearer(mobileUsers.primary.token),
                 'Idempotency-Key': idempotencyKey
@@ -1007,13 +1093,11 @@ async function run() {
         assert.ok(investmentPayment.body.data.payment.accessCode);
         assert.ok(investmentPayment.body.data.payment.authorizationUrl);
 
-        const fundingBeforeVerification = await UserFarmInvestment.findOne({
-            where: { userFarmId: farmId }
-        });
+        const fundingBeforeVerification = await UserFarmInvestment.findByPk(investmentProjectId);
         assert.equal(Number(fundingBeforeVerification.investmentReceived), 0);
 
-        const repeatedPayment = await httpCheck('web Paystack investment idempotency replay', 'POST', '/web/investments/{farmId}/invest', {
-            actualPath: `/web/investments/${farmId}/invest`,
+        const repeatedPayment = await httpCheck('web Paystack investment idempotency replay', 'POST', '/web/investments/{investmentProjectId}/invest', {
+            actualPath: `/web/investments/${investmentProjectId}/invest`,
             headers: {
                 ...bearer(mobileUsers.primary.token),
                 'Idempotency-Key': idempotencyKey
@@ -1042,8 +1126,8 @@ async function run() {
         );
         assert.equal(verifiedPayment.body.data.investment.fundingReceived, 50000);
     } else {
-        await httpCheck('web Paystack configuration required', 'POST', '/web/investments/{farmId}/invest', {
-            actualPath: `/web/investments/${farmId}/invest`,
+        await httpCheck('web Paystack configuration required', 'POST', '/web/investments/{investmentProjectId}/invest', {
+            actualPath: `/web/investments/${investmentProjectId}/invest`,
             headers: {
                 ...bearer(mobileUsers.primary.token),
                 'Idempotency-Key': idempotencyKey
@@ -1053,9 +1137,7 @@ async function run() {
             expectError: true
         });
 
-        const farmFunding = await UserFarmInvestment.findOne({
-            where: { userFarmId: farmId }
-        });
+        const farmFunding = await UserFarmInvestment.findByPk(investmentProjectId);
         const seededPayment = await InvestmentPayment.create({
             investorId: mobileUsers.primary.id,
             userFarmId: farmId,
@@ -1074,7 +1156,7 @@ async function run() {
         await farmFunding.update({
             investmentReceived: 50000,
             investmentPending: 450000,
-            investmentStatus: 'partial'
+            investmentStatus: 'funding_started'
         });
         paymentTransactionId = seededPayment.id;
         paymentReference = seededPayment.reference;
@@ -1089,6 +1171,27 @@ async function run() {
             }
         );
     }
+
+    const fundedFarmDetails = await httpCheck(
+        'web get funded farm aggregates',
+        'GET',
+        '/web/farms/{farmId}',
+        {
+            actualPath: `/web/farms/${farmId}`,
+            headers: bearer(webUsers.primary.token),
+            cover: false
+        }
+    );
+    const fundedProject = fundedFarmDetails.body.data.investmentProjects.find(
+        project => project.id === investmentProjectId
+    );
+    assert.equal(fundedFarmDetails.body.data.totalFundsRaised, 50000);
+    assert.equal(fundedFarmDetails.body.data.percentRaised, 5);
+    assert.equal(fundedFarmDetails.body.data.investorCount, 1);
+    assert.equal(fundedProject.fundingGoalAmount, 500000);
+    assert.equal(fundedProject.amountRaised, 50000);
+    assert.equal(fundedProject.percentRaised, 10);
+    assert.equal(fundedProject.investorCount, 1);
 
     const webhookEvent = {
         event: 'charge.success',
@@ -1131,6 +1234,10 @@ async function run() {
     assert.equal(activePortfolioFarms.body.data.total, 1);
     assert.equal(activePortfolioFarms.body.data.farms[0].farmId, farmId);
     assert.equal(activePortfolioFarms.body.data.farms[0].userInvestment.amountInvested, 50000);
+    assert.equal(activePortfolioFarms.body.data.farms[0].investmentProjectCount, 2);
+    assert.equal(activePortfolioFarms.body.data.farms[0].totalFundingAmount, 1000000);
+    assert.equal(activePortfolioFarms.body.data.farms[0].amountRaised, 50000);
+    assert.equal(activePortfolioFarms.body.data.farms[0].investorCount, 1);
 
     const portfolioFarmDetails = await httpCheck(
         'web portfolio farm details',
@@ -1142,10 +1249,16 @@ async function run() {
         }
     );
     assert.equal(portfolioFarmDetails.body.data.farmId, farmId);
+    assert.equal(portfolioFarmDetails.body.data.investmentProjects.length, 2);
     assert.ok(Array.isArray(portfolioFarmDetails.body.data.images));
     assert.ok(Array.isArray(portfolioFarmDetails.body.data.documents));
     assert.ok(Array.isArray(portfolioFarmDetails.body.data.milestones));
     assert.equal(portfolioFarmDetails.body.data.userInvestment.amountInvested, 50000);
+    const portfolioInvestmentProject = portfolioFarmDetails.body.data.investmentProjects
+        .find(project => project.id === investmentProjectId);
+    assert.equal(portfolioInvestmentProject.hasUserInvestment, true);
+    assert.equal(portfolioInvestmentProject.userInvestment.amountInvested, 50000);
+    assert.equal(portfolioInvestmentProject.milestones.length, 2);
     assert.equal(
         portfolioFarmDetails.body.data.milestoneStats.total,
         portfolioFarmDetails.body.data.milestones.length

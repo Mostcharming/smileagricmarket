@@ -6,6 +6,10 @@ const { Op } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
 const { toBackendApiUrl } = require('../../../utils/url');
+const {
+    calculateInvestmentProjectEndDate,
+    resolveInvestmentProjectStatus
+} = require('../../../utils/investmentProject');
 
 const models = defineModels(sequelize);
 const {
@@ -15,8 +19,11 @@ const {
     UserFarmMilestone,
     FarmDocument,
     Investment,
-    InvestmentMilestone
+    InvestmentMilestone,
+    InvestmentPayment
 } = models;
+
+const FUNDED_PAYMENT_STATUSES = ['recorded', 'successful'];
 
 function firstDefined(...values) {
     return values.find(value => value !== undefined);
@@ -83,11 +90,69 @@ function parseRequiredPositiveNumber(value, fieldName) {
     return { value: parsed };
 }
 
-function getSelectedMilestoneInclude(attributes = ['id', 'isCompleted', 'completedAt', 'amount']) {
+function calculatePercentageAmount(totalAmount, percentage) {
+    const totalCents = Math.round(Number(totalAmount) * 100);
+    const parsedPercentage = Number(percentage);
+    if (!Number.isSafeInteger(totalCents) || !Number.isFinite(parsedPercentage)) return 0;
+    return Number((Math.round((totalCents * parsedPercentage) / 100) / 100).toFixed(2));
+}
+
+function calculatePercentage(value, total) {
+    const parsedValue = Number(value);
+    const parsedTotal = Number(total);
+    if (!Number.isFinite(parsedValue) || !Number.isFinite(parsedTotal) || parsedTotal <= 0) {
+        return 0;
+    }
+    return Number(Math.min((parsedValue / parsedTotal) * 100, 100).toFixed(2));
+}
+
+function getSelectedMilestoneInclude(attributes = [
+    'id',
+    'name',
+    'fundReleasePercentage',
+    'order',
+    'fundingStatus',
+    'isCompleted',
+    'completedAt',
+    'amount'
+]) {
     return {
         model: UserFarmMilestone,
         as: 'SelectedMilestones',
-        attributes: [...attributes, 'milestoneId', 'investmentMilestoneId'],
+        attributes: [...attributes, 'userFarmInvestmentId', 'milestoneId', 'investmentMilestoneId'],
+        include: [
+            {
+                model: models.Milestone,
+                as: 'Milestone',
+                attributes: ['id', 'name', 'order'],
+                required: false
+            },
+            {
+                model: InvestmentMilestone,
+                as: 'InvestmentMilestone',
+                attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
+                required: false
+            }
+        ]
+    };
+}
+
+function getProjectMilestoneInclude(attributes = [
+    'id',
+    'name',
+    'fundReleasePercentage',
+    'order',
+    'fundingStatus',
+    'isCompleted',
+    'completedAt',
+    'amount'
+]) {
+    return {
+        model: UserFarmMilestone,
+        as: 'ProjectMilestones',
+        attributes: [...attributes, 'userFarmInvestmentId', 'milestoneId', 'investmentMilestoneId'],
+        separate: true,
+        order: [['order', 'ASC'], ['createdAt', 'ASC']],
         include: [
             {
                 model: models.Milestone,
@@ -137,6 +202,8 @@ function getInvestmentProjectInclude(attributes = [
     'investmentReceived',
     'investmentPending',
     'investmentStatus',
+    'startDate',
+    'endDate',
     'currency',
     'notes',
     'isActive',
@@ -145,9 +212,11 @@ function getInvestmentProjectInclude(attributes = [
 ]) {
     return {
         model: UserFarmInvestment,
-        as: 'Investment',
+        as: 'InvestmentProjects',
         attributes,
         required: false,
+        separate: true,
+        order: [['createdAt', 'DESC']],
         include: [
             {
                 model: FarmCategory,
@@ -155,17 +224,22 @@ function getInvestmentProjectInclude(attributes = [
                 attributes: ['id', 'name', 'description'],
                 required: false
             },
-            getInvestmentTemplateInclude()
+            getInvestmentTemplateInclude(),
+            getProjectMilestoneInclude(),
+            {
+                model: InvestmentPayment,
+                as: 'Payments',
+                attributes: ['investorId'],
+                where: { status: { [Op.in]: FUNDED_PAYMENT_STATUSES } },
+                required: false,
+                separate: true
+            }
         ]
     };
 }
 
-function addFarmResponseAliases(farm) {
-    const farmObj = farm?.toJSON ? farm.toJSON() : farm;
-    if (!farmObj) return farmObj;
-
-    const investmentProject = farmObj.Investment || null;
-    const formattedMilestones = (farmObj.SelectedMilestones || []).map(selectedAssignment => {
+function formatMilestoneAssignments(assignments = []) {
+    return assignments.map(selectedAssignment => {
         const selectedTemplateMilestone = selectedAssignment?.InvestmentMilestone || null;
         const selectedLegacyMilestone = selectedAssignment?.Milestone || null;
         const selectedMilestoneData = selectedTemplateMilestone || selectedLegacyMilestone;
@@ -175,28 +249,103 @@ function addFarmResponseAliases(farm) {
                 || selectedAssignment.investmentMilestoneId
                 || selectedAssignment.milestoneId,
             selectionId: selectedAssignment.id,
+            investmentProjectId: selectedAssignment.userFarmInvestmentId || null,
             investmentId: selectedTemplateMilestone?.investmentId || null,
-            name: selectedMilestoneData?.name || null,
-            fundReleasePercentage: selectedTemplateMilestone?.fundReleasePercentage === undefined
+            name: selectedAssignment.name || selectedMilestoneData?.name || null,
+            fundReleasePercentage: selectedAssignment.fundReleasePercentage === null
+                || selectedAssignment.fundReleasePercentage === undefined
+                ? (selectedTemplateMilestone?.fundReleasePercentage === undefined
+                    ? null
+                    : Number(selectedTemplateMilestone.fundReleasePercentage))
+                : Number(selectedAssignment.fundReleasePercentage),
+            order: selectedAssignment.order
+                ?? selectedMilestoneData?.order
+                ?? null,
+            allocatedAmount: selectedAssignment.amount === undefined
                 ? null
-                : Number(selectedTemplateMilestone.fundReleasePercentage),
-            order: selectedMilestoneData?.order ?? null,
+                : Number(selectedAssignment.amount),
             amount: selectedAssignment.amount === undefined
                 ? null
                 : Number(selectedAssignment.amount),
+            fundingStatus: selectedAssignment.fundingStatus
+                || (selectedAssignment.isCompleted ? 'completed' : 'request_for_funding'),
             isCompleted: !!selectedAssignment.isCompleted,
             completedAt: selectedAssignment.completedAt || null
         };
     });
-    const documents = farmObj.Documents || [];
-    const farmFields = { ...farmObj };
-    delete farmFields.Investment;
-    delete farmFields.SelectedMilestones;
+}
+
+function formatInvestmentProject(investmentProject) {
     const {
         Category: projectCategory,
         InvestmentTemplate: projectTemplate,
+        ProjectMilestones: projectMilestoneAssignments = [],
+        Payments: projectPayments = [],
         ...projectFields
-    } = investmentProject || {};
+    } = investmentProject;
+    const milestones = formatMilestoneAssignments(projectMilestoneAssignments);
+    const fundingGoalAmount = investmentProject.expectedInvestment === null
+        || investmentProject.expectedInvestment === undefined
+        ? 0
+        : Number(investmentProject.expectedInvestment);
+    const amountRaised = Number(investmentProject.investmentReceived || 0);
+    const completedPercentage = milestones.reduce((total, milestone) => {
+        return milestone.fundingStatus === 'completed'
+            ? total + Number(milestone.fundReleasePercentage || 0)
+            : total;
+    }, 0);
+    const investorCount = new Set(projectPayments.map(payment => payment.investorId)).size;
+
+    return {
+        ...projectFields,
+        investmentStatus: resolveInvestmentProjectStatus(investmentProject),
+        fundingGoalAmount,
+        amountRaised,
+        percentRaised: calculatePercentage(amountRaised, fundingGoalAmount),
+        investorCount,
+        completionPercentage: Number(Math.min(completedPercentage, 100).toFixed(2)),
+        milestoneStats: {
+            total: milestones.length,
+            requestForFunding: milestones.filter(
+                milestone => milestone.fundingStatus === 'request_for_funding'
+            ).length,
+            processingFunding: milestones.filter(
+                milestone => milestone.fundingStatus === 'processing_funding'
+            ).length,
+            completed: milestones.filter(
+                milestone => milestone.fundingStatus === 'completed'
+            ).length
+        },
+        farmCategory: projectCategory || null,
+        investmentTemplate: projectTemplate || null,
+        milestones
+    };
+}
+
+function addFarmResponseAliases(farm) {
+    const farmObj = farm?.toJSON ? farm.toJSON() : farm;
+    if (!farmObj) return farmObj;
+
+    const investmentProjects = (farmObj.InvestmentProjects || []).map(formatInvestmentProject);
+    const formattedMilestones = formatMilestoneAssignments(farmObj.SelectedMilestones || []);
+    const documents = farmObj.Documents || [];
+    const farmFields = { ...farmObj };
+    delete farmFields.InvestmentProjects;
+    delete farmFields.SelectedMilestones;
+    const totalFundingGoalAmount = investmentProjects.reduce(
+        (total, project) => total + project.fundingGoalAmount,
+        0
+    );
+    const totalFundsRaised = investmentProjects.reduce(
+        (total, project) => total + project.amountRaised,
+        0
+    );
+    const weightedCompletion = investmentProjects.reduce((total, project) => {
+        return total + (project.fundingGoalAmount * project.completionPercentage);
+    }, 0);
+    const farmInvestorIds = (farmObj.InvestmentProjects || []).flatMap(project =>
+        (project.Payments || []).map(payment => payment.investorId)
+    );
 
     return {
         ...farmFields,
@@ -204,17 +353,18 @@ function addFarmResponseAliases(farm) {
             ? null
             : Number(farmObj.size),
         address: farmObj.location,
-        investmentProject: investmentProject ? {
-            ...projectFields,
-            fundingGoalAmount: investmentProject.expectedInvestment === null
-                || investmentProject.expectedInvestment === undefined
-                ? null
-                : Number(investmentProject.expectedInvestment),
-            farmCategory: projectCategory || null,
-            investmentTemplate: projectTemplate || null,
-            milestones: formattedMilestones
-        } : null,
-        selectedMilestone: formattedMilestones[0] || null,
+        investmentProjects,
+        investmentProject: investmentProjects[0] || null,
+        totalFundingGoalAmount,
+        totalFundsRaised,
+        percentRaised: calculatePercentage(totalFundsRaised, totalFundingGoalAmount),
+        completionPercentage: totalFundingGoalAmount > 0
+            ? Number((weightedCompletion / totalFundingGoalAmount).toFixed(2))
+            : 0,
+        investorCount: new Set(farmInvestorIds).size,
+        selectedMilestone: formattedMilestones[0]
+            || investmentProjects[0]?.milestones?.[0]
+            || null,
         photos: documents.filter(document => document.documentType === 'picture'),
         farmDocuments: documents.filter(document => document.documentType === 'document')
     };
@@ -361,11 +511,6 @@ async function getFarmById(req, res) {
             return res.fail('Farm not found', 404);
         }
 
-        // Calculate completion percentage
-        const totalMilestones = farm.SelectedMilestones.length;
-        const completedMilestones = farm.SelectedMilestones.filter(m => m.isCompleted).length;
-        const completionPercentage = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
-
         // Map fileUrl to full URL for all documents
         let farmObj = farm.toJSON();
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
@@ -375,12 +520,25 @@ async function getFarmById(req, res) {
             }));
         }
         farmObj = addFarmResponseAliases(farmObj);
+        const totalMilestones = farmObj.investmentProjects.reduce(
+            (total, project) => total + project.milestoneStats.total,
+            0
+        );
+        const completedMilestones = farmObj.investmentProjects.reduce(
+            (total, project) => total + project.milestoneStats.completed,
+            0
+        );
         return res.success({
             ...farmObj,
             stats: {
                 totalMilestones,
                 completedMilestones,
-                completionPercentage
+                completionPercentage: farmObj.completionPercentage,
+                totalInvestmentProjects: farmObj.investmentProjects.length,
+                totalFundingGoalAmount: farmObj.totalFundingGoalAmount,
+                totalFundsRaised: farmObj.totalFundsRaised,
+                percentRaised: farmObj.percentRaised,
+                investorCount: farmObj.investorCount
             }
         }, 'Farm details retrieved successfully');
     } catch (error) {
@@ -530,14 +688,6 @@ async function createInvestmentProject(req, res) {
             return res.fail('Farm not found', 404);
         }
 
-        const existingProject = await UserFarmInvestment.findOne({
-            where: { userFarmId: farm.id },
-            attributes: ['id']
-        });
-        if (existingProject) {
-            return res.fail('This farm already has an investment project', 409);
-        }
-
         const category = await FarmCategory.findOne({
             where: {
                 id: String(farmCategoryId).trim(),
@@ -580,8 +730,15 @@ async function createInvestmentProject(req, res) {
             );
         }
 
+        const startDate = new Date().toISOString().slice(0, 10);
+        const endDate = calculateInvestmentProjectEndDate(
+            startDate,
+            investmentTemplate.durationValue,
+            investmentTemplate.durationUnit
+        );
+
         transaction = await sequelize.transaction();
-        await UserFarmInvestment.create({
+        const createdProject = await UserFarmInvestment.create({
             userFarmId: farm.id,
             farmCategoryId: category.id,
             investmentId: investmentTemplate.id,
@@ -589,7 +746,9 @@ async function createInvestmentProject(req, res) {
             investmentReceived: 0,
             investmentPending: parsedFundingGoal,
             currency: investmentTemplate.currency,
-            investmentStatus: 'pending',
+            startDate,
+            endDate,
+            investmentStatus: 'not_started',
             notes: null,
             isActive: true
         }, { transaction });
@@ -598,10 +757,19 @@ async function createInvestmentProject(req, res) {
         if (templateMilestones.length > 0) {
             await UserFarmMilestone.bulkCreate(templateMilestones.map(milestone => ({
                 userFarmId: farm.id,
+                userFarmInvestmentId: createdProject.id,
                 milestoneId: null,
                 investmentMilestoneId: milestone.id,
-                amount: 0,
-                isCompleted: false
+                name: milestone.name,
+                fundReleasePercentage: milestone.fundReleasePercentage,
+                order: milestone.order,
+                fundingStatus: 'request_for_funding',
+                amount: calculatePercentageAmount(
+                    parsedFundingGoal,
+                    milestone.fundReleasePercentage
+                ),
+                isCompleted: false,
+                completedAt: null
             })), { transaction });
         }
 
@@ -616,17 +784,19 @@ async function createInvestmentProject(req, res) {
             ]
         });
 
+        const formattedFarm = addFarmResponseAliases(createdFarm);
+        const formattedProject = formattedFarm.investmentProjects.find(
+            project => project.id === createdProject.id
+        );
+
         return res.success(
-            addFarmResponseAliases(createdFarm).investmentProject,
+            formattedProject,
             'Investment project created successfully',
             201
         );
     } catch (error) {
         if (transaction) {
             await transaction.rollback();
-        }
-        if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.fail('This farm already has an investment project', 409);
         }
         console.error('Create investment project error:', error);
         return res.fail('Failed to create investment project', 500);
@@ -739,11 +909,13 @@ async function deleteFarm(req, res) {
 }
 
 async function addMilestonesToFarm(req, res) {
-    let transaction;
-
     try {
         const userId = req.user?.id;
         const { farmId } = req.params;
+        const requestedProjectId = firstDefined(
+            req.body.investmentProjectId,
+            req.body.userFarmInvestmentId
+        );
 
         if (!userId) {
             return res.fail('User not authenticated', 401);
@@ -772,66 +944,62 @@ async function addMilestonesToFarm(req, res) {
             return res.fail('Farm not found', 404);
         }
 
-        const investmentProject = await UserFarmInvestment.findOne({
+        const investmentProjects = await UserFarmInvestment.findAll({
             where: {
                 userFarmId: farm.id,
-                isActive: true
+                isActive: true,
+                ...(requestedProjectId ? { id: requestedProjectId } : {})
             },
             attributes: ['id', 'investmentId']
         });
+        if (!requestedProjectId && investmentProjects.length > 1) {
+            return res.fail('investmentProjectId is required when a farm has multiple projects', 400);
+        }
+        const investmentProject = investmentProjects[0];
         if (!investmentProject?.investmentId) {
-            return res.fail('Farm does not have an investment project', 409);
+            return res.fail('Investment project not found for this farm', 404);
         }
 
-        const investmentMilestone = await InvestmentMilestone.findOne({
+        const projectMilestone = await UserFarmMilestone.findOne({
             where: {
-                id: milestoneId,
-                investmentId: investmentProject.investmentId,
-                isActive: true
+                userFarmInvestmentId: investmentProject.id,
+                investmentMilestoneId: milestoneId
             }
         });
 
-        if (!investmentMilestone) {
+        if (!projectMilestone) {
             return res.fail(
                 'Selected milestone is not part of this farm investment template',
                 400
             );
         }
 
-        transaction = await sequelize.transaction();
-        await UserFarmMilestone.destroy({
-            where: {
-                userFarmId: farmId,
-                investmentMilestoneId: {
-                    [Op.ne]: null
-                }
-            },
-            transaction
-        });
-        await UserFarmMilestone.create({
-            userFarmId: farmId,
-            milestoneId: null,
-            investmentMilestoneId: investmentMilestone.id,
-            amount: 0,
-            isCompleted: false
-        }, { transaction });
-        await transaction.commit();
-        transaction = null;
+        if (projectMilestone.fundingStatus === 'completed') {
+            return res.fail('Completed milestones cannot request funding again', 409);
+        }
+
+        if (projectMilestone.fundingStatus !== 'processing_funding') {
+            await projectMilestone.update({
+                fundingStatus: 'request_for_funding',
+                isCompleted: false,
+                completedAt: null
+            });
+        }
 
         const updatedFarm = await UserFarm.findByPk(farmId, {
-            include: [getSelectedMilestoneInclude()]
+            include: [
+                getInvestmentProjectInclude(),
+                getSelectedMilestoneInclude()
+            ]
         });
 
         return res.success(
             addFarmResponseAliases(updatedFarm),
-            'Farm funding milestone updated successfully'
+            'Milestone funding requested successfully'
         );
     } catch (error) {
-        if (transaction) {
-            await transaction.rollback();
-        }
-        console.error('Add milestones error:', error);
-        return res.fail('Failed to update farm funding milestone', 500);
+        console.error('Request milestone funding error:', error);
+        return res.fail('Failed to request milestone funding', 500);
     }
 }
 
@@ -975,6 +1143,10 @@ async function removeMilestoneFromFarm(req, res) {
     try {
         const userId = req.user?.id;
         const { farmId, milestoneId } = req.params;
+        const investmentProjectId = firstDefined(
+            req.query.investmentProjectId,
+            req.body?.investmentProjectId
+        );
 
         if (!userId) {
             return res.fail('User not authenticated', 401);
@@ -993,15 +1165,39 @@ async function removeMilestoneFromFarm(req, res) {
             return res.fail('Farm not found', 404);
         }
 
-        // Remove milestone
-        await models.UserFarmMilestone.destroy({
+        const matchingMilestones = await models.UserFarmMilestone.findAll({
             where: {
                 userFarmId: farmId,
+                ...(investmentProjectId ? { userFarmInvestmentId: investmentProjectId } : {}),
                 [Op.or]: [
+                    { id: milestoneId },
                     { milestoneId },
                     { investmentMilestoneId: milestoneId }
                 ]
-            }
+            },
+            attributes: ['id', 'userFarmInvestmentId']
+        });
+
+        if (matchingMilestones.length === 0) {
+            return res.fail('Milestone not found for this farm', 404);
+        }
+
+        if (!investmentProjectId && matchingMilestones.length > 1) {
+            return res.fail(
+                'investmentProjectId is required because this milestone belongs to multiple projects',
+                400
+            );
+        }
+
+        if (matchingMilestones.some(milestone => milestone.userFarmInvestmentId)) {
+            return res.fail(
+                'Forked investment project milestones cannot be removed',
+                409
+            );
+        }
+
+        await models.UserFarmMilestone.destroy({
+            where: { id: matchingMilestones.map(milestone => milestone.id) }
         });
 
         return res.success({}, 'Milestone removed from farm successfully');

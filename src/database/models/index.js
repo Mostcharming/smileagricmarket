@@ -189,15 +189,26 @@ module.exports = (sequelize) => {
     });
 
     // User Farm Investments associations
-    models.UserFarm.hasOne(models.UserFarmInvestment, {
+    models.UserFarm.hasMany(models.UserFarmInvestment, {
         foreignKey: 'userFarmId',
-        as: 'Investment',
+        as: 'InvestmentProjects',
         onDelete: 'CASCADE'
     });
 
     models.UserFarmInvestment.belongsTo(models.UserFarm, {
         foreignKey: 'userFarmId',
         as: 'Farm'
+    });
+
+    models.UserFarmInvestment.hasMany(models.UserFarmMilestone, {
+        foreignKey: 'userFarmInvestmentId',
+        as: 'ProjectMilestones',
+        onDelete: 'CASCADE'
+    });
+
+    models.UserFarmMilestone.belongsTo(models.UserFarmInvestment, {
+        foreignKey: 'userFarmInvestmentId',
+        as: 'InvestmentProject'
     });
 
     // Payments made by users into investable farms

@@ -13,8 +13,8 @@ const {
  *   get:
  *     tags:
  *       - Web Investments
- *     summary: List user-side investments
- *     description: Retrieve verified user farms that have an active admin investment template for their farm category.
+ *     summary: List verified farms available for investment
+ *     description: Returns one item per verified farm. Filters decide which farms qualify; each returned farm then includes funding totals, unique investor counts, and details aggregated across all of its active investment projects. Use an investmentProjectId from investmentProjects for payment.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -34,6 +34,7 @@ const {
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: Only return farms with at least one active project in this farm category.
  *       - in: query
  *         name: riskLevel
  *         schema:
@@ -58,10 +59,10 @@ const {
  *         schema:
  *           type: string
  *       - in: query
- *         name: fundingStatus
+ *         name: investmentStatus
  *         schema:
  *           type: string
- *           enum: [pending, partial, completed, cancelled, open]
+ *           enum: [not_started, funding_started, active, completed, open]
  *       - in: query
  *         name: search
  *         schema:
@@ -86,9 +87,14 @@ const {
  *                     investments:
  *                       type: array
  *                       items:
+ *                         $ref: '#/components/schemas/UserInvestmentFarm'
  *                         type: object
  *                         properties:
  *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                             description: Investment project ID
+ *                           investmentProjectId:
  *                             type: string
  *                             format: uuid
  *                           farmId:
@@ -155,13 +161,13 @@ const {
  *                           startDate:
  *                             type: string
  *                             format: date
- *                             nullable: true
  *                             example: '2026-08-01'
+ *                             description: Investment project creation date
  *                           endDate:
  *                             type: string
  *                             format: date
- *                             nullable: true
- *                             example: '2027-07-31'
+ *                             example: '2027-02-01'
+ *                             description: Project start date plus the template duration
  *                           duration:
  *                             type: object
  *                             properties:
@@ -198,7 +204,13 @@ const {
  *                           fundingReceived:
  *                             type: number
  *                             example: 1250000
+ *                           amountRaised:
+ *                             type: number
+ *                             example: 1250000
  *                           totalExpectedFunding:
+ *                             type: number
+ *                             example: 5000000
+ *                           fundingGoalAmount:
  *                             type: number
  *                             example: 5000000
  *                           location:
@@ -207,12 +219,25 @@ const {
  *                           percentFunded:
  *                             type: number
  *                             example: 25
+ *                           percentRaised:
+ *                             type: number
+ *                             example: 25
+ *                           completionPercentage:
+ *                             type: number
+ *                             example: 30
+ *                           investorCount:
+ *                             type: integer
+ *                             example: 18
  *                           minimumInvest:
  *                             type: number
  *                             example: 50000
+ *                           investmentStatus:
+ *                             type: string
+ *                             enum: [not_started, funding_started, active, completed]
+ *                             example: funding_started
  *                           fundingStatus:
  *                             type: string
- *                             enum: [pending, partial, completed, cancelled]
+ *                             enum: [not_started, partial, funded]
  *                             example: partial
  *                           currency:
  *                             type: string
@@ -261,7 +286,7 @@ const {
  *               data:
  *                 investments:
  *                   - id: 9a3f6e1b-49f3-4c89-9d29-d10f7f5229db
- *                     farmId: 9a3f6e1b-49f3-4c89-9d29-d10f7f5229db
+ *                     farmId: 7e3dcc29-7865-4f0f-9d6f-b95b355d6aec
  *                     farmName: Green Valley Rice Farm
  *                     image:
  *                       id: 91d0cf89-65f1-4e3e-8f64-b648b82c9f44
@@ -279,8 +304,8 @@ const {
  *                       endDate: '2027-07-31'
  *                     roi: 18.5
  *                     roiPercentage: 18.5
- *                     startDate: '2026-08-01'
- *                     endDate: '2027-07-31'
+ *                     startDate: '2026-08-10'
+ *                     endDate: '2027-02-10'
  *                     duration:
  *                       value: 6
  *                       unit: months
@@ -296,6 +321,7 @@ const {
  *                     location: Ibadan, Oyo
  *                     percentFunded: 25
  *                     minimumInvest: 50000
+ *                     investmentStatus: funding_started
  *                     fundingStatus: partial
  *                     currency: NGN
  *                     lastViewed: null
@@ -325,8 +351,8 @@ router.get('/', getInvestments);
  *   get:
  *     tags:
  *       - Web Investments
- *     summary: Get user-side investment details
- *     description: Retrieve one verified farm investment with template details, all farm images, and user-farm milestone progress.
+ *     summary: Get complete details for one verified investment farm
+ *     description: Returns the farm, owner rating state, documents, funding aggregated across active projects, unique active-project investors, and every investment project with its template and project-scoped milestones.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -336,10 +362,10 @@ router.get('/', getInvestments);
  *         schema:
  *           type: string
  *           format: uuid
- *         description: The farm/investment ID returned from the investments list.
+ *         description: The farmId returned from the investments list.
  *     responses:
  *       200:
- *         description: Investment details retrieved successfully
+ *         description: Investment farm details retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -350,11 +376,16 @@ router.get('/', getInvestments);
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: Investment details retrieved successfully
+ *                   example: Investment farm details retrieved successfully
  *                 data:
+ *                   $ref: '#/components/schemas/UserInvestmentFarm'
  *                   type: object
  *                   properties:
  *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Investment project ID
+ *                     investmentProjectId:
  *                       type: string
  *                       format: uuid
  *                     farmId:
@@ -435,13 +466,13 @@ router.get('/', getInvestments);
  *                     startDate:
  *                       type: string
  *                       format: date
- *                       nullable: true
  *                       example: '2026-08-01'
+ *                       description: Investment project creation date
  *                     endDate:
  *                       type: string
  *                       format: date
- *                       nullable: true
- *                       example: '2027-07-31'
+ *                       example: '2027-02-01'
+ *                       description: Project start date plus the template duration
  *                     duration:
  *                       type: object
  *                       properties:
@@ -478,7 +509,13 @@ router.get('/', getInvestments);
  *                     fundingReceived:
  *                       type: number
  *                       example: 1250000
+ *                     amountRaised:
+ *                       type: number
+ *                       example: 1250000
  *                     totalExpectedFunding:
+ *                       type: number
+ *                       example: 5000000
+ *                     fundingGoalAmount:
  *                       type: number
  *                       example: 5000000
  *                     location:
@@ -487,12 +524,25 @@ router.get('/', getInvestments);
  *                     percentFunded:
  *                       type: number
  *                       example: 25
+ *                     percentRaised:
+ *                       type: number
+ *                       example: 25
+ *                     completionPercentage:
+ *                       type: number
+ *                       example: 30
+ *                     investorCount:
+ *                       type: integer
+ *                       example: 18
  *                     minimumInvest:
  *                       type: number
  *                       example: 50000
+ *                     investmentStatus:
+ *                       type: string
+ *                       enum: [not_started, funding_started, active, completed]
+ *                       example: funding_started
  *                     fundingStatus:
  *                       type: string
- *                       enum: [pending, partial, completed, cancelled]
+ *                       enum: [not_started, partial, funded]
  *                       example: partial
  *                     currency:
  *                       type: string
@@ -526,12 +576,18 @@ router.get('/', getInvestments);
  *                           amount:
  *                             type: number
  *                             example: 750000
+ *                           allocatedAmount:
+ *                             type: number
+ *                             example: 750000
+ *                           fundReleasePercentage:
+ *                             type: number
+ *                             example: 15
  *                           isCompleted:
  *                             type: boolean
  *                             example: true
  *                           status:
  *                             type: string
- *                             enum: [completed, in_progress, not_started]
+ *                             enum: [request_for_funding, processing_funding, completed]
  *                             example: completed
  *                           completedAt:
  *                             type: string
@@ -552,10 +608,10 @@ router.get('/', getInvestments);
  *                         completedMilestones:
  *                           type: integer
  *                           example: 1
- *                         inProgressMilestones:
+ *                         processingFundingMilestones:
  *                           type: integer
  *                           example: 1
- *                         notStartedMilestones:
+ *                         requestForFundingMilestones:
  *                           type: integer
  *                           example: 1
  *                         completionPercentage:
@@ -569,10 +625,10 @@ router.get('/', getInvestments);
  *                       format: date-time
  *             example:
  *               error: false
- *               message: Investment details retrieved successfully
+ *               message: Investment farm details retrieved successfully
  *               data:
  *                 id: 9a3f6e1b-49f3-4c89-9d29-d10f7f5229db
- *                 farmId: 9a3f6e1b-49f3-4c89-9d29-d10f7f5229db
+ *                 farmId: 7e3dcc29-7865-4f0f-9d6f-b95b355d6aec
  *                 farmName: Green Valley Rice Farm
  *                 image:
  *                   id: 91d0cf89-65f1-4e3e-8f64-b648b82c9f44
@@ -599,8 +655,8 @@ router.get('/', getInvestments);
  *                   endDate: '2027-07-31'
  *                 roi: 18.5
  *                 roiPercentage: 18.5
- *                 startDate: '2026-08-01'
- *                 endDate: '2027-07-31'
+ *                 startDate: '2026-08-10'
+ *                 endDate: '2027-02-10'
  *                 duration:
  *                   value: 6
  *                   unit: months
@@ -616,6 +672,7 @@ router.get('/', getInvestments);
  *                 location: Ibadan, Oyo
  *                 percentFunded: 25
  *                 minimumInvest: 50000
+ *                 investmentStatus: funding_started
  *                 fundingStatus: partial
  *                 currency: NGN
  *                 lastViewed: null
@@ -638,7 +695,7 @@ router.get('/', getInvestments);
  *                     order: 2
  *                     amount: 1200000
  *                     isCompleted: false
- *                     status: in_progress
+ *                     status: processing_funding
  *                     completedAt: null
  *                     createdAt: 2026-06-20T09:00:00.000Z
  *                     updatedAt: 2026-06-20T09:00:00.000Z
@@ -649,16 +706,16 @@ router.get('/', getInvestments);
  *                     order: 3
  *                     amount: 2000000
  *                     isCompleted: false
- *                     status: not_started
+ *                     status: request_for_funding
  *                     completedAt: null
  *                     createdAt: 2026-06-20T09:00:00.000Z
  *                     updatedAt: 2026-06-20T09:00:00.000Z
  *                 milestoneStats:
  *                   totalMilestones: 3
  *                   completedMilestones: 1
- *                   inProgressMilestones: 1
- *                   notStartedMilestones: 1
- *                   completionPercentage: 33
+ *                   processingFundingMilestones: 1
+ *                   requestForFundingMilestones: 1
+ *                   completionPercentage: 30
  *                 createdAt: 2026-07-06T08:30:00.000Z
  *                 updatedAt: 2026-07-06T08:30:00.000Z
  *       400:
@@ -666,29 +723,30 @@ router.get('/', getInvestments);
  *       401:
  *         description: User not authenticated
  *       404:
- *         description: Investment not found
+ *         description: Verified investment farm not found
  *       500:
- *         description: Failed to retrieve investment details
+ *         description: Failed to retrieve investment farm details
  */
 router.get('/:farmId', getInvestmentById);
 
 /**
  * @swagger
- * /web/investments/{farmId}/invest:
+ * /web/investments/{investmentProjectId}/invest:
  *   post:
  *     tags:
  *       - Web Investments
- *     summary: Invest in another user's farm
- *     description: Creates and saves an internal investment transaction, initializes Paystack from the backend, and returns the transaction ID, checkout URL, access code, and reference. Farm funding is credited only after a successful Paystack verification or signed webhook.
+ *     summary: Invest in another user's farm investment project
+ *     description: Targets one investment project, saves an internal transaction, initializes Paystack, and returns the transaction ID, checkout URL, access code, and reference. Project funding is credited only after a successful Paystack verification or signed webhook.
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: farmId
+ *         name: investmentProjectId
  *         required: true
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: ID of one investment project from the farm's investmentProjects array; Paystack credits only this project.
  *       - in: header
  *         name: Idempotency-Key
  *         required: false
@@ -780,6 +838,9 @@ router.get('/:farmId', getInvestmentById);
  *                         farmId:
  *                           type: string
  *                           format: uuid
+ *                         investmentProjectId:
+ *                           type: string
+ *                           format: uuid
  *                         fundingReceived:
  *                           type: number
  *                           example: 1500000
@@ -792,6 +853,9 @@ router.get('/:farmId', getInvestmentById);
  *                         percentFunded:
  *                           type: number
  *                           example: 30
+ *                         investmentStatus:
+ *                           type: string
+ *                           enum: [not_started, funding_started, active, completed]
  *                         fundingStatus:
  *                           type: string
  *                           example: partial
@@ -830,7 +894,7 @@ router.get('/:farmId', getInvestmentById);
  *       503:
  *         description: Paystack is not configured or unavailable
  */
-router.post('/:farmId/invest', investInFarm);
+router.post('/:investmentProjectId/invest', investInFarm);
 
 /**
  * @swagger

@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { toBackendApiUrl } = require('../../../utils/url');
+const { resolveInvestmentProjectStatus } = require('../../../utils/investmentProject');
 
 const models = defineModels(sequelize);
 const {
@@ -63,6 +64,10 @@ function addDuration(date, durationValue, durationUnit) {
 }
 
 function getInvestmentEndDate(payment) {
+    if (payment.FarmInvestment?.endDate) {
+        return new Date(`${payment.FarmInvestment.endDate}T23:59:59.999Z`);
+    }
+
     const template = payment.InvestmentTemplate;
 
     if (template?.endDate) {
@@ -77,6 +82,13 @@ function getInvestmentEndDate(payment) {
 }
 
 function getPortfolioStatus(payment, asOf = new Date()) {
+    if (
+        payment.FarmInvestment
+        && resolveInvestmentProjectStatus(payment.FarmInvestment, asOf) === 'completed'
+    ) {
+        return 'completed';
+    }
+
     const endDate = getInvestmentEndDate(payment);
     return endDate && endDate < asOf ? 'completed' : 'active';
 }
@@ -194,31 +206,46 @@ function formatPaymentForPortfolio(payment, asOf) {
 }
 
 async function findPortfolioPayments(investorId, includeFarmDetails = false, userFarmId = null) {
-    const include = [{
-        model: Investment,
-        as: 'InvestmentTemplate',
-        required: true,
-        attributes: [
-            'id',
-            'farmCategoryId',
-            'name',
-            'description',
-            'startDate',
-            'endDate',
-            'roiPercentage',
-            'durationValue',
-            'durationUnit',
-            'riskLevel',
-            'fundingMinGoal',
-            'fundingMaxGoal',
-            'investmentMinGoal',
-            'investmentMaxGoal',
-            'currency',
-            'isActive',
-            'createdAt',
-            'updatedAt'
-        ]
-    }];
+    const include = [
+        {
+            model: UserFarmInvestment,
+            as: 'FarmInvestment',
+            required: true,
+            attributes: [
+                'id',
+                'investmentStatus',
+                'investmentReceived',
+                'expectedInvestment',
+                'startDate',
+                'endDate'
+            ]
+        },
+        {
+            model: Investment,
+            as: 'InvestmentTemplate',
+            required: true,
+            attributes: [
+                'id',
+                'farmCategoryId',
+                'name',
+                'description',
+                'startDate',
+                'endDate',
+                'roiPercentage',
+                'durationValue',
+                'durationUnit',
+                'riskLevel',
+                'fundingMinGoal',
+                'fundingMaxGoal',
+                'investmentMinGoal',
+                'investmentMaxGoal',
+                'currency',
+                'isActive',
+                'createdAt',
+                'updatedAt'
+            ]
+        }
+    ];
 
     if (includeFarmDetails) {
         include.unshift({
@@ -233,7 +260,7 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
                 },
                 {
                     model: UserFarmInvestment,
-                    as: 'Investment',
+                    as: 'InvestmentProjects',
                     attributes: [
                         'id',
                         'farmCategoryId',
@@ -243,16 +270,75 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
                         'investmentPending',
                         'currency',
                         'investmentStatus',
+                        'startDate',
+                        'endDate',
                         'notes',
                         'isActive',
                         'createdAt',
                         'updatedAt'
                     ],
-                    include: [{
-                        model: FarmCategory,
-                        as: 'Category',
-                        attributes: ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
-                    }]
+                    separate: true,
+                    order: [['createdAt', 'DESC']],
+                    include: [
+                        {
+                            model: FarmCategory,
+                            as: 'Category',
+                            attributes: ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
+                        },
+                        {
+                            model: Investment,
+                            as: 'InvestmentTemplate',
+                            attributes: [
+                                'id',
+                                'farmCategoryId',
+                                'name',
+                                'description',
+                                'roiPercentage',
+                                'durationValue',
+                                'durationUnit',
+                                'riskLevel',
+                                'fundingMinGoal',
+                                'fundingMaxGoal',
+                                'investmentMinGoal',
+                                'investmentMaxGoal',
+                                'currency',
+                                'isActive',
+                                'createdAt',
+                                'updatedAt'
+                            ],
+                            required: false
+                        },
+                        {
+                            model: UserFarmMilestone,
+                            as: 'ProjectMilestones',
+                            attributes: [
+                                'id',
+                                'userFarmInvestmentId',
+                                'milestoneId',
+                                'investmentMilestoneId',
+                                'name',
+                                'fundReleasePercentage',
+                                'order',
+                                'fundingStatus',
+                                'isCompleted',
+                                'completedAt',
+                                'amount',
+                                'createdAt',
+                                'updatedAt'
+                            ],
+                            required: false,
+                            separate: true,
+                            order: [['order', 'ASC'], ['createdAt', 'ASC']]
+                        },
+                        {
+                            model: InvestmentPayment,
+                            as: 'Payments',
+                            attributes: ['investorId'],
+                            where: { status: { [Op.in]: PORTFOLIO_PAYMENT_STATUSES } },
+                            required: false,
+                            separate: true
+                        }
+                    ]
                 },
                 {
                     model: FarmDocument,
@@ -266,15 +352,22 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
                         'mimeType',
                         'createdAt',
                         'updatedAt'
-                    ]
+                    ],
+                    separate: true,
+                    order: [['createdAt', 'ASC']]
                 },
                 {
                     model: UserFarmMilestone,
                     as: 'SelectedMilestones',
                     attributes: [
                         'id',
+                        'userFarmInvestmentId',
                         'milestoneId',
                         'investmentMilestoneId',
+                        'name',
+                        'fundReleasePercentage',
+                        'order',
+                        'fundingStatus',
                         'isCompleted',
                         'completedAt',
                         'amount',
@@ -301,7 +394,8 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
                             ],
                             required: false
                         }
-                    ]
+                    ],
+                    separate: true
                 }
             ]
         });
@@ -425,14 +519,21 @@ function formatMilestone(milestone) {
         milestoneType: milestone.investmentMilestoneId
             ? 'investment_template'
             : 'farm_category',
-        name: milestoneData?.name || null,
-        order: milestoneData?.order ?? null,
-        fundReleasePercentage: milestoneData?.fundReleasePercentage === undefined
+        name: milestone.name || milestoneData?.name || null,
+        order: milestone.order ?? milestoneData?.order ?? null,
+        fundReleasePercentage: milestone.fundReleasePercentage === null
+            || milestone.fundReleasePercentage === undefined
+            ? (milestoneData?.fundReleasePercentage === undefined
+                ? null
+                : toNumber(milestoneData.fundReleasePercentage))
+            : toNumber(milestone.fundReleasePercentage),
+        allocatedAmount: milestone.amount === undefined
             ? null
-            : toNumber(milestoneData.fundReleasePercentage),
+            : toNumber(milestone.amount),
         amount: toNumber(milestone.amount),
         isCompleted: !!milestone.isCompleted,
-        status: milestone.isCompleted ? 'completed' : 'pending',
+        status: milestone.fundingStatus
+            || (milestone.isCompleted ? 'completed' : 'request_for_funding'),
         completedAt: milestone.completedAt,
         createdAt: milestone.createdAt,
         updatedAt: milestone.updatedAt
@@ -495,7 +596,8 @@ function buildUserInvestmentBreakdown(entries) {
 
 function formatPortfolioFarm(req, entries) {
     const farm = entries[0].Farm || {};
-    const funding = farm.Investment || {};
+    const relevantProjectIds = new Set(entries.map(entry => entry.userFarmInvestmentId));
+    const rawProjects = farm.InvestmentProjects || [];
     const breakdown = buildUserInvestmentBreakdown(entries);
     const amountInCents = entries.reduce((sum, entry) => sum + entry.amountInCents, 0);
     const expectedReturnInCents = entries.reduce(
@@ -521,12 +623,117 @@ function formatPortfolioFarm(req, entries) {
 
     const documents = (farm.Documents || []).map(document => formatDocument(req, document));
     const pictures = documents.filter(document => document.documentType === 'picture');
-    const milestones = (farm.SelectedMilestones || [])
-        .map(formatMilestone)
-        .sort((left, right) =>
-            (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
+    const investmentProjects = rawProjects.map(project => {
+        const projectEntries = entries.filter(entry => entry.userFarmInvestmentId === project.id);
+        const milestones = (project.ProjectMilestones || [])
+            .map(formatMilestone)
+            .sort((left, right) =>
+                (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
+            );
+        const completedMilestones = milestones.filter(
+            milestone => milestone.status === 'completed'
         );
-    const completedMilestones = milestones.filter(milestone => milestone.isCompleted).length;
+        const projectPayments = project.Payments || [];
+        const investorCount = new Set(
+            projectPayments.map(payment => payment.investorId).filter(Boolean)
+        ).size;
+        const fundingGoalAmount = toNumber(project.expectedInvestment);
+        const amountRaised = toNumber(project.investmentReceived);
+        const completionPercentage = Number(Math.min(
+            completedMilestones.reduce(
+                (total, milestone) => total + toNumber(milestone.fundReleasePercentage),
+                0
+            ),
+            100
+        ).toFixed(2));
+        const userAmountInCents = projectEntries.reduce(
+            (sum, entry) => sum + entry.amountInCents,
+            0
+        );
+        const userExpectedReturnInCents = projectEntries.reduce(
+            (sum, entry) => sum + entry.expectedReturnInCents,
+            0
+        );
+        const userEarnedReturnInCents = projectEntries.reduce(
+            (sum, entry) => sum + entry.earnedReturnInCents,
+            0
+        );
+
+        return {
+            id: project.id,
+            investmentProjectId: project.id,
+            farmId: farm.id,
+            category: project.Category || null,
+            farmCategory: project.Category || null,
+            investmentTemplate: formatTemplate(project.InvestmentTemplate),
+            fundingGoalAmount,
+            expectedInvestment: fundingGoalAmount,
+            amountRaised,
+            investmentReceived: amountRaised,
+            investmentPending: Math.max(Number((fundingGoalAmount - amountRaised).toFixed(2)), 0),
+            remainingFunding: Math.max(Number((fundingGoalAmount - amountRaised).toFixed(2)), 0),
+            percentRaised: fundingGoalAmount > 0
+                ? Number(Math.min((amountRaised / fundingGoalAmount) * 100, 100).toFixed(2))
+                : 0,
+            investorCount,
+            numberOfInvestors: investorCount,
+            completionPercentage,
+            currency: project.currency || DEFAULT_CURRENCY,
+            status: resolveInvestmentProjectStatus(project),
+            investmentStatus: resolveInvestmentProjectStatus(project),
+            startDate: project.startDate,
+            endDate: project.endDate,
+            notes: project.notes,
+            isActive: project.isActive,
+            milestones,
+            milestoneStats: {
+                total: milestones.length,
+                requestForFunding: milestones.filter(
+                    milestone => milestone.status === 'request_for_funding'
+                ).length,
+                processingFunding: milestones.filter(
+                    milestone => milestone.status === 'processing_funding'
+                ).length,
+                completed: completedMilestones.length,
+                completionPercentage
+            },
+            hasUserInvestment: relevantProjectIds.has(project.id),
+            userInvestment: {
+                amountInvested: fromMoneyCents(userAmountInCents),
+                expectedReturns: fromMoneyCents(userExpectedReturnInCents),
+                earnedReturns: fromMoneyCents(userEarnedReturnInCents),
+                transactionCount: projectEntries.length
+            },
+            createdAt: project.createdAt,
+            updatedAt: project.updatedAt
+        };
+    });
+    const milestones = investmentProjects.flatMap(project => project.milestones);
+    const completedMilestones = milestones.filter(milestone => milestone.status === 'completed').length;
+    const activeInvestmentProjects = investmentProjects.filter(project => project.isActive);
+    const activeRawProjects = rawProjects.filter(project => project.isActive);
+    const totalFundingAmount = activeInvestmentProjects.reduce(
+        (total, project) => total + project.fundingGoalAmount,
+        0
+    );
+    const totalAmountRaised = activeInvestmentProjects.reduce(
+        (total, project) => total + project.amountRaised,
+        0
+    );
+    const farmInvestorIds = activeRawProjects.flatMap(project =>
+        (project.Payments || []).map(payment => payment.investorId).filter(Boolean)
+    );
+    const investorCount = new Set(farmInvestorIds).size;
+    const weightedCompletion = activeInvestmentProjects.reduce(
+        (total, project) => total + (project.fundingGoalAmount * project.completionPercentage),
+        0
+    );
+    const projectCurrencies = [...new Set(
+        activeInvestmentProjects.map(project => project.currency).filter(Boolean)
+    )];
+    const farmCurrency = projectCurrencies.length === 1
+        ? projectCurrencies[0]
+        : (projectCurrencies.length > 1 ? 'MIXED' : DEFAULT_CURRENCY);
 
     return {
         id: farm.id,
@@ -534,41 +741,64 @@ function formatPortfolioFarm(req, entries) {
         name: farm.name,
         location: farm.location,
         size: farm.size,
-        currency: funding.currency || DEFAULT_CURRENCY,
+        currency: farmCurrency,
         isActive: farm.isActive,
         verificationStatus: farm.verificationStatus,
         rejectionNote: farm.rejectionNote,
         createdAt: farm.createdAt,
         updatedAt: farm.updatedAt,
-        category: funding.Category || null,
+        category: investmentProjects[0]?.category || null,
         owner: farm.User ? {
             id: farm.User.id,
             name: farm.User.fullName,
             bio: farm.User.bio,
-            profileImageUrl: toBackendApiUrl(req, farm.User.profileImageUrl)
+            profileImageUrl: toBackendApiUrl(req, farm.User.profileImageUrl),
+            rating: {
+                average: null,
+                count: 0
+            }
         } : null,
+        rating: null,
+        ratingCount: 0,
         image: pictures[0] || null,
         images: pictures,
         documents,
         funding: {
-            id: funding.id || null,
-            expectedInvestment: toNumber(funding.expectedInvestment),
-            investmentReceived: toNumber(funding.investmentReceived),
-            investmentPending: toNumber(funding.investmentPending),
-            currency: funding.currency || DEFAULT_CURRENCY,
-            status: funding.investmentStatus || null,
-            notes: funding.notes || null,
-            isActive: funding.isActive ?? null,
-            createdAt: funding.createdAt || null,
-            updatedAt: funding.updatedAt || null
+            projectCount: activeInvestmentProjects.length,
+            totalFundingAmount,
+            totalFundingGoalAmount: totalFundingAmount,
+            amountRaised: totalAmountRaised,
+            investmentReceived: totalAmountRaised,
+            remainingFunding: Math.max(Number((totalFundingAmount - totalAmountRaised).toFixed(2)), 0),
+            percentRaised: totalFundingAmount > 0
+                ? Number(Math.min((totalAmountRaised / totalFundingAmount) * 100, 100).toFixed(2))
+                : 0,
+            investorCount,
+            currency: farmCurrency
         },
+        investmentProjectCount: investmentProjects.length,
+        numberOfInvestmentProjects: investmentProjects.length,
+        activeInvestmentProjectCount: activeInvestmentProjects.length,
+        investorCount,
+        numberOfInvestors: investorCount,
+        totalFundingAmount,
+        totalFundingGoalAmount: totalFundingAmount,
+        amountRaised: totalAmountRaised,
+        totalFundsRaised: totalAmountRaised,
+        percentRaised: totalFundingAmount > 0
+            ? Number(Math.min((totalAmountRaised / totalFundingAmount) * 100, 100).toFixed(2))
+            : 0,
+        completionPercentage: totalFundingAmount > 0
+            ? Number((weightedCompletion / totalFundingAmount).toFixed(2))
+            : 0,
+        investmentProjects,
         milestones,
         milestoneStats: {
             total: milestones.length,
             completed: completedMilestones,
             pending: milestones.length - completedMilestones,
-            completionPercentage: milestones.length > 0
-                ? Number(((completedMilestones / milestones.length) * 100).toFixed(2))
+            completionPercentage: totalFundingAmount > 0
+                ? Number((weightedCompletion / totalFundingAmount).toFixed(2))
                 : 0
         },
         portfolioStatus: activeCount > 0 ? 'active' : 'completed',
@@ -611,6 +841,7 @@ function formatPortfolioFarm(req, entries) {
                 earnedReturns: fromMoneyCents(templateEarnedReturn),
                 transactions: templateEntries.map(entry => ({
                     id: entry.id,
+                    investmentProjectId: entry.userFarmInvestmentId,
                     reference: entry.reference,
                     amount: fromMoneyCents(entry.amountInCents),
                     currency: entry.currency,

@@ -34,9 +34,15 @@ const {
  *                         totalFarmsListed:
  *                           type: integer
  *                           description: Total number of farms listed by the user
+ *                         totalInvestmentProjects:
+ *                           type: integer
+ *                           description: Total projects across all of the user's farms
+ *                         completedInvestmentProjects:
+ *                           type: integer
+ *                           description: Projects explicitly completed or whose end date has arrived
  *                         completedFarmProjects:
  *                           type: integer
- *                           description: Number of completed farm projects
+ *                           description: Backward-compatible alias of completedInvestmentProjects
  *                         totalExpectedInvestment:
  *                           type: number
  *                           description: Total expected investment across all farms

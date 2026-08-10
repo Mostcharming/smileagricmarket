@@ -16,6 +16,17 @@ module.exports = (sequelize) => {
             allowNull: false,
             field: 'user_farm_id'
         },
+        userFarmInvestmentId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: 'user_farm_investment_id',
+            references: {
+                model: 'user_farm_investments',
+                key: 'id'
+            },
+            onDelete: 'CASCADE',
+            comment: 'Investment project that owns this template milestone'
+        },
         milestoneId: {
             type: DataTypes.UUID,
             allowNull: true,
@@ -30,7 +41,40 @@ module.exports = (sequelize) => {
                 key: 'id'
             },
             onDelete: 'RESTRICT',
-            comment: 'Investment-template milestone selected for the funding request'
+            comment: 'Investment-template milestone forked into this project'
+        },
+        name: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'name',
+            comment: 'Snapshot of the template milestone name'
+        },
+        fundReleasePercentage: {
+            type: DataTypes.DECIMAL(5, 2),
+            allowNull: true,
+            field: 'fund_release_percentage',
+            validate: {
+                min: 0,
+                max: 100
+            },
+            comment: 'Snapshot of the template milestone funding percentage'
+        },
+        order: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            field: 'order',
+            comment: 'Snapshot of the template milestone order'
+        },
+        fundingStatus: {
+            type: DataTypes.ENUM(
+                'request_for_funding',
+                'processing_funding',
+                'completed'
+            ),
+            allowNull: false,
+            defaultValue: 'request_for_funding',
+            field: 'funding_status',
+            comment: 'Funding workflow status for this project milestone'
         },
         isCompleted: {
             type: DataTypes.BOOLEAN,
@@ -67,15 +111,21 @@ module.exports = (sequelize) => {
                 fields: ['investment_milestone_id']
             },
             {
+                fields: ['user_farm_investment_id']
+            },
+            {
                 fields: ['user_farm_id', 'milestone_id'],
                 unique: true
             },
             {
-                fields: ['user_farm_id', 'investment_milestone_id'],
+                fields: ['user_farm_investment_id', 'investment_milestone_id'],
                 unique: true
             },
             {
                 fields: ['is_completed']
+            },
+            {
+                fields: ['funding_status']
             }
         ],
         validate: {
@@ -85,6 +135,22 @@ module.exports = (sequelize) => {
 
                 if (hasLegacyMilestone === hasInvestmentMilestone) {
                     throw new Error('Exactly one milestone source is required');
+                }
+
+                if (hasInvestmentMilestone !== !!this.userFarmInvestmentId) {
+                    throw new Error('Investment-template milestones must belong to an investment project');
+                }
+
+                if (
+                    hasInvestmentMilestone
+                    && (!this.name || this.fundReleasePercentage === null
+                        || this.fundReleasePercentage === undefined)
+                ) {
+                    throw new Error('Project milestones require a name and funding percentage snapshot');
+                }
+
+                if ((this.fundingStatus === 'completed') !== !!this.isCompleted) {
+                    throw new Error('Completed milestone status must match isCompleted');
                 }
             }
         }

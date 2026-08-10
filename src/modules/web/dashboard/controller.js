@@ -3,6 +3,7 @@
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
+const { resolveInvestmentProjectStatus } = require('../../../utils/investmentProject');
 
 const models = defineModels(sequelize);
 const { User, UserFarm, UserFarmInvestment, UserFarmMilestone, Milestone } = models;
@@ -25,24 +26,27 @@ async function getUserDashboard(req, res) {
             where: { userId, isActive: true }
         });
 
-        // Get completed farm projects (all milestones completed)
+        // Farm verification is independent from investment project lifecycle.
         const farms = await UserFarm.findAll({
             where: { userId, isActive: true },
-            include: [{
-                model: models.UserFarmMilestone,
-                as: 'SelectedMilestones',
-                attributes: ['id', 'isCompleted']
-            }],
             attributes: ['id']
         });
+        const userFarmIds = farms.map(farm => farm.id);
 
-        let completedFarmProjects = 0;
-        farms.forEach(farm => {
-            if (farm.SelectedMilestones.length > 0) {
-                const allCompleted = farm.SelectedMilestones.every(m => m.isCompleted === true);
-                if (allCompleted) {
-                    completedFarmProjects++;
-                }
+        const totalInvestmentProjects = await UserFarmInvestment.count({
+            where: {
+                userFarmId: { [Op.in]: userFarmIds },
+                isActive: true
+            }
+        });
+        const completedInvestmentProjects = await UserFarmInvestment.count({
+            where: {
+                userFarmId: { [Op.in]: userFarmIds },
+                isActive: true,
+                [Op.or]: [
+                    { investmentStatus: 'completed' },
+                    { endDate: { [Op.lte]: new Date().toISOString().slice(0, 10) } }
+                ]
             }
         });
 
@@ -54,7 +58,7 @@ async function getUserDashboard(req, res) {
             ],
             where: {
                 userFarmId: {
-                    [Op.in]: farms.map(f => f.id)
+                    [Op.in]: userFarmIds
                 },
                 isActive: true
             },
@@ -71,7 +75,7 @@ async function getUserDashboard(req, res) {
             include: [
                 {
                     model: models.UserFarmInvestment,
-                    as: 'Investment',
+                    as: 'InvestmentProjects',
                     attributes: [
                         'id',
                         'farmCategoryId',
@@ -79,6 +83,8 @@ async function getUserDashboard(req, res) {
                         'expectedInvestment',
                         'investmentReceived',
                         'investmentStatus',
+                        'startDate',
+                        'endDate',
                         'currency'
                     ],
                     include: [
@@ -97,7 +103,19 @@ async function getUserDashboard(req, res) {
                 {
                     model: models.UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'milestoneId', 'investmentMilestoneId', 'isCompleted', 'completedAt'],
+                    attributes: [
+                        'id',
+                        'userFarmInvestmentId',
+                        'milestoneId',
+                        'investmentMilestoneId',
+                        'name',
+                        'fundReleasePercentage',
+                        'order',
+                        'fundingStatus',
+                        'isCompleted',
+                        'completedAt',
+                        'amount'
+                    ],
                     include: [
                         {
                             model: models.Milestone,
@@ -120,7 +138,9 @@ async function getUserDashboard(req, res) {
         return res.success({
             summary: {
                 totalFarmsListed,
-                completedFarmProjects,
+                totalInvestmentProjects,
+                completedInvestmentProjects,
+                completedFarmProjects: completedInvestmentProjects,
                 totalExpectedInvestment: parseFloat(totalExpectedInvestment) || 0,
                 totalInvestmentReceived: parseFloat(totalInvestmentReceived) || 0,
                 investmentPending: parseFloat(investmentPending) || 0
@@ -145,31 +165,44 @@ async function getDashboardStats(req, res) {
         const farmsCount = await UserFarm.count({
             where: { userId, isActive: true }
         });
-
-        // Get investment statistics
-        const investmentStats = await UserFarmInvestment.findAll({
-            where: { isActive: true },
-            attributes: [
-                'investmentStatus',
-                [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-                [sequelize.fn('SUM', sequelize.col('investment_received')), 'totalReceived']
-            ],
-            group: ['investmentStatus'],
+        const activeFarms = await UserFarm.findAll({
+            where: { userId, isActive: true },
+            attributes: ['id'],
             raw: true
         });
+        const activeFarmIds = activeFarms.map(farm => farm.id);
+
+        // Get investment statistics
+        const investmentProjects = await UserFarmInvestment.findAll({
+            where: {
+                userFarmId: { [Op.in]: activeFarmIds },
+                isActive: true
+            },
+            attributes: ['investmentStatus', 'investmentReceived', 'expectedInvestment', 'endDate'],
+            raw: true
+        });
+        const investmentStatsByStatus = investmentProjects.reduce((stats, project) => {
+            const status = resolveInvestmentProjectStatus(project);
+            const current = stats.get(status) || { investmentStatus: status, count: 0, totalReceived: 0 };
+            current.count += 1;
+            current.totalReceived += Number(project.investmentReceived || 0);
+            stats.set(status, current);
+            return stats;
+        }, new Map());
+        const investmentStats = [...investmentStatsByStatus.values()];
 
         // Get milestone completion rate
         const milestoneStats = await UserFarmMilestone.findAll({
             attributes: [
-                'isCompleted',
+                'fundingStatus',
                 [sequelize.fn('COUNT', sequelize.col('id')), 'count']
             ],
             where: {
                 userFarmId: {
-                    [Op.in]: sequelize.literal(`(SELECT id FROM user_farms WHERE user_id = '${userId}' AND is_active = true)`)
+                    [Op.in]: activeFarmIds
                 }
             },
-            group: ['isCompleted'],
+            group: ['fundingStatus'],
             raw: true
         });
 

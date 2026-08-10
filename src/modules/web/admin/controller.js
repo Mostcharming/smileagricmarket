@@ -406,9 +406,22 @@ async function listAllUserFarms(req, res) {
         if (verificationStatus) {
             whereClause.verificationStatus = verificationStatus;
         }
+
+        if (farmCategoryId) {
+            const matchingProjects = await UserFarmInvestment.findAll({
+                where: { farmCategoryId },
+                attributes: ['userFarmId'],
+                raw: true
+            });
+
+            whereClause.id = {
+                [Op.in]: [...new Set(matchingProjects.map(project => project.userFarmId))]
+            };
+        }
+
         const buildInvestmentProjectInclude = () => ({
             model: UserFarmInvestment,
-            as: 'Investment',
+            as: 'InvestmentProjects',
             attributes: [
                 'id',
                 'farmCategoryId',
@@ -416,9 +429,13 @@ async function listAllUserFarms(req, res) {
                 'expectedInvestment',
                 'investmentReceived',
                 'investmentStatus',
+                'startDate',
+                'endDate',
                 'currency'
             ],
-            required: !!farmCategoryId,
+            required: false,
+            separate: true,
+            order: [['createdAt', 'DESC']],
             ...(farmCategoryId ? { where: { farmCategoryId } } : {}),
             include: [{
                 model: FarmCategory,
@@ -430,7 +447,6 @@ async function listAllUserFarms(req, res) {
         // Get total count
         const total = await UserFarm.count({
             where: whereClause,
-            include: farmCategoryId ? [buildInvestmentProjectInclude()] : [],
             distinct: true
         });
 
@@ -481,7 +497,7 @@ async function getUserFarmDetails(req, res) {
             include: [
                 {
                     model: UserFarmInvestment,
-                    as: 'Investment',
+                    as: 'InvestmentProjects',
                     attributes: [
                         'id',
                         'farmCategoryId',
@@ -490,6 +506,8 @@ async function getUserFarmDetails(req, res) {
                         'investmentReceived',
                         'investmentPending',
                         'investmentStatus',
+                        'startDate',
+                        'endDate',
                         'currency',
                         'notes'
                     ],
@@ -510,13 +528,47 @@ async function getUserFarmDetails(req, res) {
                                 'fundingMaxGoal',
                                 'currency'
                             ]
+                        },
+                        {
+                            model: UserFarmMilestone,
+                            as: 'ProjectMilestones',
+                            attributes: [
+                                'id',
+                                'userFarmInvestmentId',
+                                'investmentMilestoneId',
+                                'name',
+                                'fundReleasePercentage',
+                                'order',
+                                'fundingStatus',
+                                'isCompleted',
+                                'completedAt',
+                                'amount'
+                            ],
+                            include: [{
+                                model: models.InvestmentMilestone,
+                                as: 'InvestmentMilestone',
+                                attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
+                                required: false
+                            }]
                         }
                     ]
                 },
                 {
                     model: UserFarmMilestone,
                     as: 'SelectedMilestones',
-                    attributes: ['id', 'milestoneId', 'investmentMilestoneId', 'isCompleted', 'completedAt', 'amount'],
+                    attributes: [
+                        'id',
+                        'userFarmInvestmentId',
+                        'milestoneId',
+                        'investmentMilestoneId',
+                        'name',
+                        'fundReleasePercentage',
+                        'order',
+                        'fundingStatus',
+                        'isCompleted',
+                        'completedAt',
+                        'amount'
+                    ],
                     include: [
                         {
                             model: models.Milestone,
@@ -725,6 +777,53 @@ async function rejectUserFarm(req, res) {
     }
 }
 
+async function updateUserFarmMilestoneStatus(req, res) {
+    try {
+        const { milestoneId } = req.params;
+        const status = String(req.body?.status || '').trim().toLowerCase();
+        const allowedStatuses = [
+            'request_for_funding',
+            'processing_funding',
+            'completed'
+        ];
+
+        if (!milestoneId) {
+            return res.fail('Project milestone ID is required', 400);
+        }
+        if (!allowedStatuses.includes(status)) {
+            return res.fail(
+                'status must be one of request_for_funding, processing_funding, completed',
+                400
+            );
+        }
+
+        const projectMilestone = await models.UserFarmMilestone.findByPk(milestoneId);
+        if (!projectMilestone?.userFarmInvestmentId) {
+            return res.fail('Investment project milestone not found', 404);
+        }
+
+        await projectMilestone.update({
+            fundingStatus: status,
+            isCompleted: status === 'completed',
+            completedAt: status === 'completed'
+                ? (projectMilestone.completedAt || new Date())
+                : null
+        });
+
+        return res.success({
+            id: projectMilestone.id,
+            investmentProjectId: projectMilestone.userFarmInvestmentId,
+            investmentMilestoneId: projectMilestone.investmentMilestoneId,
+            status: projectMilestone.fundingStatus,
+            isCompleted: projectMilestone.isCompleted,
+            completedAt: projectMilestone.completedAt
+        }, 'Project milestone funding status updated successfully');
+    } catch (error) {
+        console.error('Update project milestone funding status error:', error);
+        return res.fail('Failed to update project milestone funding status', 500);
+    }
+}
+
 module.exports = {
     login,
     getUserDirectory,
@@ -734,5 +833,6 @@ module.exports = {
     listAllUserFarms,
     getUserFarmDetails,
     approveUserFarm,
-    rejectUserFarm
+    rejectUserFarm,
+    updateUserFarmMilestoneStatus
 };

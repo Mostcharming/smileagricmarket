@@ -5,6 +5,7 @@ const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
 const { toBackendApiUrl } = require('../../../utils/url');
+const { resolveInvestmentProjectStatus } = require('../../../utils/investmentProject');
 const {
     PaystackError,
     getPaystackConfig,
@@ -32,6 +33,7 @@ const {
 } = models;
 
 const PAYSTACK_GATEWAY = 'paystack';
+const FUNDED_PAYMENT_STATUSES = ['recorded', 'successful'];
 
 const DURATION_UNITS = ['weeks', 'months', 'years'];
 const RISK_LEVELS = ['low', 'medium', 'high'];
@@ -98,11 +100,13 @@ function formatFundingSummary(farmId, farmInvestment, totalExpectedFunding) {
     const expectedFunding = toMoney(totalExpectedFunding);
     return {
         farmId,
+        investmentProjectId: farmInvestment.id,
         fundingReceived,
         totalExpectedFunding: expectedFunding,
         remainingFunding: Math.max(Number((expectedFunding - fundingReceived).toFixed(2)), 0),
         percentFunded: getPercentFunded(fundingReceived, expectedFunding),
-        fundingStatus: getFundingStatus(farmInvestment.investmentStatus, fundingReceived, expectedFunding)
+        investmentStatus: resolveInvestmentProjectStatus(farmInvestment),
+        fundingStatus: getFundingStatus(fundingReceived, expectedFunding)
     };
 }
 
@@ -193,21 +197,22 @@ function normalizeFundingStatuses(value, errors) {
 
     const fundingStatus = String(value).trim().toLowerCase().replace(/[-\s]+/g, '_');
     const aliases = {
-        pending: ['pending'],
-        unfunded: ['pending'],
-        partial: ['partial'],
-        partially_funded: ['partial'],
+        not_started: ['not_started'],
+        pending: ['not_started'],
+        unfunded: ['not_started'],
+        funding_started: ['funding_started'],
+        partial: ['funding_started'],
+        partially_funded: ['funding_started'],
+        active: ['active'],
+        funded: ['active'],
+        fully_funded: ['active'],
         completed: ['completed'],
         complete: ['completed'],
-        funded: ['completed'],
-        fully_funded: ['completed'],
-        cancelled: ['cancelled'],
-        canceled: ['cancelled'],
-        open: ['pending', 'partial']
+        open: ['not_started', 'funding_started', 'active']
     };
 
     if (!aliases[fundingStatus]) {
-        errors.push('fundingStatus must be one of pending, partial, completed, cancelled, or open');
+        errors.push('investmentStatus must be one of not_started, funding_started, active, completed, or open');
         return null;
     }
 
@@ -220,75 +225,69 @@ function getPercentFunded(fundingReceived, totalExpectedFunding) {
     return Number(Math.min(percent, 100).toFixed(2));
 }
 
-function getFundingStatus(rawStatus, fundingReceived, totalExpectedFunding) {
-    if (rawStatus === 'cancelled') return rawStatus;
-    if (totalExpectedFunding > 0 && fundingReceived >= totalExpectedFunding) return 'completed';
+function getFundingStatus(fundingReceived, totalExpectedFunding) {
+    if (totalExpectedFunding > 0 && fundingReceived >= totalExpectedFunding) return 'funded';
     if (fundingReceived > 0) return 'partial';
-    return rawStatus || 'pending';
+    return 'not_started';
 }
 
 function formatFarmImage(req, document) {
     const data = document.toJSON ? document.toJSON() : document;
     return {
         id: data.id,
+        documentType: data.documentType,
         fileName: data.fileName,
         fileUrl: toBackendApiUrl(req, data.fileUrl),
-        mimeType: data.mimeType
+        fileSize: data.fileSize ?? null,
+        mimeType: data.mimeType,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt
     };
 }
 
-function getFarmImages(req, documents = []) {
-    if (!Array.isArray(documents)) return [];
-
-    return documents
-        .filter(document => document.documentType === 'picture')
-        .map(document => formatFarmImage(req, document));
-}
-
-function getFarmImage(req, documents = []) {
-    return getFarmImages(req, documents)[0] || null;
-}
-
-function getMilestoneStatus(milestone, index, firstIncompleteIndex) {
-    if (milestone.isCompleted) return 'completed';
-    if (index === firstIncompleteIndex) return 'in_progress';
-    return 'not_started';
+function getMilestoneStatus(milestone) {
+    if (milestone.fundingStatus) return milestone.fundingStatus;
+    return milestone.isCompleted ? 'completed' : 'request_for_funding';
 }
 
 function formatFarmMilestones(milestones = []) {
     const sortedMilestones = [...milestones].sort((a, b) => {
         const aData = a.toJSON ? a.toJSON() : a;
         const bData = b.toJSON ? b.toJSON() : b;
-        const aOrder = (aData.InvestmentMilestone || aData.Milestone)?.order
+        const aOrder = aData.order
+            ?? (aData.InvestmentMilestone || aData.Milestone)?.order
             ?? Number.MAX_SAFE_INTEGER;
-        const bOrder = (bData.InvestmentMilestone || bData.Milestone)?.order
+        const bOrder = bData.order
+            ?? (bData.InvestmentMilestone || bData.Milestone)?.order
             ?? Number.MAX_SAFE_INTEGER;
 
         if (aOrder !== bOrder) return aOrder - bOrder;
         return new Date(aData.createdAt || 0) - new Date(bData.createdAt || 0);
     });
-    const firstIncompleteIndex = sortedMilestones.findIndex(milestone => {
-        const data = milestone.toJSON ? milestone.toJSON() : milestone;
-        return !data.isCompleted;
-    });
-
-    const formattedMilestones = sortedMilestones.map((milestone, index) => {
+    const formattedMilestones = sortedMilestones.map(milestone => {
         const data = milestone.toJSON ? milestone.toJSON() : milestone;
         const milestoneData = data.InvestmentMilestone || data.Milestone || {};
-        const status = getMilestoneStatus(data, index, firstIncompleteIndex);
+        const status = getMilestoneStatus(data);
 
         return {
             id: data.id,
             userFarmMilestoneId: data.id,
+            investmentProjectId: data.userFarmInvestmentId || null,
             milestoneId: data.investmentMilestoneId || data.milestoneId,
             milestoneType: data.investmentMilestoneId
                 ? 'investment_template'
                 : 'farm_category',
-            name: milestoneData.name || null,
-            order: milestoneData.order ?? null,
-            fundReleasePercentage: milestoneData.fundReleasePercentage === undefined
+            name: data.name || milestoneData.name || null,
+            order: data.order ?? milestoneData.order ?? null,
+            fundReleasePercentage: data.fundReleasePercentage === null
+                || data.fundReleasePercentage === undefined
+                ? (milestoneData.fundReleasePercentage === undefined
+                    ? null
+                    : toMoney(milestoneData.fundReleasePercentage))
+                : toMoney(data.fundReleasePercentage),
+            allocatedAmount: data.amount === undefined
                 ? null
-                : toMoney(milestoneData.fundReleasePercentage),
+                : toMoney(data.amount),
             amount: toMoney(data.amount),
             isCompleted: !!data.isCompleted,
             status,
@@ -298,90 +297,225 @@ function formatFarmMilestones(milestones = []) {
         };
     });
     const completedMilestones = formattedMilestones.filter(milestone => milestone.status === 'completed').length;
-    const inProgressMilestones = formattedMilestones.filter(milestone => milestone.status === 'in_progress').length;
-    const notStartedMilestones = formattedMilestones.filter(milestone => milestone.status === 'not_started').length;
+    const processingFundingMilestones = formattedMilestones.filter(
+        milestone => milestone.status === 'processing_funding'
+    ).length;
+    const requestForFundingMilestones = formattedMilestones.filter(
+        milestone => milestone.status === 'request_for_funding'
+    ).length;
     const totalMilestones = formattedMilestones.length;
+    const completionPercentage = formattedMilestones.reduce((total, milestone) => {
+        return milestone.status === 'completed'
+            ? total + Number(milestone.fundReleasePercentage || 0)
+            : total;
+    }, 0);
 
     return {
         milestones: formattedMilestones,
         stats: {
             totalMilestones,
             completedMilestones,
-            inProgressMilestones,
-            notStartedMilestones,
-            completionPercentage: totalMilestones > 0
-                ? Math.round((completedMilestones / totalMilestones) * 100)
-                : 0
+            processingFundingMilestones,
+            requestForFundingMilestones,
+            completionPercentage: Number(Math.min(completionPercentage, 100).toFixed(2))
         }
     };
 }
 
-function formatInvestmentFarm(req, farm, template, options = {}) {
-    const { includeImages = false, includeMilestones = false } = options;
-    const data = farm.toJSON ? farm.toJSON() : farm;
-    const farmInvestment = data.Investment || {};
-    const fundingReceived = toMoney(farmInvestment.investmentReceived);
-    const totalExpectedFunding = farmInvestment.expectedInvestment !== null && farmInvestment.expectedInvestment !== undefined
-        ? toMoney(farmInvestment.expectedInvestment)
-        : toMoney(template.fundingMaxGoal);
-    const images = getFarmImages(req, data.Documents);
-    const image = images[0] || null;
-    const formattedFarm = {
-        id: data.id,
-        farmId: data.id,
-        farmName: data.name,
-        image,
-        imageUrl: image?.fileUrl || null,
-        investmentProjectId: farmInvestment.id || null,
-        farmCategory: farmInvestment.Category ? {
-            id: farmInvestment.Category.id,
-            name: farmInvestment.Category.name
-        } : null,
-        investmentTemplate: {
-            id: template.id,
-            name: template.name,
-            startDate: template.startDate,
-            endDate: template.endDate
-        },
-        roi: toMoney(template.roiPercentage),
+function formatOwner(req, owner) {
+    if (!owner) return null;
+
+    return {
+        id: owner.id,
+        name: owner.fullName || 'N/A',
+        fullName: owner.fullName || 'N/A',
+        bio: owner.bio || null,
+        profileImageUrl: toBackendApiUrl(req, owner.profileImageUrl),
+        rating: {
+            average: null,
+            count: 0
+        }
+    };
+}
+
+function formatInvestmentTemplate(template) {
+    if (!template) return null;
+
+    return {
+        id: template.id,
+        farmCategoryId: template.farmCategoryId,
+        name: template.name,
+        description: template.description || null,
         roiPercentage: toMoney(template.roiPercentage),
-        startDate: template.startDate,
-        endDate: template.endDate,
         duration: {
             value: template.durationValue,
             unit: template.durationUnit,
-            label: `${template.durationValue} ${template.durationUnit}`
+            label: template.durationValue && template.durationUnit
+                ? `${template.durationValue} ${template.durationUnit}`
+                : null
         },
         riskLevel: template.riskLevel || 'medium',
-        farmOwner: {
-            id: data.User?.id || null,
-            name: data.User?.fullName || 'N/A'
-        },
-        farmOwnerName: data.User?.fullName || 'N/A',
-        rating: null,
-        fundingReceived,
-        totalExpectedFunding,
-        location: data.location,
-        percentFunded: getPercentFunded(fundingReceived, totalExpectedFunding),
-        minimumInvest: toMoney(template.investmentMinGoal),
-        fundingStatus: getFundingStatus(farmInvestment.investmentStatus, fundingReceived, totalExpectedFunding),
-        currency: farmInvestment.currency || template.currency,
-        lastViewed: null,
+        fundingMinGoal: toMoney(template.fundingMinGoal),
+        fundingMaxGoal: toMoney(template.fundingMaxGoal),
+        investmentMinGoal: toMoney(template.investmentMinGoal),
+        investmentMaxGoal: toMoney(template.investmentMaxGoal),
+        currency: template.currency,
+        isActive: template.isActive,
+        createdAt: template.createdAt,
+        updatedAt: template.updatedAt
+    };
+}
+
+function formatInvestmentProject(project, options = {}) {
+    const { includeMilestones = false } = options;
+    const data = project?.toJSON ? project.toJSON() : (project || {});
+    const template = data.InvestmentTemplate || null;
+    const projectPayments = Array.isArray(data.Payments) ? data.Payments : [];
+    const investorCount = new Set(
+        projectPayments.map(payment => payment.investorId).filter(Boolean)
+    ).size;
+    const fundingGoalAmount = toMoney(data.expectedInvestment);
+    const amountRaised = toMoney(data.investmentReceived);
+    const { milestones, stats: milestoneStats } = formatFarmMilestones(
+        data.ProjectMilestones || []
+    );
+
+    const formattedProject = {
+        id: data.id,
+        investmentProjectId: data.id,
+        farmId: data.userFarmId,
+        farmCategory: data.Category ? {
+            id: data.Category.id,
+            name: data.Category.name,
+            description: data.Category.description || null
+        } : null,
+        investmentTemplate: formatInvestmentTemplate(template),
+        fundingGoalAmount,
+        totalExpectedFunding: fundingGoalAmount,
+        amountRaised,
+        fundingReceived: amountRaised,
+        remainingFunding: Math.max(Number((fundingGoalAmount - amountRaised).toFixed(2)), 0),
+        percentRaised: getPercentFunded(amountRaised, fundingGoalAmount),
+        percentFunded: getPercentFunded(amountRaised, fundingGoalAmount),
+        investorCount,
+        numberOfInvestors: investorCount,
+        completionPercentage: milestoneStats.completionPercentage,
+        milestoneStats,
+        roi: toMoney(template?.roiPercentage),
+        roiPercentage: toMoney(template?.roiPercentage),
+        duration: formatInvestmentTemplate(template)?.duration || null,
+        riskLevel: template?.riskLevel || 'medium',
+        minimumInvest: toMoney(template?.investmentMinGoal),
+        startDate: data.startDate,
+        endDate: data.endDate,
+        investmentStatus: resolveInvestmentProjectStatus(data),
+        fundingStatus: getFundingStatus(amountRaised, fundingGoalAmount),
+        currency: data.currency || template?.currency,
+        notes: data.notes || null,
+        isActive: !!data.isActive,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
     };
 
-    if (includeImages) {
-        formattedFarm.images = images;
-    }
-
     if (includeMilestones) {
-        const { milestones, stats } = formatFarmMilestones(data.SelectedMilestones);
-        formattedFarm.milestones = milestones;
-        formattedFarm.milestoneStats = stats;
+        formattedProject.milestones = milestones;
     }
 
-    return formattedFarm;
+    return formattedProject;
+}
+
+function formatInvestmentFarm(req, farm, options = {}) {
+    const {
+        includeMilestones = false,
+        includeInactiveProjects = true
+    } = options;
+    const data = farm.toJSON ? farm.toJSON() : farm;
+    const documents = (data.Documents || []).map(document => formatFarmImage(req, document));
+    const images = documents.filter(document => document.documentType === 'picture');
+    const image = images[0] || null;
+    const rawProjects = (Array.isArray(data.InvestmentProjects)
+        ? data.InvestmentProjects
+        : []).filter(project => includeInactiveProjects || project.isActive);
+    const investmentProjects = rawProjects.map(project =>
+        formatInvestmentProject(project, { includeMilestones })
+    );
+    const activeInvestmentProjects = investmentProjects.filter(project => project.isActive);
+    const activeRawProjects = rawProjects.filter(project => project.isActive);
+    const totalFundingAmount = activeInvestmentProjects.reduce(
+        (total, project) => total + project.fundingGoalAmount,
+        0
+    );
+    const amountRaised = activeInvestmentProjects.reduce(
+        (total, project) => total + project.amountRaised,
+        0
+    );
+    const weightedCompletion = activeInvestmentProjects.reduce(
+        (total, project) => total + (project.fundingGoalAmount * project.completionPercentage),
+        0
+    );
+    const investorIds = activeRawProjects.flatMap(project =>
+        (project.Payments || []).map(payment => payment.investorId).filter(Boolean)
+    );
+    const investorCount = new Set(investorIds).size;
+    const owner = formatOwner(req, data.User);
+    const projectCurrencies = [...new Set(
+        activeInvestmentProjects.map(project => project.currency).filter(Boolean)
+    )];
+    const currency = projectCurrencies.length === 1
+        ? projectCurrencies[0]
+        : (projectCurrencies.length > 1 ? 'MIXED' : null);
+
+    return {
+        id: data.id,
+        farmId: data.id,
+        farmName: data.name,
+        name: data.name,
+        location: data.location,
+        size: data.size,
+        isActive: data.isActive,
+        verificationStatus: data.verificationStatus,
+        farmVerificationStatus: data.verificationStatus,
+        owner,
+        farmOwner: owner,
+        farmOwnerName: owner?.name || 'N/A',
+        rating: owner?.rating.average ?? null,
+        ratingCount: owner?.rating.count ?? 0,
+        image,
+        imageUrl: image?.fileUrl || null,
+        images,
+        documents,
+        investmentProjectCount: investmentProjects.length,
+        numberOfInvestmentProjects: investmentProjects.length,
+        activeInvestmentProjectCount: activeInvestmentProjects.length,
+        investorCount,
+        numberOfInvestors: investorCount,
+        totalFundingAmount,
+        totalFundingGoalAmount: totalFundingAmount,
+        totalExpectedFunding: totalFundingAmount,
+        amountRaised,
+        fundingReceived: amountRaised,
+        totalFundsRaised: amountRaised,
+        remainingFunding: Math.max(Number((totalFundingAmount - amountRaised).toFixed(2)), 0),
+        percentRaised: getPercentFunded(amountRaised, totalFundingAmount),
+        percentFunded: getPercentFunded(amountRaised, totalFundingAmount),
+        completionPercentage: totalFundingAmount > 0
+            ? Number((weightedCompletion / totalFundingAmount).toFixed(2))
+            : 0,
+        currency,
+        fundingAcrossActiveProjects: {
+            projectCount: activeInvestmentProjects.length,
+            totalFundingAmount,
+            amountRaised,
+            remainingFunding: Math.max(Number((totalFundingAmount - amountRaised).toFixed(2)), 0),
+            percentRaised: getPercentFunded(amountRaised, totalFundingAmount),
+            investorCount,
+            currency
+        },
+        investmentProjects,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        lastViewed: null
+    };
 }
 
 async function getInvestments(req, res) {
@@ -400,9 +534,7 @@ async function getInvestments(req, res) {
         const fundingStatus = firstDefined(req.query.fundingStatus, req.query.investmentStatus);
         const errors = [];
 
-        const templateWhere = {
-            isActive: true
-        };
+        const templateWhere = {};
         const farmWhere = {
             isActive: true,
             verificationStatus: 'approved',
@@ -446,41 +578,114 @@ async function getInvestments(req, res) {
         }
 
         if (fundingStatuses) {
-            farmInvestmentWhere.investmentStatus = {
-                [Op.in]: fundingStatuses
-            };
+            const today = new Date().toISOString().slice(0, 10);
+            const includesCompleted = fundingStatuses.includes('completed');
+            const currentStatuses = fundingStatuses.filter(status => status !== 'completed');
+
+            if (includesCompleted && currentStatuses.length > 0) {
+                farmInvestmentWhere[Op.or] = [
+                    { investmentStatus: 'completed' },
+                    { endDate: { [Op.lte]: today } },
+                    {
+                        investmentStatus: { [Op.in]: currentStatuses },
+                        endDate: { [Op.gt]: today }
+                    }
+                ];
+            } else if (includesCompleted) {
+                farmInvestmentWhere[Op.or] = [
+                    { investmentStatus: 'completed' },
+                    { endDate: { [Op.lte]: today } }
+                ];
+            } else {
+                farmInvestmentWhere.investmentStatus = { [Op.in]: currentStatuses };
+                farmInvestmentWhere.endDate = { [Op.gt]: today };
+            }
         }
+
+        const matchingProjects = await UserFarmInvestment.findAll({
+            where: farmInvestmentWhere,
+            include: [
+                {
+                    model: Investment,
+                    as: 'InvestmentTemplate',
+                    attributes: [],
+                    required: true,
+                    where: templateWhere
+                }
+            ],
+            attributes: ['id', 'userFarmId'],
+            raw: true
+        });
+
+        const matchingFarmIds = [...new Set(matchingProjects.map(project => project.userFarmId))];
+        farmWhere.id = { [Op.in]: matchingFarmIds };
 
         const { count, rows: farms } = await UserFarm.findAndCountAll({
             where: farmWhere,
+            attributes: [
+                'id',
+                'userId',
+                'name',
+                'location',
+                'size',
+                'isActive',
+                'verificationStatus',
+                'createdAt',
+                'updatedAt'
+            ],
             include: [
                 {
                     model: User,
                     as: 'User',
-                    attributes: ['id', 'fullName'],
+                    attributes: ['id', 'fullName', 'bio', 'profileImageUrl'],
                     required: true
                 },
                 {
-                    model: UserFarmInvestment,
-                    as: 'Investment',
+                    model: FarmDocument,
+                    as: 'Documents',
                     attributes: [
                         'id',
+                        'documentType',
+                        'fileName',
+                        'fileUrl',
+                        'fileSize',
+                        'mimeType',
+                        'createdAt',
+                        'updatedAt'
+                    ],
+                    required: false,
+                    separate: true,
+                    order: [['createdAt', 'ASC']]
+                },
+                {
+                    model: UserFarmInvestment,
+                    as: 'InvestmentProjects',
+                    attributes: [
+                        'id',
+                        'userFarmId',
                         'farmCategoryId',
                         'investmentId',
                         'expectedInvestment',
                         'investmentReceived',
+                        'investmentPending',
                         'investmentStatus',
-                        'currency'
+                        'startDate',
+                        'endDate',
+                        'currency',
+                        'notes',
+                        'isActive',
+                        'createdAt',
+                        'updatedAt'
                     ],
-                    where: farmInvestmentWhere,
                     required: true,
+                    separate: true,
+                    order: [['createdAt', 'DESC']],
                     include: [
                         {
                             model: FarmCategory,
                             as: 'Category',
                             attributes: ['id', 'name', 'description'],
-                            required: true,
-                            where: { isActive: true }
+                            required: false
                         },
                         {
                             model: Investment,
@@ -489,50 +694,71 @@ async function getInvestments(req, res) {
                                 'id',
                                 'farmCategoryId',
                                 'name',
-                                'startDate',
-                                'endDate',
+                                'description',
                                 'roiPercentage',
                                 'durationValue',
                                 'durationUnit',
                                 'riskLevel',
+                                'fundingMinGoal',
                                 'fundingMaxGoal',
                                 'investmentMinGoal',
+                                'investmentMaxGoal',
                                 'currency',
-                                'createdAt'
+                                'isActive',
+                                'createdAt',
+                                'updatedAt'
                             ],
-                            required: true,
-                            where: templateWhere
+                            required: false
+                        },
+                        {
+                            model: UserFarmMilestone,
+                            as: 'ProjectMilestones',
+                            attributes: [
+                                'id',
+                                'userFarmInvestmentId',
+                                'milestoneId',
+                                'investmentMilestoneId',
+                                'name',
+                                'fundReleasePercentage',
+                                'order',
+                                'fundingStatus',
+                                'isCompleted',
+                                'completedAt',
+                                'amount',
+                                'createdAt',
+                                'updatedAt'
+                            ],
+                            required: false,
+                            separate: true
+                        },
+                        {
+                            model: InvestmentPayment,
+                            as: 'Payments',
+                            attributes: ['investorId'],
+                            where: { status: { [Op.in]: FUNDED_PAYMENT_STATUSES } },
+                            required: false,
+                            separate: true
                         }
                     ]
-                },
-                {
-                    model: FarmDocument,
-                    as: 'Documents',
-                    attributes: ['id', 'documentType', 'fileName', 'fileUrl', 'mimeType', 'createdAt'],
-                    where: { documentType: 'picture' },
-                    required: false,
-                    separate: true,
-                    limit: 1,
-                    order: [['createdAt', 'ASC']]
                 }
             ],
-            attributes: ['id', 'name', 'location', 'size', 'createdAt', 'updatedAt'],
             distinct: true,
             order: [['createdAt', 'DESC']],
             limit,
             offset
         });
 
-        const investments = farms
-            .map(farm => {
-                const template = farm.Investment?.InvestmentTemplate;
-                return template ? formatInvestmentFarm(req, farm, template) : null;
+        const investments = farms.map(farm =>
+            formatInvestmentFarm(req, farm, {
+                includeMilestones: false,
+                includeInactiveProjects: false
             })
-            .filter(Boolean);
+        );
         const totalPages = Math.ceil(count / limit);
 
         return res.success({
             investments,
+            farms: investments,
             pagination: {
                 page,
                 limit,
@@ -572,34 +798,70 @@ async function getInvestmentById(req, res) {
                     [Op.in]: sequelize.literal("(SELECT user_id FROM kyc WHERE status = 'approved')")
                 }
             },
+            attributes: [
+                'id',
+                'userId',
+                'name',
+                'location',
+                'size',
+                'isActive',
+                'verificationStatus',
+                'createdAt',
+                'updatedAt'
+            ],
             include: [
                 {
                     model: User,
                     as: 'User',
-                    attributes: ['id', 'fullName'],
+                    attributes: ['id', 'fullName', 'bio', 'profileImageUrl'],
                     required: true
                 },
                 {
-                    model: UserFarmInvestment,
-                    as: 'Investment',
+                    model: FarmDocument,
+                    as: 'Documents',
                     attributes: [
                         'id',
+                        'documentType',
+                        'fileName',
+                        'fileUrl',
+                        'fileSize',
+                        'mimeType',
+                        'createdAt',
+                        'updatedAt'
+                    ],
+                    required: false,
+                    separate: true,
+                    order: [['createdAt', 'ASC']]
+                },
+                {
+                    model: UserFarmInvestment,
+                    as: 'InvestmentProjects',
+                    attributes: [
+                        'id',
+                        'userFarmId',
                         'farmCategoryId',
                         'investmentId',
                         'expectedInvestment',
                         'investmentReceived',
+                        'investmentPending',
                         'investmentStatus',
-                        'currency'
+                        'startDate',
+                        'endDate',
+                        'currency',
+                        'notes',
+                        'isActive',
+                        'createdAt',
+                        'updatedAt'
                     ],
-                    where: { isActive: true },
                     required: true,
+                    separate: true,
+                    order: [['createdAt', 'DESC']],
                     include: [
                         {
                             model: FarmCategory,
                             as: 'Category',
                             attributes: ['id', 'name', 'description'],
-                            required: true,
-                            where: { isActive: true }
+                            required: false
                         },
                         {
                             model: Investment,
@@ -608,83 +870,76 @@ async function getInvestmentById(req, res) {
                                 'id',
                                 'farmCategoryId',
                                 'name',
-                                'startDate',
-                                'endDate',
+                                'description',
                                 'roiPercentage',
                                 'durationValue',
                                 'durationUnit',
                                 'riskLevel',
+                                'fundingMinGoal',
                                 'fundingMaxGoal',
                                 'investmentMinGoal',
+                                'investmentMaxGoal',
                                 'currency',
-                                'createdAt'
+                                'isActive',
+                                'createdAt',
+                                'updatedAt'
                             ],
-                            where: { isActive: true },
-                            required: true
-                        }
-                    ]
-                },
-                {
-                    model: FarmDocument,
-                    as: 'Documents',
-                    attributes: ['id', 'documentType', 'fileName', 'fileUrl', 'mimeType', 'createdAt'],
-                    where: { documentType: 'picture' },
-                    required: false,
-                    separate: true,
-                    order: [['createdAt', 'ASC']]
-                },
-                {
-                    model: UserFarmMilestone,
-                    as: 'SelectedMilestones',
-                    attributes: ['id', 'milestoneId', 'investmentMilestoneId', 'isCompleted', 'completedAt', 'amount', 'createdAt', 'updatedAt'],
-                    include: [
-                        {
-                            model: Milestone,
-                            as: 'Milestone',
-                            attributes: ['id', 'name', 'order'],
                             required: false
                         },
                         {
-                            model: InvestmentMilestone,
-                            as: 'InvestmentMilestone',
-                            attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
-                            required: false
+                            model: UserFarmMilestone,
+                            as: 'ProjectMilestones',
+                            attributes: [
+                                'id',
+                                'userFarmInvestmentId',
+                                'milestoneId',
+                                'investmentMilestoneId',
+                                'name',
+                                'fundReleasePercentage',
+                                'order',
+                                'fundingStatus',
+                                'isCompleted',
+                                'completedAt',
+                                'amount',
+                                'createdAt',
+                                'updatedAt'
+                            ],
+                            required: false,
+                            separate: true,
+                            order: [['order', 'ASC'], ['createdAt', 'ASC']]
+                        },
+                        {
+                            model: InvestmentPayment,
+                            as: 'Payments',
+                            attributes: ['investorId'],
+                            where: { status: { [Op.in]: FUNDED_PAYMENT_STATUSES } },
+                            required: false,
+                            separate: true
                         }
-                    ],
-                    required: false,
-                    separate: true
+                    ]
                 }
-            ],
-            attributes: ['id', 'name', 'location', 'size', 'createdAt', 'updatedAt']
+            ]
         });
 
-        if (!farm) {
-            return res.fail('Investment not found', 404);
-        }
-
-        const template = farm.Investment?.InvestmentTemplate;
-
-        if (!template) {
-            return res.fail('Investment template not found for this farm category', 404);
+        if (!farm || !Array.isArray(farm.InvestmentProjects)
+            || farm.InvestmentProjects.length === 0) {
+            return res.fail('Verified investment farm not found', 404);
         }
 
         return res.success(
-            formatInvestmentFarm(req, farm, template, {
-                includeImages: true,
-                includeMilestones: true
-            }),
-            'Investment details retrieved successfully'
+            formatInvestmentFarm(req, farm, { includeMilestones: true }),
+            'Investment farm details retrieved successfully'
         );
     } catch (error) {
-        console.error('Get user investment details error:', error);
-        return res.fail('Failed to retrieve investment details', 500);
+        console.error('Get user investment farm details error:', error);
+        return res.fail('Failed to retrieve investment farm details', 500);
     }
 }
 
 async function investInFarm(req, res) {
     try {
         const investorId = req.user?.id;
-        const { farmId } = req.params;
+        const { investmentProjectId } = req.params;
         const amountValue = firstDefined(req.body?.amount, req.body?.investmentAmount);
         const amountInCents = toMoneyCents(amountValue);
         const requestedCurrency = req.body?.currency
@@ -696,8 +951,8 @@ async function investInFarm(req, res) {
             return res.fail('User not authenticated', 401);
         }
 
-        if (!farmId) {
-            return res.fail('Farm ID is required', 400);
+        if (!investmentProjectId) {
+            return res.fail('Investment project ID is required', 400);
         }
 
         if (amountInCents === null || amountInCents <= 0) {
@@ -734,9 +989,26 @@ async function investInFarm(req, res) {
         }
 
         const result = await sequelize.transaction(async transaction => {
+            const farmInvestment = await UserFarmInvestment.findOne({
+                where: {
+                    id: investmentProjectId,
+                    isActive: true
+                },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!farmInvestment) {
+                throw new InvestmentRequestError('Investment project not found or is not available', 404);
+            }
+
+            if (resolveInvestmentProjectStatus(farmInvestment) === 'completed') {
+                throw new InvestmentRequestError('This investment project has been completed', 409);
+            }
+
             const farm = await UserFarm.findOne({
                 where: {
-                    id: farmId,
+                    id: farmInvestment.userFarmId,
                     isActive: true,
                     verificationStatus: 'approved',
                     userId: {
@@ -754,19 +1026,6 @@ async function investInFarm(req, res) {
 
             if (farm.userId === investorId) {
                 throw new InvestmentRequestError('You cannot invest in your own farm', 403);
-            }
-
-            const farmInvestment = await UserFarmInvestment.findOne({
-                where: {
-                    userFarmId: farm.id,
-                    isActive: true
-                },
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
-
-            if (!farmInvestment) {
-                throw new InvestmentRequestError('This farm is not open for investment', 409);
             }
 
             const investmentTemplate = await Investment.findOne({
@@ -812,7 +1071,10 @@ async function investInFarm(req, res) {
 
                 if (existingPayment) {
                     const existingAmountInCents = toMoneyCents(existingPayment.amount);
-                    if (existingPayment.userFarmId !== farm.id || existingAmountInCents !== amountInCents) {
+                    if (
+                        existingPayment.userFarmInvestmentId !== farmInvestment.id
+                        || existingAmountInCents !== amountInCents
+                    ) {
                         throw new InvestmentRequestError(
                             'This Idempotency-Key has already been used for another investment request',
                             409
@@ -832,7 +1094,7 @@ async function investInFarm(req, res) {
 
             const pendingReservation = await InvestmentPayment.sum('amount', {
                 where: {
-                    userFarmId: farm.id,
+                    userFarmInvestmentId: farmInvestment.id,
                     status: 'pending'
                 },
                 transaction
@@ -915,7 +1177,10 @@ async function investInFarm(req, res) {
 
                 if (!created) {
                     const existingAmountInCents = toMoneyCents(payment.amount);
-                    if (payment.userFarmId !== farm.id || existingAmountInCents !== amountInCents) {
+                    if (
+                        payment.userFarmInvestmentId !== farmInvestment.id
+                        || existingAmountInCents !== amountInCents
+                    ) {
                         throw new InvestmentRequestError(
                             'This Idempotency-Key has already been used for another investment request',
                             409
@@ -956,7 +1221,8 @@ async function investInFarm(req, res) {
                     metadata: {
                         transactionId: result.payment.id,
                         investorId,
-                        farmId,
+                        farmId: result.payment.userFarmId,
+                        investmentProjectId: result.payment.userFarmInvestmentId,
                         investmentTemplateId: result.payment.investmentId,
                         farmName: req.body?.farmName || undefined
                     }
@@ -1019,7 +1285,7 @@ async function investInFarm(req, res) {
             transactionId: result.payment.id,
             payment: formatInvestmentPayment(result.payment),
             investment: formatFundingSummary(
-                farmId,
+                result.payment.userFarmId,
                 result.farmInvestment,
                 result.totalExpectedFunding
             ),

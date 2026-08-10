@@ -34,7 +34,7 @@ async function sendNotificationSafely(user, templateName, shortCodes, channels) 
 
 async function requestOtp(req, res) {
     try {
-        const { phoneNumber } = req.body;
+        const { phoneNumber } = req.body || {};
 
         if (!phoneNumber) {
             return res.fail('Phone number is required', 400);
@@ -81,7 +81,7 @@ async function requestOtp(req, res) {
 
 async function resendOtp(req, res) {
     try {
-        const { phoneNumber } = req.body;
+        const { phoneNumber } = req.body || {};
 
         if (!phoneNumber) {
             return res.fail('Phone number is required', 400);
@@ -136,7 +136,7 @@ async function resendOtp(req, res) {
 
 async function verifyOtp(req, res) {
     try {
-        const { phoneNumber, otp } = req.body;
+        const { phoneNumber, otp } = req.body || {};
 
         if (!phoneNumber || !otp) {
             return res.fail('Phone number and OTP are required', 400);
@@ -226,7 +226,7 @@ async function verifyOtp(req, res) {
 
 async function completeProfile(req, res) {
     try {
-        const { fullName, gender, email } = req.body;
+        const { fullName, gender, email } = req.body || {};
         const phoneNumber = req.user?.phoneNumber;
 
         if (!phoneNumber) {
@@ -265,7 +265,7 @@ async function completeProfile(req, res) {
 
 async function setPassword(req, res) {
     try {
-        const { password, passwordConfirmation, fullName, gender, email } = req.body;
+        const { password, passwordConfirmation, fullName, gender, email } = req.body || {};
         const phoneNumber = req.user?.phoneNumber;
 
         if (!phoneNumber) {
@@ -347,7 +347,7 @@ async function setPassword(req, res) {
 
 async function forgot(req, res) {
     try {
-        const { phoneNumber, email } = req.body;
+        const { phoneNumber, email } = req.body || {};
 
         if (!phoneNumber && !email) {
             return res.fail('Phone number or email is required', 400);
@@ -393,7 +393,7 @@ async function forgot(req, res) {
 
 async function resendResetToken(req, res) {
     try {
-        const { phoneNumber, email } = req.body;
+        const { phoneNumber, email } = req.body || {};
 
         if (!phoneNumber && !email) {
             return res.fail('Phone number or email is required', 400);
@@ -439,7 +439,7 @@ async function resendResetToken(req, res) {
 
 async function verifyResetToken(req, res) {
     try {
-        const { resetToken } = req.body;
+        const { resetToken } = req.body || {};
 
         if (!resetToken) {
             return res.fail('Reset token is required', 400);
@@ -473,7 +473,7 @@ async function verifyResetToken(req, res) {
 
 async function reset(req, res) {
     try {
-        const { resetToken, password, passwordConfirmation } = req.body;
+        const { resetToken, password, passwordConfirmation } = req.body || {};
 
         if (!resetToken || !password || !passwordConfirmation) {
             return res.fail('Reset token, password, and password confirmation are required', 400);
@@ -542,7 +542,7 @@ async function reset(req, res) {
 
 async function signupWithPassword(req, res) {
     try {
-        const { phoneNumber, email, fullName, password, gender } = req.body;
+        const { phoneNumber, email, fullName, password, gender } = req.body || {};
 
         if (!phoneNumber || !password) {
             return res.fail('Phone number and password are required', 400);
@@ -611,7 +611,7 @@ async function signupWithPassword(req, res) {
 
 async function loginWithPassword(req, res) {
     try {
-        const { phoneNumber, email, password } = req.body;
+        const { phoneNumber, email, password } = req.body || {};
 
         if ((!phoneNumber && !email) || !password) {
             return res.fail('Phone number or email and password are required', 400);

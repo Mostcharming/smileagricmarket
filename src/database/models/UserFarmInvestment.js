@@ -66,12 +66,24 @@ module.exports = (sequelize) => {
             field: 'currency',
             comment: 'Currency code (e.g., USD, EUR, NGN)'
         },
-        investmentStatus: {
-            type: DataTypes.ENUM('pending', 'partial', 'completed', 'cancelled'),
+        startDate: {
+            type: DataTypes.DATEONLY,
             allowNull: false,
-            defaultValue: 'pending',
+            field: 'start_date',
+            comment: 'Date this investment project was created'
+        },
+        endDate: {
+            type: DataTypes.DATEONLY,
+            allowNull: false,
+            field: 'end_date',
+            comment: 'Start date plus the selected investment template duration'
+        },
+        investmentStatus: {
+            type: DataTypes.ENUM('not_started', 'funding_started', 'active', 'completed'),
+            allowNull: false,
+            defaultValue: 'not_started',
             field: 'investment_status',
-            comment: 'Current status of investment'
+            comment: 'Current lifecycle status of this investment project'
         },
         notes: {
             type: DataTypes.TEXT,
@@ -93,8 +105,7 @@ module.exports = (sequelize) => {
         indexes: [
             {
                 fields: ['user_farm_id'],
-                unique: true,
-                name: 'user_farm_investments_user_farm_id_unique_idx'
+                name: 'user_farm_investments_user_farm_id_idx'
             },
             {
                 fields: ['farm_category_id']
@@ -104,6 +115,12 @@ module.exports = (sequelize) => {
             },
             {
                 fields: ['investment_status']
+            },
+            {
+                fields: ['start_date']
+            },
+            {
+                fields: ['end_date']
             },
             {
                 fields: ['user_farm_id', 'is_active']

@@ -157,7 +157,7 @@ const router = express.Router();
  *           example: true
  *         status:
  *           type: string
- *           enum: [completed, pending]
+ *           enum: [request_for_funding, processing_funding, completed]
  *         completedAt:
  *           type: string
  *           format: date-time
@@ -223,6 +223,14 @@ const router = express.Router();
  *             profileImageUrl:
  *               type: string
  *               nullable: true
+ *             rating:
+ *               type: object
+ *               properties:
+ *                 average:
+ *                   type: number
+ *                   nullable: true
+ *                 count:
+ *                   type: integer
  *         image:
  *           $ref: '#/components/schemas/PortfolioFarmDocument'
  *           nullable: true
@@ -237,35 +245,40 @@ const router = express.Router();
  *         funding:
  *           type: object
  *           properties:
- *             id:
- *               type: string
- *               format: uuid
- *               nullable: true
- *             expectedInvestment:
+ *             projectCount:
+ *               type: integer
+ *             totalFundingAmount:
  *               type: number
- *             investmentReceived:
+ *             totalFundingGoalAmount:
  *               type: number
- *             investmentPending:
+ *             amountRaised:
  *               type: number
+ *             remainingFunding:
+ *               type: number
+ *             percentRaised:
+ *               type: number
+ *             investorCount:
+ *               type: integer
  *             currency:
  *               type: string
- *             status:
- *               type: string
- *               enum: [pending, partial, completed, cancelled]
- *             notes:
- *               type: string
- *               nullable: true
- *             isActive:
- *               type: boolean
- *               nullable: true
- *             createdAt:
- *               type: string
- *               format: date-time
- *               nullable: true
- *             updatedAt:
- *               type: string
- *               format: date-time
- *               nullable: true
+ *         investmentProjectCount:
+ *           type: integer
+ *         activeInvestmentProjectCount:
+ *           type: integer
+ *         investorCount:
+ *           type: integer
+ *         totalFundingAmount:
+ *           type: number
+ *         amountRaised:
+ *           type: number
+ *         percentRaised:
+ *           type: number
+ *         completionPercentage:
+ *           type: number
+ *         investmentProjects:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/UserInvestmentProject'
  *         milestones:
  *           type: array
  *           items:
@@ -413,7 +426,7 @@ router.get('/', getPortfolio);
  *     tags:
  *       - Web Portfolio
  *     summary: List all farms the authenticated user invested in
- *     description: Returns an unpaginated farm list with farm, owner, category, funding, document, milestone, investment-template, transaction, and user-investment details. Only recorded or successful investment payments are included.
+ *     description: Returns an unpaginated farm list with aggregate farm funding, owner rating state, unique investor count, all farm investment projects and their milestones, plus the authenticated user's transactions and returns. Only recorded or successful investment payments are included.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -467,7 +480,7 @@ router.get('/farms', getPortfolioFarms);
  *     tags:
  *       - Web Portfolio
  *     summary: Get one farm the authenticated user invested in
- *     description: Returns complete details for an invested farm, including all pictures and documents, owner and category information, funding progress, every selected milestone and its completion state, milestone statistics, investment templates, the user's invested amount, expected and earned returns, and all recognized investment transactions.
+ *     description: Returns complete details for an invested farm, including all pictures and documents, owner rating state, aggregate funding, every investment project with its milestones, the authenticated user's project-level investment amounts, expected and earned returns, and all recognized transactions.
  *     security:
  *       - bearerAuth: []
  *     parameters:
