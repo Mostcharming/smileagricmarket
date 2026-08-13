@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const uploadFarmDocuments = require('../../../utils/uploadFarmDocuments');
+const uploadMilestoneFundingEvidence = require('../../../utils/uploadMilestoneFundingEvidence');
 const {
     listUserFarms,
     getFarmById,
@@ -435,7 +436,7 @@ router.delete('/:farmId', deleteFarm);
  *     tags:
  *       - Web Farms
  *     summary: Request funding for an investment project milestone
- *     description: Request funding for one of the milestones already forked from the admin template. No project milestones are removed or replaced. investmentProjectId is required when the farm has multiple projects.
+ *     description: Request funding for one of the milestones already forked from the admin template. At least one image or PDF proving the previous milestone is required before admin review. No project milestones are removed or replaced. investmentProjectId is required when the farm has multiple projects.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -449,7 +450,7 @@ router.delete('/:farmId', deleteFarm);
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
@@ -463,6 +464,20 @@ router.delete('/:farmId', deleteFarm);
  *                 type: string
  *                 format: uuid
  *                 description: Template milestone ID stored in the selected project's forked milestone
+ *               photos:
+ *                 type: array
+ *                 maxItems: 10
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Previous milestone evidence images (JPEG, PNG, or WEBP). The compatibility alias pictures is also accepted.
+ *               files:
+ *                 type: array
+ *                 maxItems: 10
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Previous milestone evidence PDFs. The compatibility alias documents is also accepted. At least one photos or files item is required.
  *     responses:
  *       200:
  *         description: Milestone funding requested successfully
@@ -473,11 +488,15 @@ router.delete('/:farmId', deleteFarm);
  *       404:
  *         description: Farm not found
  *       409:
- *         description: Completed milestones cannot request funding again
+ *         description: Completed milestones cannot request funding again, or the request is already under review
  *       500:
  *         description: Failed to request milestone funding
  */
-router.post('/:farmId/milestones', addMilestonesToFarm);
+router.post(
+    '/:farmId/milestones',
+    uploadMilestoneFundingEvidence,
+    addMilestonesToFarm
+);
 
 /**
  * @swagger

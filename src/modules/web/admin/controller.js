@@ -380,8 +380,39 @@ const {
     UserFarmInvestment,
     UserFarmMilestone,
     FarmDocument,
+    MilestoneFundingEvidence,
     Investment
 } = models;
+
+function buildFundingEvidenceInclude() {
+    return {
+        model: MilestoneFundingEvidence,
+        as: 'FundingEvidence',
+        attributes: [
+            'id',
+            'evidenceType',
+            'fileName',
+            'fileUrl',
+            'fileSize',
+            'mimeType',
+            'createdAt'
+        ],
+        separate: true,
+        order: [['createdAt', 'ASC']]
+    };
+}
+
+function addFundingEvidenceUrls(req, milestone) {
+    if (!milestone?.FundingEvidence) return milestone;
+
+    return {
+        ...milestone,
+        FundingEvidence: milestone.FundingEvidence.map(evidence => ({
+            ...evidence,
+            fileUrl: toBackendApiUrl(req, evidence.fileUrl)
+        }))
+    };
+}
 
 // List all user farms (admin)
 async function listAllUserFarms(req, res) {
@@ -544,12 +575,15 @@ async function getUserFarmDetails(req, res) {
                                 'completedAt',
                                 'amount'
                             ],
-                            include: [{
-                                model: models.InvestmentMilestone,
-                                as: 'InvestmentMilestone',
-                                attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
-                                required: false
-                            }]
+                            include: [
+                                {
+                                    model: models.InvestmentMilestone,
+                                    as: 'InvestmentMilestone',
+                                    attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
+                                    required: false
+                                },
+                                buildFundingEvidenceInclude()
+                            ]
                         }
                     ]
                 },
@@ -581,7 +615,8 @@ async function getUserFarmDetails(req, res) {
                             as: 'InvestmentMilestone',
                             attributes: ['id', 'investmentId', 'name', 'fundReleasePercentage', 'order'],
                             required: false
-                        }
+                        },
+                        buildFundingEvidenceInclude()
                     ]
                 },
                 {
@@ -607,6 +642,15 @@ async function getUserFarmDetails(req, res) {
                 fileUrl: toBackendApiUrl(req, doc.fileUrl)
             }));
         }
+        farmObj.InvestmentProjects = (farmObj.InvestmentProjects || []).map(project => ({
+            ...project,
+            ProjectMilestones: (project.ProjectMilestones || []).map(
+                milestone => addFundingEvidenceUrls(req, milestone)
+            )
+        }));
+        farmObj.SelectedMilestones = (farmObj.SelectedMilestones || []).map(
+            milestone => addFundingEvidenceUrls(req, milestone)
+        );
         // Attach user details (uploader) with additional metrics
         let userDetails = null;
         if (farmObj.User) {
@@ -797,9 +841,21 @@ async function updateUserFarmMilestoneStatus(req, res) {
             );
         }
 
-        const projectMilestone = await models.UserFarmMilestone.findByPk(milestoneId);
+        const projectMilestone = await models.UserFarmMilestone.findByPk(milestoneId, {
+            include: [buildFundingEvidenceInclude()]
+        });
         if (!projectMilestone?.userFarmInvestmentId) {
             return res.fail('Investment project milestone not found', 404);
+        }
+
+        if (
+            ['processing_funding', 'completed'].includes(status)
+            && (projectMilestone.FundingEvidence || []).length === 0
+        ) {
+            return res.fail(
+                'Previous milestone evidence is required before this funding request can be reviewed',
+                409
+            );
         }
 
         await projectMilestone.update({
@@ -816,7 +872,11 @@ async function updateUserFarmMilestoneStatus(req, res) {
             investmentMilestoneId: projectMilestone.investmentMilestoneId,
             status: projectMilestone.fundingStatus,
             isCompleted: projectMilestone.isCompleted,
-            completedAt: projectMilestone.completedAt
+            completedAt: projectMilestone.completedAt,
+            fundingEvidence: (projectMilestone.FundingEvidence || []).map(evidence => ({
+                ...evidence.toJSON(),
+                fileUrl: toBackendApiUrl(req, evidence.fileUrl)
+            }))
         }, 'Project milestone funding status updated successfully');
     } catch (error) {
         console.error('Update project milestone funding status error:', error);

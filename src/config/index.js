@@ -16,7 +16,14 @@ const config = {
         },
         uploads: {
             profileDir: path.resolve(__dirname, '..', '..', 'uploads', 'profiles'),
-            kycDir: path.resolve(__dirname, '..', '..', 'uploads', 'kyc')
+            kycDir: path.resolve(__dirname, '..', '..', 'uploads', 'kyc'),
+            milestoneFundingEvidenceDir: path.resolve(
+                __dirname,
+                '..',
+                '..',
+                'uploads',
+                'milestone-funding-evidence'
+            )
         },
         apiVersion: "v1",
         jwtSecret: "jwt-secret",
@@ -37,7 +44,14 @@ const config = {
         },
         uploads: {
             profileDir: path.resolve(__dirname, '..', '..', 'uploads', 'profiles'),
-            kycDir: path.resolve(__dirname, '..', '..', 'uploads', 'kyc')
+            kycDir: path.resolve(__dirname, '..', '..', 'uploads', 'kyc'),
+            milestoneFundingEvidenceDir: path.resolve(
+                __dirname,
+                '..',
+                '..',
+                'uploads',
+                'milestone-funding-evidence'
+            )
         },
         apiVersion: "v1",
         jwtSecret: "jwt-secret",

@@ -131,6 +131,8 @@ app.use(`/api/${config.apiVersion}/api-docs`,
 );
 
 const farmDocumentsDir = path.resolve(__dirname, '..', 'uploads', 'farm-documents');
+const milestoneFundingEvidenceDir = config?.uploads?.milestoneFundingEvidenceDir
+  || path.resolve(__dirname, '..', 'uploads', 'milestone-funding-evidence');
 
 if (config && config.uploads && config.uploads.profileDir) {
   app.use('/upload/profiles', express.static(config.uploads.profileDir));
@@ -147,6 +149,16 @@ if (config && config.uploads && config.uploads.kycDir) {
 app.use('/upload/farm-documents', express.static(farmDocumentsDir));
 app.use(`/${config.apiVersion}/upload/farm-documents`, express.static(farmDocumentsDir));
 app.use(`/api/${config.apiVersion}/upload/farm-documents`, express.static(farmDocumentsDir));
+
+app.use('/upload/milestone-funding-evidence', express.static(milestoneFundingEvidenceDir));
+app.use(
+  `/${config.apiVersion}/upload/milestone-funding-evidence`,
+  express.static(milestoneFundingEvidenceDir)
+);
+app.use(
+  `/api/${config.apiVersion}/upload/milestone-funding-evidence`,
+  express.static(milestoneFundingEvidenceDir)
+);
 
 app.use(`/${config.apiVersion}/mobile`, mobileRouter);
 app.use(`/${config.apiVersion}/web`, webRouter);

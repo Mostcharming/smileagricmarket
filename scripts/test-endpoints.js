@@ -145,7 +145,9 @@ async function assertPublicFile(name, url) {
     assert.equal(response.status, 200, `${name}: uploaded file URL returned HTTP ${response.status}: ${url}`);
     assert.ok((await response.arrayBuffer()).byteLength > 0, `${name}: uploaded file was empty`);
 
-    const match = new URL(url).pathname.match(/\/upload\/(kyc|profiles|farm-documents)\/([^/]+)$/);
+    const match = new URL(url).pathname.match(
+        /\/upload\/(kyc|profiles|farm-documents|milestone-funding-evidence)\/([^/]+)$/
+    );
     if (match) {
         uploadedFilePaths.add(
             path.resolve(__dirname, '..', 'uploads', match[1], decodeURIComponent(match[2]))
@@ -919,6 +921,67 @@ async function run() {
     );
     assert.notEqual(secondInvestmentProject.body.data.id, investmentProjectId);
     await httpCheck(
+        'admin rejects milestone review without prior milestone evidence',
+        'PUT',
+        '/web/admin/user-farm-milestones/{milestoneId}/status',
+        {
+            actualPath: `/web/admin/user-farm-milestones/${firstForkedMilestone.selectionId}/status`,
+            headers: bearer(adminToken),
+            body: { status: 'processing_funding' },
+            expectedStatus: 409,
+            expectError: true,
+            cover: false
+        }
+    );
+    await httpCheck(
+        'web rejects milestone funding request without evidence',
+        'POST',
+        '/web/farms/{farmId}/milestones',
+        {
+            actualPath: `/web/farms/${farmId}/milestones`,
+            headers: bearer(webUsers.primary.token),
+            body: {
+                investmentProjectId,
+                selectedMilestoneId: investmentMilestoneId
+            },
+            expectedStatus: 400,
+            expectError: true,
+            cover: false
+        }
+    );
+    const firstFundingRequest = await httpCheck(
+        'web requests milestone funding with prior milestone evidence',
+        'POST',
+        '/web/farms/{farmId}/milestones',
+        {
+            actualPath: `/web/farms/${farmId}/milestones`,
+            headers: bearer(webUsers.primary.token),
+            body: multipart(
+                {
+                    investmentProjectId,
+                    selectedMilestoneId: investmentMilestoneId
+                },
+                [{
+                    field: 'photos',
+                    bytes: pngBytes,
+                    type: 'image/png',
+                    name: `${runId}-milestone-evidence.png`
+                }]
+            )
+        }
+    );
+    const requestedProject = firstFundingRequest.body.data.investmentProjects.find(
+        project => project.id === investmentProjectId
+    );
+    const requestedMilestone = requestedProject.milestones.find(
+        milestone => milestone.selectionId === firstForkedMilestone.selectionId
+    );
+    assert.equal(requestedMilestone.fundingEvidence.length, 1);
+    await assertPublicFile(
+        'milestone evidence is publicly accessible',
+        requestedMilestone.fundingEvidence[0].fileUrl
+    );
+    await httpCheck(
         'admin mark project milestone funding as processing',
         'PUT',
         '/web/admin/user-farm-milestones/{milestoneId}/status',
@@ -992,14 +1055,33 @@ async function run() {
         headers: bearer(webUsers.primary.token),
         body: { location: 'Ibadan', size: 14 }
     });
-    await httpCheck('web add farm milestones', 'POST', '/web/farms/{farmId}/milestones', {
+    const secondFundingRequest = await httpCheck('web request next milestone funding with PDF evidence', 'POST', '/web/farms/{farmId}/milestones', {
         actualPath: `/web/farms/${farmId}/milestones`,
         headers: bearer(webUsers.primary.token),
-        body: {
-            investmentProjectId,
-            selectedMilestoneId: secondInvestmentMilestoneId
-        }
+        body: multipart(
+            {
+                investmentProjectId,
+                selectedMilestoneId: secondInvestmentMilestoneId
+            },
+            [{
+                field: 'files',
+                bytes: pdfBytes,
+                type: 'application/pdf',
+                name: `${runId}-milestone-evidence.pdf`
+            }]
+        )
     });
+    const secondRequestedProject = secondFundingRequest.body.data.investmentProjects.find(
+        project => project.id === investmentProjectId
+    );
+    const secondRequestedMilestone = secondRequestedProject.milestones.find(
+        milestone => milestone.id === secondInvestmentMilestoneId
+    );
+    assert.equal(secondRequestedMilestone.fundingEvidence.length, 1);
+    await assertPublicFile(
+        'milestone evidence PDF is publicly accessible',
+        secondRequestedMilestone.fundingEvidence[0].fileUrl
+    );
     await httpCheck('web remove farm milestone', 'DELETE', '/web/farms/{farmId}/milestones/{milestoneId}', {
         actualPath: `/web/farms/${farmId}/milestones/${secondInvestmentMilestoneId}?investmentProjectId=${investmentProjectId}`,
         headers: bearer(webUsers.primary.token),
@@ -1030,10 +1112,20 @@ async function run() {
         actualPath: `/web/admin/user-farms?search=${encodeURIComponent(runId)}&farmCategoryId=${categoryId}&page=1&limit=20`,
         headers: bearer(adminToken)
     });
-    await httpCheck('admin get user farm', 'GET', '/web/admin/user-farms/{farmId}', {
+    const adminFarmDetails = await httpCheck('admin get user farm', 'GET', '/web/admin/user-farms/{farmId}', {
         actualPath: `/web/admin/user-farms/${farmId}`,
         headers: bearer(adminToken)
     });
+    const adminProject = adminFarmDetails.body.data.InvestmentProjects.find(
+        project => project.id === investmentProjectId
+    );
+    assert.ok(
+        adminProject.ProjectMilestones.some(
+            milestone => Array.isArray(milestone.FundingEvidence)
+                && milestone.FundingEvidence.length > 0
+        ),
+        'Admin farm details did not include milestone funding evidence'
+    );
     await httpCheck('admin reject user farm', 'POST', '/web/admin/user-farms/reject', {
         headers: bearer(adminToken),
         body: { farmId, note: 'Endpoint test review' }

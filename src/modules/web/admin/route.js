@@ -165,7 +165,7 @@ router.get('/user-farms', verifyAdminToken, listAllUserFarms);
  *     tags:
  *       - Web Admin
  *     summary: Get user farm details (admin)
- *     description: Retrieve all details of a single user farm, including investment, milestones, and documents.
+ *     description: Retrieve all details of a single user farm, including investment projects, milestones, farm documents, and the photo/PDF evidence submitted with milestone funding requests.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -216,6 +216,27 @@ router.get('/user-farms', verifyAdminToken, listAllUserFarms);
  *                             nullable: true
  *                           amount:
  *                             type: number
+ *                           FundingEvidence:
+ *                             type: array
+ *                             description: Prior milestone evidence submitted with the funding request
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                   format: uuid
+ *                                 evidenceType:
+ *                                   type: string
+ *                                   enum: [photo, file]
+ *                                 fileName:
+ *                                   type: string
+ *                                 fileUrl:
+ *                                   type: string
+ *                                   format: uri
+ *                                 fileSize:
+ *                                   type: integer
+ *                                 mimeType:
+ *                                   type: string
  *                           Milestone:
  *                             type: object
  *                             properties:
@@ -867,6 +888,8 @@ router.post('/kyc/reject', verifyAdminToken, rejectKYC);
  *         description: Admin authentication required
  *       404:
  *         description: Investment project milestone not found
+ *       409:
+ *         description: Previous milestone evidence is required before review or completion
  *       500:
  *         description: Failed to update project milestone funding status
  */

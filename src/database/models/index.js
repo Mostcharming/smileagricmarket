@@ -16,6 +16,7 @@ module.exports = (sequelize) => {
         UserFarmMilestone: require('./UserFarmMilestone')(sequelize),
         UserFarmInvestment: require('./UserFarmInvestment')(sequelize),
         FarmDocument: require('./FarmDocument')(sequelize),
+        MilestoneFundingEvidence: require('./MilestoneFundingEvidence')(sequelize),
         Investment: require('./Investment')(sequelize),
         InvestmentMilestone: require('./InvestmentMilestone')(sequelize),
         InvestmentPayment: require('./InvestmentPayment')(sequelize),
@@ -209,6 +210,18 @@ module.exports = (sequelize) => {
     models.UserFarmMilestone.belongsTo(models.UserFarmInvestment, {
         foreignKey: 'userFarmInvestmentId',
         as: 'InvestmentProject'
+    });
+
+    // Evidence supplied by a farm owner when requesting milestone funding
+    models.UserFarmMilestone.hasMany(models.MilestoneFundingEvidence, {
+        foreignKey: 'userFarmMilestoneId',
+        as: 'FundingEvidence',
+        onDelete: 'CASCADE'
+    });
+
+    models.MilestoneFundingEvidence.belongsTo(models.UserFarmMilestone, {
+        foreignKey: 'userFarmMilestoneId',
+        as: 'Milestone'
     });
 
     // Payments made by users into investable farms
