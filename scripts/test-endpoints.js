@@ -561,13 +561,23 @@ async function run() {
         isActive: true
     });
 
-    await httpCheck('public beta signup', 'POST', '/web/beta-signups', {
+    await httpCheck('public beta signup requires user type', 'POST', '/web/beta-signups', {
         body: {
             email: betaSignupEmail,
             firstName: `Beta ${runId}`
         },
+        expectedStatus: 400
+    });
+
+    const betaSignup = await httpCheck('public beta signup', 'POST', '/web/beta-signups', {
+        body: {
+            email: betaSignupEmail,
+            firstName: `Beta ${runId}`,
+            type: 'investor'
+        },
         expectedStatus: 201
     });
+    assert.equal(betaSignup.body.data.type, 'investor');
 
     await httpCheck('marketing admin rejected by regular admin login', 'POST', '/web/admin/login', {
         body: {
@@ -618,6 +628,10 @@ async function run() {
         betaSignups.body.data.signups.some(signup => signup.email === betaSignupEmail),
         'Created beta signup was missing from the marketing admin list'
     );
+    assert.equal(
+        betaSignups.body.data.signups.find(signup => signup.email === betaSignupEmail)?.type,
+        'investor'
+    );
 
     const betaExport = await httpCheck(
         'marketing admin downloads all beta signups',
@@ -629,6 +643,7 @@ async function run() {
         }
     );
     assert.match(betaExport.body, new RegExp(betaSignupEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(betaExport.body, /user_type/);
     assert.match(betaExport.headers.get('content-disposition') || '', /attachment; filename="beta-signups-\d{4}-\d{2}-\d{2}\.csv"/);
 
     const webUsers = await exerciseAuthSurface('/web', 1);

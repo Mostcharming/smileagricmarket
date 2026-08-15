@@ -22,6 +22,7 @@ const router = express.Router();
  *             type: object
  *             required:
  *               - email
+ *               - type
  *             properties:
  *               email:
  *                 type: string
@@ -31,13 +32,17 @@ const router = express.Router();
  *                 type: string
  *                 maxLength: 100
  *                 example: Ada
+ *               type:
+ *                 type: string
+ *                 enum: [investor, farm_owner]
+ *                 example: investor
  *     responses:
  *       201:
  *         description: Beta signup created
  *       200:
  *         description: Email was already registered
  *       400:
- *         description: Invalid email address
+ *         description: Invalid email address or user type
  *       429:
  *         description: Too many signup attempts
  */

@@ -31,13 +31,19 @@ function buildSignupWhere(query) {
     }
 
     const pattern = `%${escapeLikePattern(query)}%`;
+    const normalizedUserType = query.toLowerCase().replace(/[\s-]+/g, '_');
+    const searchableFields = [
+        { email: { [Op.iLike]: pattern } },
+        { firstName: { [Op.iLike]: pattern } },
+        { source: { [Op.iLike]: pattern } }
+    ];
+
+    if (['investor', 'farm_owner'].includes(normalizedUserType)) {
+        searchableFields.push({ userType: normalizedUserType });
+    }
 
     return {
-        [Op.or]: [
-            { email: { [Op.iLike]: pattern } },
-            { firstName: { [Op.iLike]: pattern } },
-            { source: { [Op.iLike]: pattern } }
-        ]
+        [Op.or]: searchableFields
     };
 }
 
@@ -60,6 +66,7 @@ function formatSignup(signup) {
         id: signup.id,
         email: signup.email,
         firstName: signup.firstName,
+        type: signup.userType,
         source: signup.source,
         confirmationEmailSentAt: signup.confirmationEmailSentAt,
         createdAt: signup.createdAt
@@ -85,6 +92,7 @@ function toCsv(signups) {
     const header = [
         'email',
         'first_name',
+        'user_type',
         'source',
         'confirmation_email_sent_at',
         'created_at'
@@ -93,6 +101,7 @@ function toCsv(signups) {
     const rows = signups.map(signup => [
         signup.email,
         signup.firstName,
+        signup.userType,
         signup.source,
         signup.confirmationEmailSentAt,
         signup.createdAt
@@ -176,6 +185,7 @@ async function listBetaSignups(req, res) {
                 'id',
                 'email',
                 'firstName',
+                'userType',
                 'source',
                 'confirmationEmailSentAt',
                 'createdAt'
@@ -219,6 +229,7 @@ async function downloadBetaSignups(req, res) {
             attributes: [
                 'email',
                 'firstName',
+                'userType',
                 'source',
                 'confirmationEmailSentAt',
                 'createdAt'

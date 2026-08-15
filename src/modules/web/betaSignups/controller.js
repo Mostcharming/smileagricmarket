@@ -22,6 +22,22 @@ function normalizeFirstName(firstName) {
     return normalized ? normalized.slice(0, 100) : null;
 }
 
+function normalizeUserType(userType) {
+    if (typeof userType !== 'string') {
+        return null;
+    }
+
+    const normalized = userType.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const aliases = {
+        investor: 'investor',
+        investors: 'investor',
+        farm_owner: 'farm_owner',
+        farm_owners: 'farm_owner'
+    };
+
+    return aliases[normalized] || null;
+}
+
 async function sendConfirmationEmail(signup) {
     try {
         const notificationResult = await notify(
@@ -56,9 +72,16 @@ async function createBetaSignup(req, res) {
     const firstName = normalizeFirstName(
         req.body?.firstName || req.body?.first_name || req.body?.name
     );
+    const userType = normalizeUserType(
+        req.body?.type || req.body?.userType || req.body?.user_type
+    );
 
     if (!validateEmail(email)) {
         return res.fail('A valid email address is required', 400);
+    }
+
+    if (!userType) {
+        return res.fail('Type must be either investor or farm_owner', 400);
     }
 
     try {
@@ -67,11 +90,16 @@ async function createBetaSignup(req, res) {
             defaults: {
                 email,
                 firstName,
+                userType,
                 source: 'landing_page'
             }
         });
 
         if (!created) {
+            if (!signup.userType) {
+                await signup.update({ userType });
+            }
+
             if (!signup.confirmationEmailSentAt) {
                 await sendConfirmationEmail(signup);
             }
@@ -79,6 +107,7 @@ async function createBetaSignup(req, res) {
             return res.success(
                 {
                     email: signup.email,
+                    type: signup.userType,
                     alreadyRegistered: true
                 },
                 'This email is already registered for the AgriMarket beta'
@@ -90,6 +119,7 @@ async function createBetaSignup(req, res) {
         return res.success(
             {
                 email: signup.email,
+                type: signup.userType,
                 alreadyRegistered: false
             },
             'You have successfully joined the AgriMarket beta',
@@ -100,6 +130,7 @@ async function createBetaSignup(req, res) {
             return res.success(
                 {
                     email,
+                    type: userType,
                     alreadyRegistered: true
                 },
                 'This email is already registered for the AgriMarket beta'

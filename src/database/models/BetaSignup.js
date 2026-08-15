@@ -25,6 +25,14 @@ module.exports = (sequelize) => {
             allowNull: true,
             field: 'first_name'
         },
+        userType: {
+            type: DataTypes.ENUM('investor', 'farm_owner'),
+            allowNull: false,
+            field: 'user_type',
+            validate: {
+                isIn: [['investor', 'farm_owner']]
+            }
+        },
         source: {
             type: DataTypes.STRING(50),
             allowNull: false,

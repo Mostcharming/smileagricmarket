@@ -164,6 +164,12 @@ const options = {
                             type: 'string',
                             nullable: true,
                         },
+                        type: {
+                            type: 'string',
+                            enum: ['investor', 'farm_owner'],
+                            nullable: true,
+                            description: 'Null only for legacy signups created before user type was collected',
+                        },
                         source: {
                             type: 'string',
                             example: 'landing_page',
