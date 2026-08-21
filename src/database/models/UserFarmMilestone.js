@@ -76,6 +76,33 @@ module.exports = (sequelize) => {
             field: 'funding_status',
             comment: 'Funding workflow status for this project milestone'
         },
+        reviewStatus: {
+            type: DataTypes.ENUM(
+                'pending',
+                'approved',
+                'rejected',
+                'more_evidence_required'
+            ),
+            allowNull: false,
+            defaultValue: 'pending',
+            field: 'review_status',
+            comment: 'Current admin decision for the milestone funding request'
+        },
+        fundingRequestedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'funding_requested_at'
+        },
+        reviewedBy: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: 'reviewed_by'
+        },
+        reviewedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'reviewed_at'
+        },
         isCompleted: {
             type: DataTypes.BOOLEAN,
             allowNull: false,
@@ -126,6 +153,15 @@ module.exports = (sequelize) => {
             },
             {
                 fields: ['funding_status']
+            },
+            {
+                fields: ['review_status']
+            },
+            {
+                fields: ['funding_requested_at']
+            },
+            {
+                fields: ['reviewed_at']
             }
         ],
         validate: {
@@ -151,6 +187,13 @@ module.exports = (sequelize) => {
 
                 if ((this.fundingStatus === 'completed') !== !!this.isCompleted) {
                     throw new Error('Completed milestone status must match isCompleted');
+                }
+
+                if (
+                    (this.reviewStatus === 'approved')
+                    !== (this.fundingStatus === 'completed')
+                ) {
+                    throw new Error('Approved review status must match completed funding status');
                 }
             }
         }

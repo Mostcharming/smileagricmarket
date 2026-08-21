@@ -22,6 +22,7 @@ const {
     UserFarmMilestone,
     FarmDocument,
     MilestoneFundingEvidence,
+    MilestoneReviewAudit,
     Investment,
     InvestmentMilestone,
     InvestmentPayment
@@ -134,6 +135,9 @@ function getSelectedMilestoneInclude(attributes = [
     'fundReleasePercentage',
     'order',
     'fundingStatus',
+    'reviewStatus',
+    'fundingRequestedAt',
+    'reviewedAt',
     'isCompleted',
     'completedAt',
     'amount'
@@ -166,6 +170,9 @@ function getProjectMilestoneInclude(attributes = [
     'fundReleasePercentage',
     'order',
     'fundingStatus',
+    'reviewStatus',
+    'fundingRequestedAt',
+    'reviewedAt',
     'isCompleted',
     'completedAt',
     'amount'
@@ -1033,7 +1040,12 @@ async function addMilestonesToFarm(req, res) {
             return failFundingRequest('This milestone funding request is already under review', 409);
         }
 
+        if (projectMilestone.reviewStatus === 'rejected') {
+            return failFundingRequest('Rejected milestones cannot be resubmitted', 409);
+        }
+
         await sequelize.transaction(async transaction => {
+            const previousReviewStatus = projectMilestone.reviewStatus;
             await MilestoneFundingEvidence.bulkCreate(fundingEvidence.map(evidence => ({
                 userFarmMilestoneId: projectMilestone.id,
                 evidenceType: evidence.evidenceType,
@@ -1045,9 +1057,25 @@ async function addMilestonesToFarm(req, res) {
 
             await projectMilestone.update({
                 fundingStatus: 'request_for_funding',
+                reviewStatus: 'pending',
+                fundingRequestedAt: new Date(),
+                reviewedBy: null,
+                reviewedAt: null,
                 isCompleted: false,
                 completedAt: null
             }, { transaction });
+
+            if (previousReviewStatus === 'more_evidence_required') {
+                await MilestoneReviewAudit.create({
+                    userFarmMilestoneId: projectMilestone.id,
+                    adminId: null,
+                    action: 'evidence_resubmitted',
+                    fromReviewStatus: previousReviewStatus,
+                    toReviewStatus: 'pending',
+                    internalNotes: null,
+                    checklistSnapshot: []
+                }, { transaction });
+            }
         });
         evidencePersisted = true;
 

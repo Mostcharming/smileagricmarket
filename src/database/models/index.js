@@ -17,6 +17,8 @@ module.exports = (sequelize) => {
         UserFarmInvestment: require('./UserFarmInvestment')(sequelize),
         FarmDocument: require('./FarmDocument')(sequelize),
         MilestoneFundingEvidence: require('./MilestoneFundingEvidence')(sequelize),
+        MilestoneVerificationChecklist: require('./MilestoneVerificationChecklist')(sequelize),
+        MilestoneReviewAudit: require('./MilestoneReviewAudit')(sequelize),
         Investment: require('./Investment')(sequelize),
         InvestmentMilestone: require('./InvestmentMilestone')(sequelize),
         InvestmentPayment: require('./InvestmentPayment')(sequelize),
@@ -210,6 +212,61 @@ module.exports = (sequelize) => {
     models.UserFarmMilestone.belongsTo(models.UserFarmInvestment, {
         foreignKey: 'userFarmInvestmentId',
         as: 'InvestmentProject'
+    });
+
+    models.Admin.hasMany(models.UserFarmMilestone, {
+        foreignKey: 'reviewedBy',
+        as: 'ReviewedFarmMilestones',
+        onDelete: 'SET NULL'
+    });
+
+    models.UserFarmMilestone.belongsTo(models.Admin, {
+        foreignKey: 'reviewedBy',
+        as: 'Reviewer'
+    });
+
+    models.UserFarmMilestone.hasMany(models.MilestoneVerificationChecklist, {
+        foreignKey: 'userFarmMilestoneId',
+        as: 'VerificationChecklist',
+        onDelete: 'CASCADE'
+    });
+
+    models.MilestoneVerificationChecklist.belongsTo(models.UserFarmMilestone, {
+        foreignKey: 'userFarmMilestoneId',
+        as: 'Milestone'
+    });
+
+    models.Admin.hasMany(models.MilestoneVerificationChecklist, {
+        foreignKey: 'reviewedBy',
+        as: 'MilestoneChecklistReviews',
+        onDelete: 'SET NULL'
+    });
+
+    models.MilestoneVerificationChecklist.belongsTo(models.Admin, {
+        foreignKey: 'reviewedBy',
+        as: 'Reviewer'
+    });
+
+    models.UserFarmMilestone.hasMany(models.MilestoneReviewAudit, {
+        foreignKey: 'userFarmMilestoneId',
+        as: 'ReviewAuditTrail',
+        onDelete: 'CASCADE'
+    });
+
+    models.MilestoneReviewAudit.belongsTo(models.UserFarmMilestone, {
+        foreignKey: 'userFarmMilestoneId',
+        as: 'Milestone'
+    });
+
+    models.Admin.hasMany(models.MilestoneReviewAudit, {
+        foreignKey: 'adminId',
+        as: 'MilestoneReviewActions',
+        onDelete: 'SET NULL'
+    });
+
+    models.MilestoneReviewAudit.belongsTo(models.Admin, {
+        foreignKey: 'adminId',
+        as: 'Admin'
     });
 
     // Evidence supplied by a farm owner when requesting milestone funding

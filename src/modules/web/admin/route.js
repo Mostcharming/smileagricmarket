@@ -19,6 +19,7 @@ const {
 // Import farmCategoryRouter
 const farmCategoryRouter = require('./farmCategoryRoute');
 const investmentRouter = require('./investmentRoute');
+const userInvestmentRouter = require('./userInvestmentRoute');
 
 /**
  * Middleware to verify admin token
@@ -856,7 +857,7 @@ router.post('/kyc/reject', verifyAdminToken, rejectKYC);
  *     tags:
  *       - Web Admin
  *     summary: Update an investment project milestone funding status
- *     description: Move a forked user-project milestone through request_for_funding, processing_funding, or completed.
+ *     description: Legacy funding-status route. Moving to completed delegates to the audited approval workflow and requires evidence plus a fully verified checklist.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -889,7 +890,7 @@ router.post('/kyc/reject', verifyAdminToken, rejectKYC);
  *       404:
  *         description: Investment project milestone not found
  *       409:
- *         description: Previous milestone evidence is required before review or completion
+ *         description: Previous milestone evidence and a verified checklist are required before completion
  *       500:
  *         description: Failed to update project milestone funding status
  */
@@ -902,5 +903,6 @@ router.put(
 // Mount farm category routes
 router.use('/', farmCategoryRouter);
 router.use('/', investmentRouter);
+router.use('/', userInvestmentRouter);
 
 module.exports = router;

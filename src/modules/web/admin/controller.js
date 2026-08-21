@@ -7,6 +7,7 @@ const { signToken } = require('../../../middlewares/common/security');
 const { Op } = require('sequelize');
 const notify = require('../../../utils/notify');
 const { toBackendApiUrl } = require('../../../utils/url');
+const { reviewUserInvestmentMilestone } = require('./userInvestmentController');
 
 const models = defineModels(sequelize);
 const { Admin, User, KYC } = models;
@@ -841,11 +842,25 @@ async function updateUserFarmMilestoneStatus(req, res) {
             );
         }
 
+        // Keep the legacy status route compatible while ensuring that a release
+        // cannot bypass checklist validation or the milestone audit trail.
+        if (status === 'completed') {
+            req.body = { ...req.body, action: 'approve' };
+            return reviewUserInvestmentMilestone(req, res);
+        }
+
         const projectMilestone = await models.UserFarmMilestone.findByPk(milestoneId, {
             include: [buildFundingEvidenceInclude()]
         });
         if (!projectMilestone?.userFarmInvestmentId) {
             return res.fail('Investment project milestone not found', 404);
+        }
+
+        if (['approved', 'rejected'].includes(projectMilestone.reviewStatus)) {
+            return res.fail(
+                `A ${projectMilestone.reviewStatus} milestone cannot return to funding review`,
+                409
+            );
         }
 
         if (
