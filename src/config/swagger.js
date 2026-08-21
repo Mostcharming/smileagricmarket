@@ -741,6 +741,7 @@ const options = {
         './src/modules/web/admin/route.js',
         './src/modules/web/admin/farmCategoryRoute.js',
         './src/modules/web/admin/investmentRoute.js',
+        './src/modules/web/admin/userInvestmentRoute.js',
         './src/modules/web/marketingAdmin/route.js',
     ],
 };
