@@ -299,7 +299,11 @@ function formatMilestoneAssignments(assignments = [], req) {
                 ? null
                 : Number(selectedAssignment.amount),
             fundingStatus: selectedAssignment.fundingStatus
-                || (selectedAssignment.isCompleted ? 'completed' : 'request_for_funding'),
+                || (selectedAssignment.isCompleted ? 'completed' : 'not_requested'),
+            status: selectedAssignment.fundingStatus
+                || (selectedAssignment.isCompleted ? 'completed' : 'not_requested'),
+            reviewStatus: selectedAssignment.reviewStatus || null,
+            fundingRequestedAt: selectedAssignment.fundingRequestedAt || null,
             isCompleted: !!selectedAssignment.isCompleted,
             completedAt: selectedAssignment.completedAt || null,
             fundingEvidence: (selectedAssignment.FundingEvidence || []).map(evidence => ({
@@ -341,6 +345,9 @@ function formatInvestmentProject(investmentProject, req) {
         completionPercentage: Number(Math.min(completedPercentage, 100).toFixed(2)),
         milestoneStats: {
             total: milestones.length,
+            notRequested: milestones.filter(
+                milestone => milestone.fundingStatus === 'not_requested'
+            ).length,
             requestForFunding: milestones.filter(
                 milestone => milestone.fundingStatus === 'request_for_funding'
             ).length,
@@ -357,7 +364,7 @@ function formatInvestmentProject(investmentProject, req) {
     };
 }
 
-function addFarmResponseAliases(farm, req) {
+function addFarmResponseAliases(farm, req, selectedMilestoneId) {
     const farmObj = farm?.toJSON ? farm.toJSON() : farm;
     if (!farmObj) return farmObj;
 
@@ -402,7 +409,8 @@ function addFarmResponseAliases(farm, req) {
             ? Number((weightedCompletion / totalFundingGoalAmount).toFixed(2))
             : 0,
         investorCount: new Set(farmInvestorIds).size,
-        selectedMilestone: formattedMilestones[0]
+        selectedMilestone: formattedMilestones.find(milestone => milestone.selectionId === selectedMilestoneId)
+            || formattedMilestones[0]
             || investmentProjects[0]?.milestones?.[0]
             || null,
         photos: documents.filter(document => document.documentType === 'picture'),
@@ -803,7 +811,7 @@ async function createInvestmentProject(req, res) {
                 name: milestone.name,
                 fundReleasePercentage: milestone.fundReleasePercentage,
                 order: milestone.order,
-                fundingStatus: 'request_for_funding',
+                fundingStatus: 'not_requested',
                 amount: calculatePercentageAmount(
                     parsedFundingGoal,
                     milestone.fundReleasePercentage
@@ -1087,7 +1095,7 @@ async function addMilestonesToFarm(req, res) {
         });
 
         return res.success(
-            addFarmResponseAliases(updatedFarm, req),
+            addFarmResponseAliases(updatedFarm, req, projectMilestone.id),
             'Milestone funding requested successfully'
         );
     } catch (error) {

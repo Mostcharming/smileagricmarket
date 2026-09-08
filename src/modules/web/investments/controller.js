@@ -247,7 +247,7 @@ function formatFarmImage(req, document) {
 
 function getMilestoneStatus(milestone) {
     if (milestone.fundingStatus) return milestone.fundingStatus;
-    return milestone.isCompleted ? 'completed' : 'request_for_funding';
+    return milestone.isCompleted ? 'completed' : 'not_requested';
 }
 
 function formatFarmMilestones(milestones = []) {

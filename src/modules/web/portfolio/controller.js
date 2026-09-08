@@ -533,7 +533,7 @@ function formatMilestone(milestone) {
         amount: toNumber(milestone.amount),
         isCompleted: !!milestone.isCompleted,
         status: milestone.fundingStatus
-            || (milestone.isCompleted ? 'completed' : 'request_for_funding'),
+            || (milestone.isCompleted ? 'completed' : 'not_requested'),
         completedAt: milestone.completedAt,
         createdAt: milestone.createdAt,
         updatedAt: milestone.updatedAt

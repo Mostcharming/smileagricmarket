@@ -157,7 +157,7 @@ const router = express.Router();
  *           example: true
  *         status:
  *           type: string
- *           enum: [request_for_funding, processing_funding, completed]
+ *           enum: [not_requested, request_for_funding, processing_funding, completed]
  *         completedAt:
  *           type: string
  *           format: date-time

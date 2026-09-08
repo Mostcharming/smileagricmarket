@@ -52,8 +52,11 @@ const {
  *             schema:
  *               type: object
  *               properties:
- *                 success:
+ *                 error:
  *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
  *                 data:
  *                   type: object
  *                   properties:
@@ -168,8 +171,11 @@ router.get('/', listUserFarms);
  *             schema:
  *               type: object
  *               properties:
- *                 success:
+ *                 error:
  *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
  *                 data:
  *                   type: object
  *                   properties:
@@ -215,7 +221,7 @@ router.get('/', listUserFarms);
  *                                   type: number
  *                                 fundingStatus:
  *                                   type: string
- *                                   enum: [request_for_funding, processing_funding, completed]
+ *                                   enum: [not_requested, request_for_funding, processing_funding, completed]
  *                     totalFundingGoalAmount:
  *                       type: number
  *                     totalFundsRaised:
@@ -436,7 +442,7 @@ router.delete('/:farmId', deleteFarm);
  *     tags:
  *       - Web Farms
  *     summary: Request funding for an investment project milestone
- *     description: Request funding for one of the milestones already forked from the admin template. At least one image or PDF proving the previous milestone is required before admin review. No project milestones are removed or replaced. investmentProjectId is required when the farm has multiple projects.
+ *     description: Request funding for one of the milestones already forked from the admin template. Only the selected project milestone changes from not_requested to request_for_funding with reviewStatus pending and fundingRequestedAt set. Other milestones retain their own statuses. The response selectedMilestone identifies the submitted milestone. At least one image or PDF proving the previous milestone is required before admin review. investmentProjectId is required when the farm has multiple projects.
  *     security:
  *       - bearerAuth: []
  *     parameters:

@@ -587,7 +587,7 @@ router.get('/', getInvestments);
  *                             example: true
  *                           status:
  *                             type: string
- *                             enum: [request_for_funding, processing_funding, completed]
+ *                             enum: [not_requested, request_for_funding, processing_funding, completed]
  *                             example: completed
  *                           completedAt:
  *                             type: string

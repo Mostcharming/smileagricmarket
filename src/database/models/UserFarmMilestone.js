@@ -67,12 +67,13 @@ module.exports = (sequelize) => {
         },
         fundingStatus: {
             type: DataTypes.ENUM(
+                'not_requested',
                 'request_for_funding',
                 'processing_funding',
                 'completed'
             ),
             allowNull: false,
-            defaultValue: 'request_for_funding',
+            defaultValue: 'not_requested',
             field: 'funding_status',
             comment: 'Funding workflow status for this project milestone'
         },

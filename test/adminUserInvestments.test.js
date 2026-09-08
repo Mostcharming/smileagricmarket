@@ -11,6 +11,8 @@ test('registers milestone review, checklist, audit, and reviewer associations', 
     const models = require('../src/database/models')(sequelize);
     const milestoneAttributes = models.UserFarmMilestone.getAttributes();
 
+    assert.equal(milestoneAttributes.fundingStatus.defaultValue, 'not_requested');
+    assert.ok(milestoneAttributes.fundingStatus.values.includes('not_requested'));
     assert.equal(milestoneAttributes.reviewStatus.field, 'review_status');
     assert.equal(milestoneAttributes.reviewStatus.defaultValue, 'pending');
     assert.equal(milestoneAttributes.fundingRequestedAt.field, 'funding_requested_at');

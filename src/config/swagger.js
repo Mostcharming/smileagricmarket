@@ -1,4 +1,5 @@
 const swaggerJsdoc = require('swagger-jsdoc');
+const { addSwaggerExamples } = require('./swaggerExamples');
 
 const options = {
     definition: {
@@ -317,12 +318,14 @@ const options = {
                     properties: {
                         error: {
                             type: 'boolean',
+                            example: true,
                         },
                         message: {
                             type: 'string',
                         },
                         data: {
                             type: 'object',
+                            nullable: true,
                         },
                     },
                 },
@@ -331,6 +334,7 @@ const options = {
                     properties: {
                         error: {
                             type: 'boolean',
+                            example: false,
                         },
                         message: {
                             type: 'string',
@@ -486,7 +490,7 @@ const options = {
                         allocatedAmount: { type: 'number' },
                         status: {
                             type: 'string',
-                            enum: ['request_for_funding', 'processing_funding', 'completed'],
+                            enum: ['not_requested', 'request_for_funding', 'processing_funding', 'completed'],
                         },
                         isCompleted: { type: 'boolean' },
                         completedAt: { type: 'string', format: 'date-time', nullable: true },
@@ -748,4 +752,4 @@ const options = {
 
 const specs = swaggerJsdoc(options);
 
-module.exports = specs;
+module.exports = addSwaggerExamples(specs);

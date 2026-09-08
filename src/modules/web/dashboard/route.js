@@ -23,8 +23,11 @@ const {
  *             schema:
  *               type: object
  *               properties:
- *                 success:
+ *                 error:
  *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
  *                 data:
  *                   type: object
  *                   properties:
@@ -100,8 +103,11 @@ router.get('/', getUserDashboard);
  *             schema:
  *               type: object
  *               properties:
- *                 success:
+ *                 error:
  *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
  *                 data:
  *                   type: object
  *                   properties:

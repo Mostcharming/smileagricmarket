@@ -57,9 +57,9 @@ const {
  *             schema:
  *               type: object
  *               properties:
- *                 statusCode:
- *                   type: number
- *                   example: 200
+ *                 error:
+ *                   type: boolean
+ *                   example: false
  *                 message:
  *                   type: string
  *                   example: 'Profile updated successfully'
@@ -119,9 +119,9 @@ router.put('/update', updateProfile);
  *             schema:
  *               type: object
  *               properties:
- *                 statusCode:
- *                   type: number
- *                   example: 200
+ *                 error:
+ *                   type: boolean
+ *                   example: false
  *                 message:
  *                   type: string
  *                   example: 'Profile picture uploaded successfully'
@@ -160,9 +160,9 @@ router.post('/upload-picture', uploadProfileImage(), uploadProfilePicture);
  *             schema:
  *               type: object
  *               properties:
- *                 statusCode:
- *                   type: number
- *                   example: 200
+ *                 error:
+ *                   type: boolean
+ *                   example: false
  *                 message:
  *                   type: string
  *                   example: 'Profile retrieved successfully'
@@ -219,9 +219,9 @@ router.get('/get', getProfile);
  *             schema:
  *               type: object
  *               properties:
- *                 statusCode:
- *                   type: number
- *                   example: 200
+ *                 error:
+ *                   type: boolean
+ *                   example: false
  *                 message:
  *                   type: string
  *                   example: 'Profile completion status retrieved'
@@ -309,9 +309,9 @@ router.get('/completion-status', getProfileCompletionStatus);
  *             schema:
  *               type: object
  *               properties:
- *                 statusCode:
- *                   type: number
- *                   example: 200
+ *                 error:
+ *                   type: boolean
+ *                   example: false
  *                 message:
  *                   type: string
  *                   example: 'Wallet setup successfully'
@@ -359,9 +359,9 @@ router.post('/wallet/setup', setupWallet);
  *             schema:
  *               type: object
  *               properties:
- *                 statusCode:
- *                   type: number
- *                   example: 200
+ *                 error:
+ *                   type: boolean
+ *                   example: false
  *                 message:
  *                   type: string
  *                   example: 'Wallet retrieved successfully'
