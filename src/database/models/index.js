@@ -5,6 +5,7 @@ module.exports = (sequelize) => {
         User: require('./User')(sequelize),
         Admin: require('./Admin')(sequelize),
         TempOtp: require('./TempOtp')(sequelize),
+        MobilePasswordReset: require('./MobilePasswordReset')(sequelize),
         KYC: require('./KYC')(sequelize),
         Wallet: require('./Wallet')(sequelize),
         GeneralSetting: require('./GeneralSetting')(sequelize),

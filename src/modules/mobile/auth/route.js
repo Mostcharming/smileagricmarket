@@ -481,16 +481,28 @@ router.post('/login', loginWithPassword);
  * @swagger
  * /mobile/auth/forgot-password:
  *   post:
- *     tags:
- *       - Mobile Auth
- *     summary: Request password reset
- *     description: Request a password reset link via phone number or email
+ *     tags: [Mobile Auth]
+ *     summary: Request password reset OTP
+ *     description: Send a six-digit password reset OTP to the registered email and phone number, when available. Supply phoneNumber or email; phoneNumber takes precedence when both are supplied. The OTP expires after 10 minutes and allows five verification attempts. Wait 60 seconds before requesting again; requests within the cooldown return success without sending a new code. A new code invalidates any previous mobile reset OTP and reset token. Next call /mobile/auth/verify-reset-otp, then /mobile/auth/reset-password. Signup and login OTPs cannot be used for password recovery.
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Recover using phone number
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *             email:
+ *               summary: Recover using email
+ *               value:
+ *                 email: 'john@example.com'
  *           schema:
  *             type: object
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
  *             properties:
  *               phoneNumber:
  *                 type: string
@@ -501,22 +513,16 @@ router.post('/login', loginWithPassword);
  *                 example: 'john@example.com'
  *     responses:
  *       200:
- *         description: Password reset link sent (if account exists)
+ *         description: Request accepted; identical response for unknown accounts and requests during cooldown
  *         content:
  *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: 'If an account exists, a reset link will be sent'
- *                 data:
- *                   type: object
+ *             example:
+ *               error: false
+ *               message: If an account exists, a password reset OTP will be sent
+ *               data:
+ *                 message: If an account exists, a password reset OTP will be sent
  *       400:
- *         description: Phone number or email is required
+ *         description: A valid phone number or email is required
  *       500:
  *         description: Internal server error
  */
@@ -524,18 +530,30 @@ router.post('/forgot-password', forgot);
 
 /**
  * @swagger
- * /mobile/auth/resend-reset-token:
+ * /mobile/auth/resend-reset-otp:
  *   post:
- *     tags:
- *       - Mobile Auth
- *     summary: Resend reset token
- *     description: Resend a password reset link via phone number or email
+ *     tags: [Mobile Auth]
+ *     summary: Resend password reset OTP
+ *     description: Send a six-digit password reset OTP to the registered email and phone number, when available. Supply phoneNumber or email; phoneNumber takes precedence when both are supplied. The OTP expires after 10 minutes and allows five verification attempts. Wait 60 seconds before requesting again; requests within the cooldown return success without sending a new code. A new code invalidates any previous mobile reset OTP and reset token. Next call /mobile/auth/verify-reset-otp, then /mobile/auth/reset-password. Signup and login OTPs cannot be used for password recovery.
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Recover using phone number
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *             email:
+ *               summary: Recover using email
+ *               value:
+ *                 email: 'john@example.com'
  *           schema:
  *             type: object
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
  *             properties:
  *               phoneNumber:
  *                 type: string
@@ -546,22 +564,68 @@ router.post('/forgot-password', forgot);
  *                 example: 'john@example.com'
  *     responses:
  *       200:
- *         description: Password reset link sent (if account exists)
+ *         description: Request accepted; identical response for unknown accounts and requests during cooldown
  *         content:
  *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: 'If an account exists, a reset link will be sent'
- *                 data:
- *                   type: object
+ *             example:
+ *               error: false
+ *               message: If an account exists, a password reset OTP will be sent
+ *               data:
+ *                 message: If an account exists, a password reset OTP will be sent
  *       400:
- *         description: Phone number or email is required
+ *         description: A valid phone number or email is required
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/resend-reset-otp', resendResetToken);
+
+/**
+ * @swagger
+ * /mobile/auth/resend-reset-token:
+ *   post:
+ *     tags: [Mobile Auth]
+ *     summary: Resend password reset OTP (legacy route)
+ *     description: Alias of /mobile/auth/resend-reset-otp. Sends an OTP with the same expiry, cooldown and invalidation rules. Use the OTP route for new integrations.
+ *     security: []
+ *     deprecated: true
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Recover using phone number
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *             email:
+ *               summary: Recover using email
+ *               value:
+ *                 email: 'john@example.com'
+ *           schema:
+ *             type: object
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: 'john@example.com'
+ *     responses:
+ *       200:
+ *         description: Request accepted; identical response for unknown accounts and requests during cooldown
+ *         content:
+ *           application/json:
+ *             example:
+ *               error: false
+ *               message: If an account exists, a password reset OTP will be sent
+ *               data:
+ *                 message: If an account exists, a password reset OTP will be sent
+ *       400:
+ *         description: A valid phone number or email is required
  *       500:
  *         description: Internal server error
  */
@@ -569,27 +633,51 @@ router.post('/resend-reset-token', resendResetToken);
 
 /**
  * @swagger
- * /mobile/auth/verify-reset-token:
+ * /mobile/auth/verify-reset-otp:
  *   post:
- *     tags:
- *       - Mobile Auth
- *     summary: Verify reset token
- *     description: Verify that a reset token is valid and get user information
+ *     tags: [Mobile Auth]
+ *     summary: Verify password reset OTP
+ *     description: Verify the six-digit password reset OTP together with phoneNumber or email. The code is consumed on success and returns a single-use resetToken valid for 10 minutes. Submit that token to /mobile/auth/reset-password. Five incorrect attempts block the code until a new OTP is requested. No development override code is accepted.
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Recover using phone number
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *                 otp: '012345'
+ *             email:
+ *               summary: Recover using email
+ *               value:
+ *                 email: 'john@example.com'
+ *                 otp: '012345'
  *           schema:
  *             type: object
- *             required:
- *               - resetToken
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
+ *             required: [otp]
  *             properties:
- *               resetToken:
+ *               phoneNumber:
  *                 type: string
- *                 example: 'token123abc...'
+ *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: 'john@example.com'
+ *               otp:
+ *                 type: string
+ *                 pattern: '^\d{6}$'
+ *                 minLength: 6
+ *                 maxLength: 6
+ *                 description: Six-digit code from the password reset notification, including any leading zeros
+ *                 example: '012345'
  *     responses:
  *       200:
- *         description: Reset token is valid
+ *         description: OTP consumed; use data.resetToken to set the new password
  *         content:
  *           application/json:
  *             schema:
@@ -600,20 +688,97 @@ router.post('/resend-reset-token', resendResetToken);
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: 'Reset token is valid'
+ *                   example: Password reset OTP verified successfully
  *                 data:
  *                   type: object
  *                   properties:
- *                     phoneNumber:
+ *                     resetToken:
  *                       type: string
- *                     email:
- *                       type: string
- *                     fullName:
- *                       type: string
+ *                       description: Single-use credential for the mobile reset-password endpoint only; not an authentication JWT
+ *                       example: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+ *                     expiresIn:
+ *                       type: integer
+ *                       description: Reset token lifetime in seconds
+ *                       example: 600
  *       400:
- *         description: Reset token has expired
- *       404:
- *         description: Invalid reset token
+ *         description: Missing or invalid account identifier or OTP, expired or already-used OTP, or five failed attempts reached
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/verify-reset-otp', verifyResetToken);
+
+/**
+ * @swagger
+ * /mobile/auth/verify-reset-token:
+ *   post:
+ *     tags: [Mobile Auth]
+ *     summary: Verify password reset OTP (legacy route)
+ *     description: Alias of /mobile/auth/verify-reset-otp. The request now requires phoneNumber or email plus otp; a link resetToken is no longer accepted. Returns a single-use resetToken for the password update.
+ *     security: []
+ *     deprecated: true
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Recover using phone number
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *                 otp: '012345'
+ *             email:
+ *               summary: Recover using email
+ *               value:
+ *                 email: 'john@example.com'
+ *                 otp: '012345'
+ *           schema:
+ *             type: object
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
+ *             required: [otp]
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: 'john@example.com'
+ *               otp:
+ *                 type: string
+ *                 pattern: '^\d{6}$'
+ *                 minLength: 6
+ *                 maxLength: 6
+ *                 description: Six-digit code from the password reset notification, including any leading zeros
+ *                 example: '012345'
+ *     responses:
+ *       200:
+ *         description: OTP consumed; use data.resetToken to set the new password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Password reset OTP verified successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     resetToken:
+ *                       type: string
+ *                       description: Single-use credential for the mobile reset-password endpoint only; not an authentication JWT
+ *                       example: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+ *                     expiresIn:
+ *                       type: integer
+ *                       description: Reset token lifetime in seconds
+ *                       example: 600
+ *       400:
+ *         description: Missing or invalid account identifier or OTP, expired or already-used OTP, or five failed attempts reached
  *       500:
  *         description: Internal server error
  */
@@ -623,35 +788,36 @@ router.post('/verify-reset-token', verifyResetToken);
  * @swagger
  * /mobile/auth/reset-password:
  *   post:
- *     tags:
- *       - Mobile Auth
- *     summary: Reset password
- *     description: Complete the password reset process with a valid reset token
+ *     tags: [Mobile Auth]
+ *     summary: Set password after OTP verification
+ *     description: Complete mobile password recovery using the resetToken returned by /mobile/auth/verify-reset-otp and matching passwords of at least six characters. The OTP itself, signup/login tokens and web reset-link tokens are not accepted. Returns the existing login response including authentication token and KYC status.
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - resetToken
- *               - password
- *               - passwordConfirmation
+ *             required: [resetToken, password, passwordConfirmation]
  *             properties:
  *               resetToken:
  *                 type: string
- *                 example: 'token123abc...'
+ *                 pattern: '^[a-f0-9]{64}$'
+ *                 description: Token returned by successful password reset OTP verification
+ *                 example: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
  *               password:
  *                 type: string
  *                 format: password
+ *                 minLength: 6
  *                 example: 'NewPassword123!'
  *               passwordConfirmation:
  *                 type: string
  *                 format: password
+ *                 minLength: 6
  *                 example: 'NewPassword123!'
  *     responses:
  *       200:
- *         description: Password reset successfully
+ *         description: Password updated and reset token consumed
  *         content:
  *           application/json:
  *             schema:
@@ -662,7 +828,7 @@ router.post('/verify-reset-token', verifyResetToken);
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: 'Password reset successfully'
+ *                   example: Password reset successfully
  *                 data:
  *                   type: object
  *                   properties:
@@ -671,10 +837,26 @@ router.post('/verify-reset-token', verifyResetToken);
  *                       description: JWT authentication token
  *                     user:
  *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         phoneNumber:
+ *                           type: string
+ *                           nullable: true
+ *                         fullName:
+ *                           type: string
+ *                           nullable: true
+ *                         email:
+ *                           type: string
+ *                           nullable: true
+ *                         gender:
+ *                           type: string
+ *                           nullable: true
+ *                         kycVerified:
+ *                           type: boolean
  *       400:
- *         description: Invalid request or token expired
- *       404:
- *         description: Invalid reset token
+ *         description: Missing or invalid fields, mismatched or short passwords, or invalid, expired or already-used reset token
  *       500:
  *         description: Internal server error
  */

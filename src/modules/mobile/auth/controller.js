@@ -9,6 +9,7 @@ const { signToken } = require('../../../middlewares/common/security');
 
 const models = defineModels(sequelize);
 const { User, TempOtp, KYC } = models;
+const passwordReset = require('./passwordReset')(sequelize, models);
 
 const OTP_EXPIRY_MINUTES = 30;
 const DEV_OVERRIDE_OTP = '777666';
@@ -346,127 +347,46 @@ async function setPassword(req, res) {
 
 async function forgot(req, res) {
     try {
-        const { phoneNumber, email } = req.body || {};
+        const where = passwordReset.accountWhere(req.body);
+        if (!where) return res.fail('A valid phone number or email is required', 400);
 
-        if (!phoneNumber && !email) {
-            return res.fail('Phone number or email is required', 400);
-        }
-
-        const user = await User.findOne({
-            where: phoneNumber ? { phoneNumber } : { email }
-        });
-
-        if (!user) {
-            return res.success(
-                { message: 'If an account exists, a reset link will be sent' },
-                'If an account exists, a reset link will be sent'
+        const result = await passwordReset.request(where);
+        if (result) {
+            await sendNotificationSafely(
+                result.user,
+                'MOBILE_PASSWORD_RESET_OTP_TEMPLATE',
+                { otp: result.otp, expiryTime: '10 minutes' },
+                getResetNotificationChannels(result.user)
             );
         }
 
-        const resetToken = generateCode(32, { letters: true, numbers: true });
-        const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
-
-        await user.update({
-            resetToken,
-            resetTokenExpiry
-        });
-
-        const resetLink = `${process.env.FE_URL || "https://app.smileagrimarket.com"}/reset-password/${resetToken}`;
-
-        await sendNotificationSafely(
-            user,
-            'PASSWORD_RESET_TEMPLATE',
-            { resetLink, expiryTime: '1 hour' },
-            getResetNotificationChannels(user)
-        );
-
-        return res.success(
-            { message: 'Password reset link sent' },
-            'If an account exists, a reset link will be sent'
-        );
+        // Keep responses identical for unknown accounts and requests within the resend cooldown.
+        const message = 'If an account exists, a password reset OTP will be sent';
+        return res.success({ message }, message);
     } catch (error) {
         console.error('Forgot password error:', error);
-        return res.fail(error.message, 500);
+        return res.fail('Unable to request password reset', 500);
     }
 }
 
 async function resendResetToken(req, res) {
-    try {
-        const { phoneNumber, email } = req.body || {};
-
-        if (!phoneNumber && !email) {
-            return res.fail('Phone number or email is required', 400);
-        }
-
-        const user = await User.findOne({
-            where: phoneNumber ? { phoneNumber } : { email }
-        });
-
-        if (!user) {
-            return res.success(
-                { message: 'If an account exists, a reset link will be sent' },
-                'If an account exists, a reset link will be sent'
-            );
-        }
-
-        const resetToken = generateCode(32, { letters: true, numbers: true });
-        const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
-
-        await user.update({
-            resetToken,
-            resetTokenExpiry
-        });
-
-        const resetLink = `${process.env.FE_URL || "https://app.smileagrimarket.com"}/reset-password/${resetToken}`;
-
-        await sendNotificationSafely(
-            user,
-            'PASSWORD_RESET_TEMPLATE',
-            { resetLink, expiryTime: '1 hour' },
-            getResetNotificationChannels(user)
-        );
-
-        return res.success(
-            { message: 'Password reset link sent' },
-            'If an account exists, a reset link will be sent'
-        );
-    } catch (error) {
-        console.error('Resend reset token error:', error);
-        return res.fail(error.message, 500);
-    }
+    return forgot(req, res);
 }
 
 async function verifyResetToken(req, res) {
     try {
-        const { resetToken } = req.body || {};
-
-        if (!resetToken) {
-            return res.fail('Reset token is required', 400);
+        const where = passwordReset.accountWhere(req.body);
+        const { otp } = req.body || {};
+        if (!where || typeof otp !== 'string' || !/^\d{6}$/.test(otp)) {
+            return res.fail('Phone number or email and a six-digit OTP are required', 400);
         }
 
-        const user = await User.findOne({
-            where: { resetToken }
-        });
-
-        if (!user) {
-            return res.fail('Invalid reset token', 404);
-        }
-
-        if (new Date() > user.resetTokenExpiry) {
-            return res.fail('Reset token has expired', 400);
-        }
-
-        return res.success(
-            {
-                phoneNumber: user.phoneNumber,
-                email: user.email,
-                fullName: user.fullName
-            },
-            'Reset token is valid'
-        );
+        const result = await passwordReset.verify(where, otp);
+        if (!result) return res.fail('Invalid or expired password reset OTP. Request a new OTP if needed.', 400);
+        return res.success(result, 'Password reset OTP verified successfully');
     } catch (error) {
-        console.error('Verify reset token error:', error);
-        return res.fail(error.message, 500);
+        console.error('Verify reset OTP error:', error);
+        return res.fail('Unable to verify password reset OTP', 500);
     }
 }
 
@@ -474,7 +394,9 @@ async function reset(req, res) {
     try {
         const { resetToken, password, passwordConfirmation } = req.body || {};
 
-        if (!resetToken || !password || !passwordConfirmation) {
+        if (typeof resetToken !== 'string' || !/^[a-f0-9]{64}$/.test(resetToken)
+            || typeof password !== 'string' || !password
+            || typeof passwordConfirmation !== 'string' || !passwordConfirmation) {
             return res.fail('Reset token, password, and password confirmation are required', 400);
         }
 
@@ -486,25 +408,8 @@ async function reset(req, res) {
             return res.fail('Password must be at least 6 characters long', 400);
         }
 
-        const user = await User.findOne({
-            where: { resetToken }
-        });
-
-        if (!user) {
-            return res.fail('Invalid reset token', 404);
-        }
-
-        if (new Date() > user.resetTokenExpiry) {
-            return res.fail('Reset token has expired', 400);
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        await user.update({
-            password: hashedPassword,
-            resetToken: null,
-            resetTokenExpiry: null
-        });
+        const user = await passwordReset.consume(resetToken, password);
+        if (!user) return res.fail('Invalid or expired reset token. Verify a password reset OTP first.', 400);
 
         await sendNotificationSafely(
             user,
