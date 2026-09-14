@@ -13,6 +13,22 @@ const { User, TempOtp, KYC } = models;
 const OTP_EXPIRY_MINUTES = 10;
 const DEV_OVERRIDE_OTP = '777666';
 
+function getOtpIdentity(body) {
+    const { phoneNumber, email } = body || {};
+    if (phoneNumber !== undefined && (typeof phoneNumber !== 'string' || !phoneNumber.trim())) return null;
+    if (email !== undefined && (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) return null;
+    if (phoneNumber) return { phoneNumber: phoneNumber.trim() };
+    if (email) return { email: email.trim().toLowerCase() };
+    return null;
+}
+
+async function sendOtp(identity, user, otp) {
+    const email = Boolean(identity.email);
+    const recipient = user || { id: Object.values(identity)[0], ...identity, fullName: null };
+    await notify(recipient, 'user', email ? 'EMAIL_OTP_TEMPLATE' : 'SMS_OTP_TEMPLATE',
+        { otp, expiryTime: `${OTP_EXPIRY_MINUTES} minutes` }, [email ? 'email' : 'sms'], true, models);
+}
+
 function getResetNotificationChannels(user) {
     return [
         user?.email ? 'email' : null,
@@ -34,44 +50,36 @@ async function sendNotificationSafely(user, templateName, shortCodes, channels) 
 
 async function requestOtp(req, res) {
     try {
-        const { phoneNumber } = req.body || {};
+        const identity = getOtpIdentity(req.body);
 
-        if (!phoneNumber) {
-            return res.fail('Phone number is required', 400);
+        if (!identity) {
+            return res.fail('A valid phone number or email is required', 400);
         }
 
         const existingUser = await User.findOne({
-            where: { phoneNumber }
+            where: identity
         });
 
         if (existingUser) {
-            return res.fail('User already exists with this phone number', 409);
+            return res.fail(`User already exists with this ${identity.email ? 'email' : 'phone number'}`, 409);
         }
 
         const otp = generateCode(6, { letters: false, numbers: true });
-        // const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
-        const otpExpiry = null;
+        const otpExpiry = identity.email ? new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000) : null;
 
-        // Delete all previous TempOtp records for this phone number
-        const deleted = await models.TempOtp.destroy({ where: { phoneNumber } });
+        // Replace the previous challenge for the selected destination.
+        await TempOtp.destroy({ where: identity });
         await TempOtp.create({
-            phoneNumber,
+            ...identity,
             otp,
             otpExpiry
         });
 
-        const tempUser = {
-            id: phoneNumber,
-            phoneNumber: phoneNumber,
-            fullName: null,
-            email: null
-        };
-
-        await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
+        await sendOtp(identity, null, otp);
 
         return res.success(
             { message: 'OTP sent successfully', isNewUser: true },
-            'OTP sent to your phone for registration'
+            `OTP sent to your ${identity.email ? 'email' : 'phone'} for registration`
         );
     } catch (error) {
         console.error('Request OTP error:', error);
@@ -81,52 +89,43 @@ async function requestOtp(req, res) {
 
 async function resendOtp(req, res) {
     try {
-        const { phoneNumber } = req.body || {};
+        const identity = getOtpIdentity(req.body);
 
-        if (!phoneNumber) {
-            return res.fail('Phone number is required', 400);
+        if (!identity) {
+            return res.fail('A valid phone number or email is required', 400);
         }
 
         const existingUser = await User.findOne({
-            where: { phoneNumber }
+            where: identity
         });
 
         const otp = generateCode(6, { letters: false, numbers: true });
-        // const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
-        const otpExpiry = null;
+        const otpExpiry = identity.email ? new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000) : null;
 
-        if (existingUser) {
+        // Keep email challenges separate from legacy SMS challenges on User.
+        if (existingUser && !identity.email) {
             await existingUser.update({ otp, otpExpiry });
-
-            await notify(existingUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         } else {
             const tempOtp = await TempOtp.findOne({
-                where: { phoneNumber }
+                where: identity
             });
 
             if (tempOtp) {
                 await tempOtp.update({ otp, otpExpiry });
             } else {
                 await TempOtp.create({
-                    phoneNumber,
+                    ...identity,
                     otp,
                     otpExpiry
                 });
             }
-
-            const tempUser = {
-                id: phoneNumber,
-                phoneNumber: phoneNumber,
-                fullName: null,
-                email: null
-            };
-
-            await notify(tempUser, 'user', 'SMS_OTP_TEMPLATE', { otp }, ['sms'], true, models);
         }
+
+        await sendOtp(identity, existingUser, otp);
 
         return res.success(
             { message: 'OTP sent successfully' },
-            'OTP sent to your phone'
+            `OTP sent to your ${identity.email ? 'email' : 'phone'}`
         );
     } catch (error) {
         console.error('Resend OTP error:', error);
@@ -136,26 +135,27 @@ async function resendOtp(req, res) {
 
 async function verifyOtp(req, res) {
     try {
-        const { phoneNumber, otp } = req.body || {};
+        const { otp } = req.body || {};
+        const identity = getOtpIdentity(req.body);
 
-        if (!phoneNumber || !otp) {
-            return res.fail('Phone number and OTP are required', 400);
+        if (!identity || typeof otp !== 'string' || !/^\d{6}$/.test(otp)) {
+            return res.fail('A valid phone number or email and a 6-digit OTP are required', 400);
         }
 
         const existingUser = await User.findOne({
-            where: { phoneNumber }
+            where: identity
         });
 
         let isNewUser = false;
         let storedOtp, otpExpiry;
 
-        if (existingUser) {
+        if (existingUser && !identity.email) {
             storedOtp = existingUser.otp;
             otpExpiry = existingUser.otpExpiry;
             isNewUser = false;
         } else {
             const tempOtp = await TempOtp.findOne({
-                where: { phoneNumber }
+                where: identity
             });
 
             if (!tempOtp) {
@@ -164,47 +164,49 @@ async function verifyOtp(req, res) {
 
             storedOtp = tempOtp.otp;
             otpExpiry = tempOtp.otpExpiry;
-            isNewUser = true;
+            isNewUser = !existingUser;
         }
 
-        const isOtpValid = otp === storedOtp || (otp === DEV_OVERRIDE_OTP);
+        const isOtpValid = otp === storedOtp || (!identity.email && otp === DEV_OVERRIDE_OTP);
 
         if (!isOtpValid) {
             return res.fail('Invalid OTP', 400);
         }
 
-        // if (new Date() > otpExpiry) {
-        //     return res.fail('OTP has expired', 400);
-        // }
+        if (identity.email && (!otpExpiry || new Date() > new Date(otpExpiry))) {
+            return res.fail('OTP has expired', 400);
+        }
+
+        if (identity.email) {
+            // Consume only the code we checked, even if a resend or another verification races this request.
+            const consumed = await TempOtp.destroy({ where: { ...identity, otp: storedOtp } });
+            if (!consumed) return res.fail('OTP not found or expired', 404);
+        }
 
         if (isNewUser) {
-            await TempOtp.destroy({
-                where: { phoneNumber }
-            });
+            if (!identity.email) await TempOtp.destroy({ where: identity });
 
-            const signupToken = signToken({ phoneNumber, isSignupInProgress: true });
+            const signupToken = signToken({ ...identity, isSignupInProgress: true });
 
             return res.success(
                 {
                     token: signupToken,
-                    phoneNumber,
+                    ...identity,
                     isNewUser: true
                 },
                 'OTP verified successfully'
             );
         } else {
-            await existingUser.update({
-                otp: null,
-                otpExpiry: null,
-                isPhoneVerified: true
-            });
+            if (!identity.email) {
+                await existingUser.update({ otp: null, otpExpiry: null, isPhoneVerified: true });
+            }
 
             const token = signToken(existingUser);
 
             return res.success(
                 {
                     token,
-                    phoneNumber,
+                    ...identity,
                     userId: existingUser.id,
                     isNewUser: false,
                     user: {
@@ -226,19 +228,22 @@ async function verifyOtp(req, res) {
 
 async function completeProfile(req, res) {
     try {
-        const { fullName, gender, email } = req.body || {};
-        const phoneNumber = req.user?.phoneNumber;
+        const identity = getOtpIdentity(req.user);
+        const email = identity?.email || req.body?.email;
 
-        if (!phoneNumber) {
+        if (!identity) {
             return res.fail('Invalid or missing signup token', 401);
+        }
+        if (identity.email && req.body?.email !== undefined && getOtpIdentity({ email: req.body.email })?.email !== identity.email) {
+            return res.fail('Email must match the verified signup email', 400);
         }
 
         const existingUser = await User.findOne({
-            where: { phoneNumber }
+            where: identity
         });
 
         if (existingUser) {
-            return res.fail('User already registered with this phone number', 409);
+            return res.fail(`User already registered with this ${identity.email ? 'email' : 'phone number'}`, 409);
         }
 
         if (email) {
@@ -252,7 +257,7 @@ async function completeProfile(req, res) {
 
         return res.success(
             {
-                phoneNumber,
+                ...identity,
                 message: 'Profile information received. Please proceed to set your password.'
             },
             'Profile information saved'
@@ -265,11 +270,15 @@ async function completeProfile(req, res) {
 
 async function setPassword(req, res) {
     try {
-        const { password, passwordConfirmation, fullName, gender, email } = req.body || {};
-        const phoneNumber = req.user?.phoneNumber;
+        const { password, passwordConfirmation, fullName, gender } = req.body || {};
+        const identity = getOtpIdentity(req.user);
+        const email = identity?.email || req.body?.email;
 
-        if (!phoneNumber) {
+        if (!identity) {
             return res.fail('Invalid or missing signup token', 401);
+        }
+        if (identity.email && req.body?.email !== undefined && getOtpIdentity({ email: req.body.email })?.email !== identity.email) {
+            return res.fail('Email must match the verified signup email', 400);
         }
 
         if (!password || !passwordConfirmation) {
@@ -285,11 +294,11 @@ async function setPassword(req, res) {
         }
 
         const existingUser = await User.findOne({
-            where: { phoneNumber }
+            where: identity
         });
 
         if (existingUser) {
-            return res.fail('User already registered with this phone number', 409);
+            return res.fail(`User already registered with this ${identity.email ? 'email' : 'phone number'}`, 409);
         }
 
         if (email) {
@@ -304,12 +313,12 @@ async function setPassword(req, res) {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const newUser = await User.create({
-            phoneNumber,
+            phoneNumber: identity.phoneNumber || null,
             email: email || null,
             fullName: fullName || null,
             password: hashedPassword,
             gender: gender || null,
-            isPhoneVerified: true
+            isPhoneVerified: Boolean(identity.phoneNumber)
         });
 
         await sendNotificationSafely(

@@ -49,21 +49,36 @@ const verifySignupToken = (req, res, next) => {
  *   post:
  *     tags:
  *       - Web Auth
- *     summary: Request OTP (for signup or login)
- *     description: Send a 6-digit OTP to the provided phone number. Works for both new and existing users.
+ *     summary: Request OTP for signup
+ *     description: Send a 6-digit signup OTP by SMS or email. Supply phoneNumber or email; phoneNumber takes precedence when both are supplied. Email is trimmed and lowercased. Existing accounts return 409; use resend-otp for login. Email codes expire after 10 minutes.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Use SMS
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *             email:
+ *               summary: Use email
+ *               value:
+ *                 email: 'john@example.com'
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
  *             properties:
  *               phoneNumber:
  *                 type: string
  *                 description: User phone number
  *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email address (required if phoneNumber is omitted)
+ *                 example: 'john@example.com'
  *     responses:
  *       200:
  *         description: OTP sent successfully
@@ -81,7 +96,9 @@ const verifySignupToken = (req, res, next) => {
  *                 data:
  *                   type: object
  *       400:
- *         description: Bad request - Phone number is required
+ *         description: Bad request - A valid phoneNumber or email is required
+ *       409:
+ *         description: User already exists with this phone number or email
  *       500:
  *         description: Internal server error
  */
@@ -94,23 +111,40 @@ router.post('/request-otp', requestOtp);
  *     tags:
  *       - Web Auth
  *     summary: Verify OTP
- *     description: Verify the OTP sent to the phone number. Returns a signup token for new users that should be used for the next signup form endpoints. Returns login token for existing users.
+ *     description: Verify the OTP sent to the selected phoneNumber or email. Supply the same identifier used to request the code; phoneNumber takes precedence when both are supplied. Email codes expire after 10 minutes, are single-use, and do not accept the SMS development override. Returns a signup token for new users that should be used for the next signup form endpoints. Returns login token for existing users.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Use SMS
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *                 otp: '123456'
+ *             email:
+ *               summary: Use email
+ *               value:
+ *                 email: 'john@example.com'
+ *                 otp: '123456'
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
- *               - otp
+ *             required: [otp]
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
  *             properties:
  *               phoneNumber:
  *                 type: string
  *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email address (required if phoneNumber is omitted)
+ *                 example: 'john@example.com'
  *               otp:
  *                 type: string
- *                 description: 6-digit OTP or '777666' in dev mode
+ *                 description: 6-digit OTP; the legacy '777666' override applies only to SMS verification
  *                 example: '123456'
  *     responses:
  *       200:
@@ -131,6 +165,11 @@ router.post('/request-otp', requestOtp);
  *                   properties:
  *                     phoneNumber:
  *                       type: string
+ *                       description: Present when verifying by phone
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       description: Present when verifying by email
  *                     token:
  *                       type: string
  *                       description: Token for new users to use in profile forms, or auth token for existing users
@@ -138,7 +177,7 @@ router.post('/request-otp', requestOtp);
  *                       type: boolean
  *                       description: true if new user, false if existing user
  *       400:
- *         description: Invalid OTP or expired OTP
+ *         description: Invalid identifier, invalid OTP, or expired email OTP
  *       404:
  *         description: OTP not found or expired
  */
@@ -151,20 +190,35 @@ router.post('/verify-otp', verifyOtp);
  *     tags:
  *       - Web Auth
  *     summary: Resend OTP
- *     description: Resend OTP to the provided phone number for both signup and login
+ *     description: Resend a 6-digit OTP by SMS or email for signup or login. Supply phoneNumber or email; phoneNumber takes precedence when both are supplied. Email is trimmed and lowercased. A new email code replaces the previous email code and expires after 10 minutes.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             phone:
+ *               summary: Use SMS
+ *               value:
+ *                 phoneNumber: '08012345678'
+ *             email:
+ *               summary: Use email
+ *               value:
+ *                 email: 'john@example.com'
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
  *             properties:
  *               phoneNumber:
  *                 type: string
  *                 description: User phone number
  *                 example: '08012345678'
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email address (required if phoneNumber is omitted)
+ *                 example: 'john@example.com'
  *     responses:
  *       200:
  *         description: OTP sent successfully
@@ -182,7 +236,7 @@ router.post('/verify-otp', verifyOtp);
  *                 data:
  *                   type: object
  *       400:
- *         description: Bad request - Phone number is required
+ *         description: Bad request - A valid phoneNumber or email is required
  *       500:
  *         description: Internal server error
  */
@@ -195,7 +249,7 @@ router.post('/resend-otp', resendOtp);
  *     tags:
  *       - Web Auth
  *     summary: Complete user profile - Form 1
- *     description: Submit profile information (fullName, gender, email) after OTP verification. Use the signup token received from verify-otp endpoint.
+ *     description: Submit profile information (fullName, gender, email) after phone or email OTP verification. Use the signup token received from verify-otp. For email signup, email is taken from the token; if supplied in the body it must match the verified email.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -246,7 +300,7 @@ router.post('/complete-profile', verifySignupToken, completeProfile);
  *     tags:
  *       - Web Auth
  *     summary: Set password - Form 2
- *     description: Submit password and complete user registration. Use the signup token received from verify-otp endpoint.
+ *     description: Submit password and complete user registration using the signup token from phone or email verify-otp. For email signup, no phone number is required and email is taken from the token; if supplied in the body it must match the verified email.
  *     security:
  *       - bearerAuth: []
  *     requestBody:

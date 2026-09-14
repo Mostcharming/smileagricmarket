@@ -256,7 +256,25 @@ function betaSignupEmail({ websiteUrl }) {
     };
 }
 
+function otpEmail({ shortCodes }) {
+    return {
+        label: 'Account verification',
+        title: 'Your verification code.',
+        preheader: 'Use this code to continue signing up or signing in to AgriMarket.',
+        bodyHtml: paragraph('Enter the verification code below to continue signing up or signing in to AgriMarket.'),
+        panelTitle: 'Your one-time code',
+        panelText: escapeHtml(shortCodes.otp),
+        bodyHtmlAfterPanel: [
+            paragraph(`This code expires in ${escapeHtml(shortCodes.expiryTime || '10 minutes')} and can only be used once.`),
+            paragraph('Do not share this code with anyone.'),
+            paragraph('If you did not request this code, you can safely ignore this email.')
+        ].join(''),
+        closingText: 'Thank you,'
+    };
+}
+
 const contentBuilders = {
+    EMAIL_OTP_TEMPLATE: otpEmail,
     WELCOME_EMAIL_TEMPLATE: welcomeEmail,
     KYC_APPROVED_TEMPLATE: kycApprovedEmail,
     KYC_REJECTED_TEMPLATE: kycRejectedEmail,

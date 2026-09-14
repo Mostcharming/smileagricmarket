@@ -13,8 +13,13 @@ module.exports = (sequelize) => {
         },
         phoneNumber: {
             type: DataTypes.STRING,
-            allowNull: false,
+            allowNull: true,
             field: 'phone_number'
+        },
+        email: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'email'
         },
         otp: {
             type: DataTypes.STRING,
