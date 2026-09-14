@@ -84,6 +84,13 @@ const verifySignupToken = (req, res, next) => {
  *         description: OTP sent successfully
  *         content:
  *           application/json:
+ *             examples:
+ *               email:
+ *                 summary: OTP sent by email
+ *                 value: {"error": false, "message": "OTP sent to your email for registration", "data": {"message": "OTP sent successfully", "isNewUser": true}}
+ *               phone:
+ *                 summary: OTP sent by SMS
+ *                 value: {"error": false, "message": "OTP sent to your phone for registration", "data": {"message": "OTP sent successfully", "isNewUser": true}}
  *             schema:
  *               type: object
  *               properties:
@@ -92,9 +99,16 @@ const verifySignupToken = (req, res, next) => {
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: 'OTP sent to your phone'
+ *                   example: 'OTP sent to your email for registration'
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: OTP sent successfully
+ *                     isNewUser:
+ *                       type: boolean
+ *                       example: true
  *       400:
  *         description: Bad request - A valid phoneNumber or email is required
  *       409:
@@ -144,6 +158,7 @@ router.post('/request-otp', requestOtp);
  *                 example: 'john@example.com'
  *               otp:
  *                 type: string
+ *                 pattern: '^[0-9]{6}$'
  *                 description: 6-digit OTP; the legacy '777666' override applies only to SMS verification
  *                 example: '123456'
  *     responses:
@@ -151,6 +166,19 @@ router.post('/request-otp', requestOtp);
  *         description: OTP verified successfully
  *         content:
  *           application/json:
+ *             examples:
+ *               emailSignup:
+ *                 summary: New user verified by email
+ *                 value: {"error": false, "message": "OTP verified successfully", "data": {"token": "<signup-token>", "email": "john@example.com", "isNewUser": true}}
+ *               emailLogin:
+ *                 summary: Existing user verified by email
+ *                 value: {"error": false, "message": "OTP verified successfully", "data": {"token": "<access-token>", "email": "john@example.com", "userId": "11111111-1111-4111-8111-111111111111", "isNewUser": false, "user": {"id": "11111111-1111-4111-8111-111111111111", "phoneNumber": null, "fullName": "John Doe", "email": "john@example.com", "gender": "male"}}}
+ *               phoneSignup:
+ *                 summary: New user verified by phone
+ *                 value: {"error": false, "message": "OTP verified successfully", "data": {"token": "<signup-token>", "phoneNumber": "08012345678", "isNewUser": true}}
+ *               phoneLogin:
+ *                 summary: Existing user verified by phone
+ *                 value: {"error": false, "message": "OTP verified successfully", "data": {"token": "<access-token>", "phoneNumber": "08012345678", "userId": "11111111-1111-4111-8111-111111111111", "isNewUser": false, "user": {"id": "11111111-1111-4111-8111-111111111111", "phoneNumber": "08012345678", "fullName": "John Doe", "email": "john@example.com", "gender": "male"}}}
  *             schema:
  *               type: object
  *               properties:
@@ -176,6 +204,30 @@ router.post('/request-otp', requestOtp);
  *                     isNewUser:
  *                       type: boolean
  *                       description: true if new user, false if existing user
+ *                     userId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Present for existing users
+ *                     user:
+ *                       type: object
+ *                       description: Present for existing users
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         phoneNumber:
+ *                           type: string
+ *                           nullable: true
+ *                         email:
+ *                           type: string
+ *                           format: email
+ *                           nullable: true
+ *                         fullName:
+ *                           type: string
+ *                           nullable: true
+ *                         gender:
+ *                           type: string
+ *                           nullable: true
  *       400:
  *         description: Invalid identifier, invalid OTP, or expired email OTP
  *       404:
@@ -224,6 +276,13 @@ router.post('/verify-otp', verifyOtp);
  *         description: OTP sent successfully
  *         content:
  *           application/json:
+ *             examples:
+ *               email:
+ *                 summary: OTP sent by email
+ *                 value: {"error": false, "message": "OTP sent to your email", "data": {"message": "OTP sent successfully"}}
+ *               phone:
+ *                 summary: OTP sent by SMS
+ *                 value: {"error": false, "message": "OTP sent to your phone", "data": {"message": "OTP sent successfully"}}
  *             schema:
  *               type: object
  *               properties:
@@ -232,9 +291,13 @@ router.post('/verify-otp', verifyOtp);
  *                   example: false
  *                 message:
  *                   type: string
- *                   example: 'OTP sent to your phone'
+ *                   example: 'OTP sent to your email'
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: OTP sent successfully
  *       400:
  *         description: Bad request - A valid phoneNumber or email is required
  *       500:
@@ -256,6 +319,13 @@ router.post('/resend-otp', resendOtp);
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             email:
+ *               summary: Use the email signup token (verified email comes from token)
+ *               value: {"fullName": "John Doe", "gender": "male"}
+ *             phone:
+ *               summary: Use the phone signup token
+ *               value: {"fullName": "John Doe", "gender": "male", "email": "john@example.com"}
  *           schema:
  *             type: object
  *             properties:
@@ -268,6 +338,7 @@ router.post('/resend-otp', resendOtp);
  *                 example: 'male'
  *               email:
  *                 type: string
+ *                 description: Optional. For email signup, omit this field or supply the verified email from the signup token.
  *                 format: email
  *                 example: 'john@example.com'
  *     responses:
@@ -275,6 +346,13 @@ router.post('/resend-otp', resendOtp);
  *         description: Profile information saved
  *         content:
  *           application/json:
+ *             examples:
+ *               email:
+ *                 summary: Profile after email verification
+ *                 value: {"error": false, "message": "Profile information saved", "data": {"email": "john@example.com", "message": "Profile information received. Please proceed to set your password."}}
+ *               phone:
+ *                 summary: Profile after phone verification
+ *                 value: {"error": false, "message": "Profile information saved", "data": {"phoneNumber": "08012345678", "message": "Profile information received. Please proceed to set your password."}}
  *             schema:
  *               type: object
  *               properties:
@@ -286,10 +364,23 @@ router.post('/resend-otp', resendOtp);
  *                   example: 'Profile information saved'
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       description: Present for email signup
+ *                     phoneNumber:
+ *                       type: string
+ *                       description: Present for phone signup
+ *                     message:
+ *                       type: string
+ *                       example: Profile information received. Please proceed to set your password.
+ *       400:
+ *         description: Email must match the verified signup email
  *       401:
  *         description: Invalid or missing signup token
  *       409:
- *         description: Email already exists
+ *         description: User already registered with this phone number or email
  */
 router.post('/complete-profile', verifySignupToken, completeProfile);
 
@@ -307,6 +398,13 @@ router.post('/complete-profile', verifySignupToken, completeProfile);
  *       required: true
  *       content:
  *         application/json:
+ *           examples:
+ *             email:
+ *               summary: Use the email signup token (verified email comes from token)
+ *               value: {"password": "SecurePassword123!", "passwordConfirmation": "SecurePassword123!", "fullName": "John Doe", "gender": "male"}
+ *             phone:
+ *               summary: Use the phone signup token
+ *               value: {"password": "SecurePassword123!", "passwordConfirmation": "SecurePassword123!", "fullName": "John Doe", "gender": "male", "email": "john@example.com"}
  *           schema:
  *             type: object
  *             required:
@@ -330,6 +428,7 @@ router.post('/complete-profile', verifySignupToken, completeProfile);
  *                 example: 'male'
  *               email:
  *                 type: string
+ *                 description: Optional. For email signup, omit this field or supply the verified email from the signup token.
  *                 format: email
  *                 example: 'john@example.com'
  *     responses:
@@ -337,6 +436,13 @@ router.post('/complete-profile', verifySignupToken, completeProfile);
  *         description: User registered successfully
  *         content:
  *           application/json:
+ *             examples:
+ *               email:
+ *                 summary: Registration after email verification
+ *                 value: {"error": false, "message": "User registered successfully", "data": {"token": "<access-token>", "user": {"id": "11111111-1111-4111-8111-111111111111", "phoneNumber": null, "fullName": "John Doe", "email": "john@example.com", "gender": "male", "kycVerified": false}}}
+ *               phone:
+ *                 summary: Registration after phone verification
+ *                 value: {"error": false, "message": "User registered successfully", "data": {"token": "<access-token>", "user": {"id": "11111111-1111-4111-8111-111111111111", "phoneNumber": "08012345678", "fullName": "John Doe", "email": "john@example.com", "gender": "male", "kycVerified": false}}}
  *             schema:
  *               type: object
  *               properties:
@@ -359,17 +465,21 @@ router.post('/complete-profile', verifySignupToken, completeProfile);
  *                           type: string
  *                         phoneNumber:
  *                           type: string
+ *                           nullable: true
  *                         fullName:
  *                           type: string
+ *                           nullable: true
  *                         email:
  *                           type: string
+ *                           nullable: true
  *                         gender:
  *                           type: string
+ *                           nullable: true
  *                         kycVerified:
  *                           type: boolean
  *                           description: Whether user has approved KYC
  *       400:
- *         description: Invalid password or passwords do not match
+ *         description: Invalid password, passwords do not match, or email differs from the verified signup email
  *       401:
  *         description: Invalid or missing signup token
  *       409:
