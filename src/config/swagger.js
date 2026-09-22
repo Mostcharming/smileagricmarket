@@ -1,5 +1,6 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const { addSwaggerExamples } = require('./swaggerExamples');
+const { addMobileInvestmentSwagger } = require('./mobileInvestmentSwagger');
 
 const options = {
     definition: {
@@ -752,4 +753,4 @@ const options = {
 
 const specs = swaggerJsdoc(options);
 
-module.exports = addSwaggerExamples(specs);
+module.exports = addSwaggerExamples(addMobileInvestmentSwagger(addSwaggerExamples(specs)));

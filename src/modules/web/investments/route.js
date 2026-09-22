@@ -19,6 +19,22 @@ const {
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
+ *         name: minRoi
+ *         schema: { type: number, minimum: 0 }
+ *         description: Minimum project ROI percentage, not a monetary amount.
+ *       - in: query
+ *         name: maxRoi
+ *         schema: { type: number, minimum: 0 }
+ *         description: Maximum project ROI percentage.
+ *       - in: query
+ *         name: minInvestment
+ *         schema: { type: number, minimum: 0 }
+ *         description: Lower end of the investor's amount range in project currency; matches overlapping investment limits.
+ *       - in: query
+ *         name: maxInvestment
+ *         schema: { type: number, minimum: 0 }
+ *         description: Upper end of the investor's amount range in project currency.
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer

@@ -64,6 +64,9 @@ function addDuration(date, durationValue, durationUnit) {
 }
 
 function getInvestmentEndDate(payment) {
+    if (payment.agreement?.terms?.payoutDate) {
+        return new Date(`${payment.agreement.terms.payoutDate}T23:59:59.999Z`);
+    }
     if (payment.FarmInvestment?.endDate) {
         return new Date(`${payment.FarmInvestment.endDate}T23:59:59.999Z`);
     }
@@ -94,6 +97,9 @@ function getPortfolioStatus(payment, asOf = new Date()) {
 }
 
 function getExpectedReturnCents(payment) {
+    if (payment.agreement?.terms?.expectedProfit !== undefined) {
+        return toMoneyCents(payment.agreement.terms.expectedProfit);
+    }
     const amountInCents = toMoneyCents(payment.amount);
     const roiPercentage = toNumber(payment.InvestmentTemplate?.roiPercentage);
     return Math.round((amountInCents * roiPercentage) / 100);
@@ -425,6 +431,7 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
             'currency',
             'gateway',
             'gatewayReference',
+            'agreement',
             'status',
             'paidAt',
             'createdAt',

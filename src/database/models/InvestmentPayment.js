@@ -92,6 +92,12 @@ module.exports = (sequelize) => {
             allowNull: true,
             field: 'paid_at'
         },
+        agreement: {
+            type: DataTypes.JSONB,
+            allowNull: true,
+            field: 'agreement',
+            comment: 'Accepted investment terms; independent of gateway response updates'
+        },
         gatewayResponse: {
             type: DataTypes.JSONB,
             allowNull: true,

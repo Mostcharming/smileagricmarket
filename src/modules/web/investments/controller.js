@@ -7,6 +7,10 @@ const { Op } = require('sequelize');
 const { toBackendApiUrl } = require('../../../utils/url');
 const { resolveInvestmentProjectStatus } = require('../../../utils/investmentProject');
 const {
+    InvestmentTermsError, buildInvestmentQuote, buildInvestmentAgreement,
+    validateAgreementAcceptance, acceptInvestmentAgreement, assertSameAgreement
+} = require('../../../utils/investmentAgreement');
+const {
     PaystackError,
     getPaystackConfig,
     initializeTransaction,
@@ -550,6 +554,27 @@ async function getInvestments(req, res) {
 
         Object.assign(templateWhere, parseDurationFilter(req.query, errors));
 
+        for (const [minKey, maxKey, minField, maxField] of [
+            ['minRoi', 'maxRoi', 'roiPercentage', 'roiPercentage'],
+            ['minInvestment', 'maxInvestment', 'investmentMaxGoal', 'investmentMinGoal']
+        ]) {
+            const parse = key => {
+                if (req.query[key] === undefined) return undefined;
+                const value = req.query[key];
+                if (typeof value !== 'string' || !/^\d+(\.\d{1,2})?$/.test(value)
+                    || !Number.isFinite(Number(value))) {
+                    errors.push(`${key} must be a non-negative number with at most two decimal places`);
+                    return undefined;
+                }
+                return Number(value);
+            };
+            const min = parse(minKey);
+            const max = parse(maxKey);
+            if (min !== undefined && max !== undefined && min > max) errors.push(`${minKey} cannot exceed ${maxKey}`);
+            if (min !== undefined) templateWhere[minField] = { ...templateWhere[minField], [Op.gte]: min };
+            if (max !== undefined) templateWhere[maxField] = { ...templateWhere[maxField], [Op.lte]: max };
+        }
+
         const fundingStatuses = normalizeFundingStatuses(fundingStatus, errors);
 
         if (search) {
@@ -936,7 +961,7 @@ async function getInvestmentById(req, res) {
     }
 }
 
-async function investInFarm(req, res) {
+async function investInFarm(req, res, options = {}) {
     try {
         const investorId = req.user?.id;
         const { investmentProjectId } = req.params;
@@ -965,6 +990,11 @@ async function investInFarm(req, res) {
 
         if (idempotencyKey === undefined) {
             return res.fail('Idempotency-Key cannot be longer than 100 characters', 400);
+        }
+
+        if (options.requireAgreement) {
+            if (!idempotencyKey) return res.fail('Idempotency-Key is required for mobile investments', 400);
+            validateAgreementAcceptance(req.body?.agreementAcceptance);
         }
 
         getPaystackConfig();
@@ -1039,10 +1069,12 @@ async function investInFarm(req, res) {
                     'investmentMaxGoal',
                     'fundingMaxGoal',
                     'currency',
+                    'name', 'roiPercentage', 'durationValue', 'durationUnit', 'riskLevel', 'isActive',
                     'createdAt'
                 ],
                 order: [['createdAt', 'DESC']],
-                transaction
+                transaction,
+                ...(options.requireAgreement ? { lock: transaction.LOCK.SHARE } : {})
             });
 
             if (!investmentTemplate) {
@@ -1070,10 +1102,12 @@ async function investInFarm(req, res) {
                 });
 
                 if (existingPayment) {
+                    if (options.requireAgreement) assertSameAgreement(existingPayment, req.body.agreementAcceptance);
                     const existingAmountInCents = toMoneyCents(existingPayment.amount);
                     if (
                         existingPayment.userFarmInvestmentId !== farmInvestment.id
                         || existingAmountInCents !== amountInCents
+                        || (requestedCurrency && requestedCurrency !== existingPayment.currency)
                     ) {
                         throw new InvestmentRequestError(
                             'This Idempotency-Key has already been used for another investment request',
@@ -1141,6 +1175,12 @@ async function investInFarm(req, res) {
             }
 
             const reference = generatePaymentReference();
+            const agreement = options.requireAgreement
+                ? acceptInvestmentAgreement(buildInvestmentAgreement(buildInvestmentQuote({
+                    farm, project: farmInvestment, template: investmentTemplate,
+                    amount: amountValue, pendingAmount: pendingReservation || 0
+                })), req.body.agreementAcceptance, investorId)
+                : null;
             const paymentDefaults = {
                 investorId,
                 userFarmId: farm.id,
@@ -1157,6 +1197,7 @@ async function investInFarm(req, res) {
                 authorizationUrl: null,
                 status: 'pending',
                 paidAt: null,
+                agreement,
                 gatewayResponse: {
                     initializationStatus: 'created'
                 }
@@ -1176,10 +1217,12 @@ async function investInFarm(req, res) {
                 });
 
                 if (!created) {
+                    if (options.requireAgreement) assertSameAgreement(payment, req.body.agreementAcceptance);
                     const existingAmountInCents = toMoneyCents(payment.amount);
                     if (
                         payment.userFarmInvestmentId !== farmInvestment.id
                         || existingAmountInCents !== amountInCents
+                        || (requestedCurrency && requestedCurrency !== payment.currency)
                     ) {
                         throw new InvestmentRequestError(
                             'This Idempotency-Key has already been used for another investment request',
@@ -1301,7 +1344,7 @@ async function investInFarm(req, res) {
             : 'Investment transaction already exists',
         result.created ? 201 : 200);
     } catch (error) {
-        if (error instanceof InvestmentRequestError) {
+        if (error instanceof InvestmentRequestError || error instanceof InvestmentTermsError) {
             return res.fail(error.message, error.statusCode);
         }
 

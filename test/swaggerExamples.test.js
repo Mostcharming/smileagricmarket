@@ -60,3 +60,39 @@ test('preserves handwritten and falsy examples, and resolves referenced/composed
         { type: 'object', properties: { count: { type: 'integer', example: 0 } } }
     ] }), { enabled: false, count: 0 });
 });
+
+test('mobile investor Swagger covers the shared flow and calculator, consent, confirmation and download', () => {
+    const spec = require('../src/config/swagger');
+    const mobilePaths = Object.entries(spec.paths).filter(([route]) => /^\/mobile\/(investments|portfolio|farm-categories)(\/|$)/.test(route));
+    assert.equal(mobilePaths.length, 14);
+    for (const [route, item] of mobilePaths) {
+        for (const operation of Object.values(item)) {
+            if (!operation.responses) continue;
+            assert.deepEqual(operation.security, [{ bearerAuth: [] }], route);
+            assert.ok(operation.tags.every(tag => tag.startsWith('Mobile ')), route);
+        }
+    }
+    const mobile = spec.paths['/mobile/investments/{investmentProjectId}/invest'].post;
+    const web = spec.paths['/web/investments/{investmentProjectId}/invest'].post;
+    assert.ok(mobile.requestBody.content['application/json'].schema.required.includes('agreementAcceptance'));
+    assert.ok(!web.requestBody.content['application/json'].schema.required.includes('agreementAcceptance'));
+    assert.notEqual(mobile.responses, web.responses);
+    const preview = spec.paths['/mobile/investments/projects/{investmentProjectId}/agreement'].get.responses['200'].content['application/json'].example.data;
+    assert.equal(preview.quote.totalReturn, 355000);
+    assert.equal(preview.agreement.version, mobile.requestBody.content['application/json'].example.agreementAcceptance.version);
+    assert.equal(preview.agreement.terms.principal + preview.agreement.terms.expectedProfit, preview.agreement.terms.totalReturn);
+    const download = spec.paths['/mobile/investments/payments/{transactionId}/agreement'].get;
+    assert.ok(download.responses['200'].content['text/plain'].example);
+    assert.ok(download.responses['200'].headers['Content-Disposition']);
+    assert.match(spec.paths['/mobile/investments'].get.description, /GET \/v1\/mobile\/investments/);
+    assert.ok(!spec.paths['/mobile/payments/paystack/webhook']);
+    function checkRefs(value) {
+        if (!value || typeof value !== 'object') return;
+        if (value.$ref?.startsWith('#/')) {
+            const resolved = value.$ref.slice(2).split('/').reduce((node, key) => node?.[key], spec);
+            assert.ok(resolved, `Missing Swagger reference ${value.$ref}`);
+        }
+        Object.values(value).forEach(checkRefs);
+    }
+    checkRefs(spec);
+});
