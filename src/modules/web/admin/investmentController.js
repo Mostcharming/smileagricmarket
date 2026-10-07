@@ -3,6 +3,7 @@
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { Op } = require('sequelize');
+const { investmentTemplateStats } = require('../../../utils/investmentTemplateStats');
 
 const models = defineModels(sequelize);
 const {
@@ -426,6 +427,7 @@ function formatInvestment(investment) {
         },
         currency: data.currency,
         isActive: data.isActive,
+        ...investmentTemplateStats(data.InvestmentProjects || []),
         milestones: milestones.map(formatMilestone),
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
@@ -434,6 +436,12 @@ function formatInvestment(investment) {
 
 function getInvestmentInclude() {
     return [
+        {
+            model: UserFarmInvestment,
+            as: 'InvestmentProjects',
+            attributes: ['investmentReceived', 'expectedInvestment', 'investmentStatus', 'endDate'],
+            separate: true
+        },
         {
             model: FarmCategory,
             as: 'FarmCategory',

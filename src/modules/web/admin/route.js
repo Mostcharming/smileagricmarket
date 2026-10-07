@@ -202,6 +202,131 @@ router.get('/user-farms', verifyAdminToken, listAllUserFarms);
  *                       type: object
  *                     Investment:
  *                       type: object
+ *                     totalProjectsCount:
+ *                       type: integer
+ *                     completedProjectsCount:
+ *                       type: integer
+ *                       description: Projects completed by lifecycle status or end date
+ *                     activeProjectsCount:
+ *                       type: integer
+ *                       description: Enabled projects with an active lifecycle status
+ *                     totalFundingGoalAmount:
+ *                       type: number
+ *                     totalFundsRaised:
+ *                       type: number
+ *                       description: Sum of investmentReceived across this farm's projects, excluding pending payments
+ *                     completionPercentage:
+ *                       type: number
+ *                       description: Funding-goal-weighted completion of milestones, from 0 to 100; distinct from funding progress
+ *                     farmOverview:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         name:
+ *                           type: string
+ *                         location:
+ *                           type: string
+ *                           nullable: true
+ *                         address:
+ *                           type: string
+ *                           nullable: true
+ *                           description: Alias of the stored farm location
+ *                         size:
+ *                           type: number
+ *                           nullable: true
+ *                         categories:
+ *                           type: array
+ *                           description: Distinct categories of the farm's investment projects
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                         photos:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                         documents:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                     InvestmentProjects:
+ *                       type: array
+ *                       description: Existing project structure retained, with additive display metrics
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           name:
+ *                             type: string
+ *                             nullable: true
+ *                           investmentStatus:
+ *                             type: string
+ *                             description: Stored lifecycle status, preserved for existing clients
+ *                           status:
+ *                             type: string
+ *                             enum: [not_started, funding_started, active, completed]
+ *                             description: Effective lifecycle status using the existing project date and funding rules
+ *                           startDate:
+ *                             type: string
+ *                             format: date
+ *                           endDate:
+ *                             type: string
+ *                             format: date
+ *                           investorCount:
+ *                             type: integer
+ *                             description: Distinct investors with recorded or successful payments for this project
+ *                           fundingGoalAmount:
+ *                             type: number
+ *                           amountRaised:
+ *                             type: number
+ *                           completionPercentage:
+ *                             type: number
+ *                           Category:
+ *                             type: object
+ *                           InvestmentTemplate:
+ *                             type: object
+ *                           ProjectMilestones:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                 name:
+ *                                   type: string
+ *                                 fundingStatus:
+ *                                   type: string
+ *                                 reviewStatus:
+ *                                   type: string
+ *                                 fundingRequestedAt:
+ *                                   type: string
+ *                                   format: date-time
+ *                                   nullable: true
+ *                                 isCompleted:
+ *                                   type: boolean
+ *                                 amount:
+ *                                   type: number
+ *                                 FundingEvidence:
+ *                                   type: array
+ *                                   description: Photos and PDF evidence submitted with funding requests
+ *                                   items:
+ *                                     type: object
+ *                                     properties:
+ *                                       evidenceType:
+ *                                         type: string
+ *                                         enum: [photo, file]
+ *                                       fileUrl:
+ *                                         type: string
+ *                                         format: uri
+ *                                       mimeType:
+ *                                         type: string
  *                     SelectedMilestones:
  *                       type: array
  *                       items:

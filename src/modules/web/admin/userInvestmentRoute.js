@@ -197,7 +197,7 @@ router.put(
  *   post:
  *     tags: [Web Admin User Investments]
  *     summary: Approve, reject, or request more milestone evidence
- *     description: Approval marks the requested amount as released/completed. Approval requires evidence and a fully verified checklist. Every action is audited.
+ *     description: Approval queues a PayPetal milestone release and sets reviewStatus to approved, fundingStatus to processing_funding, and isCompleted to false. It does not confirm payment. The worker marks fundingStatus completed only after PayPetal confirms the milestone release as COMPLETED. Approval requires configured and enabled PayPetal, fully funded project escrow, a verified farmer payout account, completed earlier milestones, evidence, and a fully verified checklist. Every action is audited.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -226,7 +226,8 @@ router.put(
  *     responses:
  *       200: { description: Review action completed and audited }
  *       400: { description: Invalid review input }
- *       409: { description: Evidence or checklist requirement was not met }
+ *       409: { description: Evidence, checklist, escrow, payout account, or previous milestone requirement was not met }
+ *       503: { description: PayPetal is not configured and enabled }
  */
 router.post(
     '/user-investment-milestones/:milestoneId/review',

@@ -5,6 +5,7 @@ const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const { toBackendApiUrl } = require('../../../utils/url');
 const { resolveInvestmentProjectStatus } = require('../../../utils/investmentProject');
+const { parsePortfolioFilters, matchesPortfolioFilters } = require('../../../utils/portfolioFilters');
 
 const models = defineModels(sequelize);
 const {
@@ -608,10 +609,11 @@ function buildUserInvestmentBreakdown(entries) {
     });
 }
 
-function formatPortfolioFarm(req, entries) {
+function formatPortfolioFarm(req, entries, options = {}) {
     const farm = entries[0].Farm || {};
     const relevantProjectIds = new Set(entries.map(entry => entry.userFarmInvestmentId));
-    const rawProjects = farm.InvestmentProjects || [];
+    const rawProjects = (farm.InvestmentProjects || []).filter(project =>
+        !options.matchingProjectsOnly || relevantProjectIds.has(project.id));
     const breakdown = buildUserInvestmentBreakdown(entries);
     const amountInCents = entries.reduce((sum, entry) => sum + entry.amountInCents, 0);
     const expectedReturnInCents = entries.reduce(
@@ -910,11 +912,19 @@ async function getPortfolioFarms(req, res) {
             return res.fail('status must be either active or completed', 400);
         }
 
+        let filters;
+        try {
+            filters = parsePortfolioFilters(req.query);
+        } catch (error) {
+            return res.fail(error.message, 400);
+        }
+
         const asOf = new Date();
         const payments = await findPortfolioPayments(investorId, true);
         const entries = payments
             .map(payment => formatPaymentForPortfolio(payment, asOf))
-            .filter(entry => !requestedStatus || entry.portfolioStatus === requestedStatus);
+            .filter(entry => (!requestedStatus || entry.portfolioStatus === requestedStatus)
+                && matchesPortfolioFilters(entry, filters));
         const entriesByFarm = new Map();
 
         entries.forEach(entry => {
@@ -924,7 +934,9 @@ async function getPortfolioFarms(req, res) {
         });
 
         const farms = [...entriesByFarm.values()]
-            .map(farmEntries => formatPortfolioFarm(req, farmEntries))
+            .map(farmEntries => formatPortfolioFarm(req, farmEntries, {
+                matchingProjectsOnly: Object.keys(filters).length > 0
+            }))
             .sort((left, right) =>
                 new Date(right.userInvestment.lastInvestedAt) - new Date(left.userInvestment.lastInvestedAt)
             );

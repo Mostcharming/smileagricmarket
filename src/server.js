@@ -11,6 +11,7 @@ require('dotenv').config();
 
 const config = require('./config');
 const swaggerSpec = require('./config/swagger');
+const { swaggerGroupingScript } = require('./config/swaggerGrouping');
 const { responseFormatter } = require('./middlewares/common/responseFormatter');
 const { inputValidationMiddleware } = require('./middlewares/common/inputValidation');
 const { createRateLimitMiddleware } = require('./middlewares/common/rateLimiter');
@@ -99,7 +100,8 @@ app.use('/api-docs',
       deepLinking: true,
       displayOperationId: true,
     },
-    customCss: '.swagger-ui { background-color: #fafafa; }',
+    customJsStr: swaggerGroupingScript,
+    customCss: '.swagger-ui { background-color: #fafafa; } .swagger-audience-heading { margin: 32px 0 12px; padding-bottom: 12px; border-bottom: 2px solid #499f68; }',
     customSiteTitle: 'Smile Agric API Docs',
   })
 );
@@ -112,7 +114,8 @@ app.use(`/${config.apiVersion}/api-docs`,
       deepLinking: true,
       displayOperationId: true,
     },
-    customCss: '.swagger-ui { background-color: #fafafa; }',
+    customJsStr: swaggerGroupingScript,
+    customCss: '.swagger-ui { background-color: #fafafa; } .swagger-audience-heading { margin: 32px 0 12px; padding-bottom: 12px; border-bottom: 2px solid #499f68; }',
     customSiteTitle: 'Smile Agric API Docs',
   })
 );
@@ -125,7 +128,8 @@ app.use(`/api/${config.apiVersion}/api-docs`,
       deepLinking: true,
       displayOperationId: true,
     },
-    customCss: '.swagger-ui { background-color: #fafafa; }',
+    customJsStr: swaggerGroupingScript,
+    customCss: '.swagger-ui { background-color: #fafafa; } .swagger-audience-heading { margin: 32px 0 12px; padding-bottom: 12px; border-bottom: 2px solid #499f68; }',
     customSiteTitle: 'Smile Agric API Docs',
   })
 );

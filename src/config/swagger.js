@@ -2,6 +2,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const { addSwaggerExamples } = require('./swaggerExamples');
 const { addMobileInvestmentSwagger } = require('./mobileInvestmentSwagger');
 const { addPaymentSwagger } = require('./paymentSwagger');
+const { addAdminFarmSwagger } = require('./adminFarmSwagger');
 
 const options = {
     definition: {
@@ -752,6 +753,59 @@ const options = {
     ],
 };
 
-const specs = swaggerJsdoc(options);
+const specs = addAdminFarmSwagger(swaggerJsdoc(options));
+Object.assign(specs.components.schemas.Investment.properties, {
+    status: {
+        type: 'string',
+        enum: ['not_started', 'funding_started', 'active', 'completed'],
+        description: 'Aggregate lifecycle of linked farm projects: completed when all are completed, otherwise active, funding_started, or not_started. No projects means not_started.',
+        example: 'active'
+    },
+    amountInvestedSoFar: {
+        type: 'number',
+        minimum: 0,
+        description: 'Sum of investmentReceived across linked farm projects, excluding pending payments. Zero when no projects exist.',
+        example: 750000
+    }
+});
 
-module.exports = addSwaggerExamples(addPaymentSwagger(addMobileInvestmentSwagger(addSwaggerExamples(specs))));
+const groupedSpecs = addSwaggerExamples(addPaymentSwagger(addMobileInvestmentSwagger(addSwaggerExamples(specs))));
+
+// Declare the display order and classify after adding generated endpoints so
+// shared payment routes appear under the client or role that uses them.
+const groups = [
+    { name: 'Web Admin', description: 'Administration, users, KYC reviews, farms, investments, milestones, and payment operations.' },
+    { name: 'Web', description: 'Web authentication, profiles, KYC, farms, investments, portfolios, and payments.' },
+    { name: 'Mobile', description: 'Mobile authentication, KYC, investment discovery, checkout, portfolios, and payments.' },
+    { name: 'Beta', description: 'Public beta signup and registration.' },
+    { name: 'Web Marketing', description: 'Marketing administrator authentication and beta signup reporting.' },
+];
+const groupTags = new Map(groups.map(group => [group.name, new Set()]));
+
+const operationMethods = new Set(['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace']);
+for (const [path, pathItem] of Object.entries(groupedSpecs.paths)) {
+    const group = path.startsWith('/web/admin/') ? 'Web Admin'
+        : path.startsWith('/web/marketing-admin/') ? 'Web Marketing'
+        : path === '/web/beta-signups' || path.startsWith('/web/beta-signups/') ? 'Beta'
+        : path.startsWith('/mobile/') ? 'Mobile'
+        : 'Web';
+    for (const [method, operation] of Object.entries(pathItem)) {
+        if (!operationMethods.has(method)) continue;
+        let topic = (operation.tags?.[0] || '').replace(new RegExp(`^${group}\\s*`), '').trim();
+        if (group === 'Beta') topic = 'Signups';
+        if (group === 'Web Marketing') topic = path.endsWith('/login') ? 'Auth' : 'Beta Signups';
+        if (group === 'Web Admin' && !topic) {
+            topic = path.endsWith('/login') ? 'Auth'
+                : path.includes('/kyc') ? 'KYC'
+                : path.includes('/user-farm-milestones') ? 'Milestones'
+                : path.includes('/user-farms') ? 'Farms' : 'Users';
+        }
+        const tag = `${group} ${topic || 'General'}`;
+        operation.tags = [tag];
+        groupTags.get(group).add(tag);
+    }
+}
+groupedSpecs.tags = groups.flatMap(group => [...groupTags.get(group.name)].map(name => ({ name })));
+groupedSpecs['x-tagGroups'] = groups.map(group => ({ name: group.name, tags: [...groupTags.get(group.name)] }));
+
+module.exports = groupedSpecs;

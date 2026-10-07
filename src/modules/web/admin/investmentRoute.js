@@ -154,7 +154,7 @@ router.post('/investments', verifyAdminToken, createInvestment);
  *     tags:
  *       - Web Admin Investments
  *     summary: List investments
- *     description: Retrieve investments with pagination, search, category filtering, and active filtering.
+ *     description: Retrieve investment templates with pagination, search, category filtering, and active filtering. Each item includes amountInvestedSoFar summed across linked farm projects and their aggregate lifecycle status. All projects completed means completed; otherwise active takes precedence over funding_started, then not_started. Templates without projects return not_started and zero invested. activeOnly filters the template's isActive flag, independently of lifecycle status.
  *     security:
  *       - bearerAuth: []
  *     parameters:

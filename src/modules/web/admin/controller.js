@@ -8,6 +8,7 @@ const { Op } = require('sequelize');
 const notify = require('../../../utils/notify');
 const { toBackendApiUrl } = require('../../../utils/url');
 const { reviewUserInvestmentMilestone } = require('./userInvestmentController');
+const { addAdminFarmDetails } = require('../../../utils/adminFarmDetails');
 
 const models = defineModels(sequelize);
 const { Admin, User, KYC } = models;
@@ -541,7 +542,8 @@ async function getUserFarmDetails(req, res) {
                         'startDate',
                         'endDate',
                         'currency',
-                        'notes'
+                        'notes',
+                        'isActive'
                     ],
                     include: [
                         {
@@ -572,6 +574,8 @@ async function getUserFarmDetails(req, res) {
                                 'fundReleasePercentage',
                                 'order',
                                 'fundingStatus',
+                                'reviewStatus',
+                                'fundingRequestedAt',
                                 'isCompleted',
                                 'completedAt',
                                 'amount'
@@ -600,6 +604,8 @@ async function getUserFarmDetails(req, res) {
                         'fundReleasePercentage',
                         'order',
                         'fundingStatus',
+                        'reviewStatus',
+                        'fundingRequestedAt',
                         'isCompleted',
                         'completedAt',
                         'amount'
@@ -686,8 +692,13 @@ async function getUserFarmDetails(req, res) {
                 totalFundsReceived: investmentData?.totalInvestmentsReceived || 0
             };
         }
+        const payments = await models.InvestmentPayment.findAll({
+            where: { userFarmId: farmId, status: { [Op.in]: ['recorded', 'successful'] } },
+            attributes: ['userFarmInvestmentId', 'investorId'],
+            raw: true
+        });
         return res.success({
-            ...farmObj,
+            ...addAdminFarmDetails(farmObj, payments),
             user: userDetails
         }, 'Farm details retrieved successfully');
     } catch (error) {

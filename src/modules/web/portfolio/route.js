@@ -426,7 +426,7 @@ router.get('/', getPortfolio);
  *     tags:
  *       - Web Portfolio
  *     summary: List all farms the authenticated user invested in
- *     description: Returns an unpaginated farm list with aggregate farm funding, owner rating state, unique investor count, all farm investment projects and their milestones, plus the authenticated user's transactions and returns. Only recorded or successful investment payments are included.
+ *     description: Returns an unpaginated farm list with funding, owner details, investment projects, milestones, and the authenticated user's transactions and returns. Only recorded or successful payments are included. Optional duration and date filters combine with status using AND. When duration or date filters are supplied, only matching invested projects and their transactions contribute to the returned farm data; without them the existing all-project view is retained. Duration uses accepted agreement terms when available, otherwise template duration. Start date uses the project start date with template fallback; end date uses the effective maturity date. Either date can be supplied independently.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -437,6 +437,30 @@ router.get('/', getPortfolio);
  *           type: string
  *           enum: [active, completed]
  *         description: Active investments have not reached their effective end date; completed investments have.
+ *       - in: query
+ *         name: duration
+ *         required: false
+ *         schema:
+ *           type: string
+ *           pattern: '^[1-9][0-9]*\s*(weeks?|months?|years?)$'
+ *         example: 8 months
+ *         description: Exact investment term, such as 8 months, 4 weeks, or 1 year. This is the configured term, not time remaining.
+ *       - in: query
+ *         name: startDate
+ *         required: false
+ *         schema:
+ *           type: string
+ *           format: date
+ *         example: '2026-01-01'
+ *         description: Inclusive lower bound on investment project start date. May be supplied without endDate.
+ *       - in: query
+ *         name: endDate
+ *         required: false
+ *         schema:
+ *           type: string
+ *           format: date
+ *         example: '2026-12-31'
+ *         description: Inclusive upper bound on effective investment maturity date. May be supplied without startDate. When both dates are given, endDate must be on or after startDate.
  *     responses:
  *       200:
  *         description: Portfolio farms retrieved successfully
@@ -465,7 +489,7 @@ router.get('/', getPortfolio);
  *                       items:
  *                         $ref: '#/components/schemas/PortfolioFarm'
  *       400:
- *         description: Invalid status query
+ *         description: Invalid status, duration, calendar date, or date range
  *       401:
  *         description: User not authenticated
  *       500:
