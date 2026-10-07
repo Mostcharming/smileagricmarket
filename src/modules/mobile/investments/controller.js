@@ -89,6 +89,8 @@ async function getPayment(req, res) {
             duration: terms?.duration || null,
             expectedProfit: terms?.expectedProfit ?? null,
             totalReturn: terms?.totalReturn ?? null,
+            payoutAmount: terms?.payoutAmount ?? null,
+            maturityReturnMode: terms?.maturityReturnMode ?? null,
             payoutDate: terms?.payoutDate || null,
             paidAt: payment.paidAt,
             agreementAvailable: !!payment.agreement
@@ -117,6 +119,8 @@ async function getAcceptedAgreement(req, res) {
             '', `Farm: ${terms.farmName}`, `Project: ${terms.investmentProjectId}`,
             `Principal: ${money(terms.principal)}`, `Projected profit: ${money(terms.expectedProfit)}`,
             `Projected total return: ${money(terms.totalReturn)}`, `ROI: ${terms.roiPercentage}%`,
+            `Scheduled maturity payout: ${money(terms.payoutAmount ?? terms.totalReturn)}`,
+            `Maturity payment mode: ${terms.maturityReturnMode || 'principal_plus_roi'}`,
             `Term: ${terms.duration.label}`, `Start date: ${terms.startDate}`, `Maturity: ${terms.payoutDate}`,
             'Payout frequency: at maturity', 'Early exit: not permitted before maturity', '',
             ...agreement.sections.flatMap(section => [section.title, section.text, '']),

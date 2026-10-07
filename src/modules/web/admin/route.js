@@ -904,5 +904,6 @@ router.put(
 router.use('/', farmCategoryRouter);
 router.use('/', investmentRouter);
 router.use('/', userInvestmentRouter);
+router.use('/payments', verifyAdminToken, require('../payments/route').adminRouter);
 
 module.exports = router;

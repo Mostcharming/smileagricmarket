@@ -191,10 +191,11 @@ module.exports = (sequelize) => {
                 }
 
                 if (
-                    (this.reviewStatus === 'approved')
-                    !== (this.fundingStatus === 'completed')
+                    (this.fundingStatus === 'completed' && this.reviewStatus !== 'approved')
+                    || (this.reviewStatus === 'approved'
+                        && !['processing_funding', 'completed'].includes(this.fundingStatus))
                 ) {
-                    throw new Error('Approved review status must match completed funding status');
+                    throw new Error('Approved milestones must be awaiting payment or have confirmed payment');
                 }
             }
         }

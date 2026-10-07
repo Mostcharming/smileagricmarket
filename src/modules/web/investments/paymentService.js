@@ -60,6 +60,9 @@ async function settlePaystackPayment(paymentId, gatewayData) {
                 statusCode: 404
             };
         }
+        if (payment.gateway !== 'paystack') {
+            return { error: 'Payment belongs to a different provider', statusCode: 409 };
+        }
 
         if (payment.status === 'successful') {
             const farmInvestment = await UserFarmInvestment.findByPk(

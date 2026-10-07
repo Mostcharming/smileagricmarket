@@ -48,7 +48,7 @@ async function handlePaystackWebhook(req, res) {
             ? await InvestmentPayment.findOne({ where: { reference } })
             : null;
 
-        if (!payment) {
+        if (!payment || payment.gateway !== 'paystack') {
             console.warn('Paystack webhook referenced an unknown investment payment:', reference);
             return res.status(200).json({ received: true });
         }

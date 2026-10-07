@@ -1106,6 +1106,7 @@ async function reviewUserInvestmentMilestone(req, res) {
         const adminId = parseUuid(req.admin?.id, 'adminId');
         if (!adminId) throw new AdminInvestmentRequestError('Admin authentication required', 401);
         const action = parseEnum(req.body?.action, REVIEW_ACTIONS, 'action');
+        // if (req.admin?.role === 'marketing_admin') throw new AdminInvestmentRequestError('Financial admin access required', 403);
         if (!action) throw new AdminInvestmentRequestError('action is required');
         const internalNotes = normalizeInternalNotes(req.body?.internalNotes);
         const checklistItems = normalizeChecklistItems(
@@ -1187,12 +1188,19 @@ async function reviewUserInvestmentMilestone(req, res) {
             }
 
             const fromReviewStatus = milestone.reviewStatus;
+            // Approval and bank settlement are separate states for every project.
+            // Queueing occurs in the same transaction as the decision and audit.
+            if (action === 'approve') {
+                require('../../../utils/paypetal').requireEnabled();
+                await require('../../../services/payments/service').getPaymentService()
+                    .queueMilestone(milestone, transaction);
+            }
             const decision = {
                 approve: {
                     reviewStatus: 'approved',
-                    fundingStatus: 'completed',
-                    isCompleted: true,
-                    completedAt: new Date()
+                    fundingStatus: 'processing_funding',
+                    isCompleted: false,
+                    completedAt: null
                 },
                 reject: {
                     reviewStatus: 'rejected',
@@ -1233,7 +1241,7 @@ async function reviewUserInvestmentMilestone(req, res) {
     } catch (error) {
         console.error('Review user investment milestone error:', error);
         return res.fail(
-            error instanceof AdminInvestmentRequestError
+            error instanceof AdminInvestmentRequestError || error.name === 'PaymentError' || error.name === 'PaypetalError'
                 ? error.message
                 : 'Failed to review user investment milestone',
             error.statusCode || 500

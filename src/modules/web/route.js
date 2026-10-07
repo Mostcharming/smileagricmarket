@@ -34,6 +34,7 @@ router.use('/payments/paystack', paystackRouter);
 
 // All other routes require authentication
 router.use(securityMiddleware);
+router.use('/payments', require('./payments/route').router);
 
 // KYC routes - requires authentication
 router.use('/kyc', kycRouter);

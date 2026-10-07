@@ -997,7 +997,19 @@ async function investInFarm(req, res, options = {}) {
             validateAgreementAcceptance(req.body?.agreementAcceptance);
         }
 
-        getPaystackConfig();
+        const usePaypetal = require('node:process').env.PAYMENTS_PROVIDER === 'paypetal';
+        let paymentService;
+        if (usePaypetal) {
+            const config = require('../../../utils/paypetal').requireEnabled();
+            if (config.depositReconciliation !== 'manual') {
+                return res.fail('Configure shared-account deposit reconciliation before accepting investments', 503);
+            }
+            if (!idempotencyKey) return res.fail('Idempotency-Key is required for PayPetal investments', 400);
+            paymentService = require('../../../services/payments/service').getPaymentService();
+            await paymentService.verifiedProfile(investorId);
+        } else {
+            getPaystackConfig();
+        }
 
         const investor = await User.findByPk(investorId, {
             attributes: ['id', 'email', 'fullName']
@@ -1174,6 +1186,10 @@ async function investInFarm(req, res, options = {}) {
                 throw new InvestmentRequestError(`Investment currency must be ${currency}`, 400);
             }
 
+            if (usePaypetal) {
+                await paymentService.acceptingProject(farmInvestment, investorId, transaction);
+            }
+
             const reference = generatePaymentReference();
             const agreement = options.requireAgreement
                 ? acceptInvestmentAgreement(buildInvestmentAgreement(buildInvestmentQuote({
@@ -1190,14 +1206,17 @@ async function investInFarm(req, res, options = {}) {
                 idempotencyKey,
                 amount: fromMoneyCents(amountInCents),
                 currency,
-                gateway: PAYSTACK_GATEWAY,
+                gateway: usePaypetal ? 'paypetal' : PAYSTACK_GATEWAY,
                 gatewayReference: reference,
                 gatewayTransactionId: null,
                 accessCode: null,
                 authorizationUrl: null,
                 status: 'pending',
                 paidAt: null,
-                agreement,
+                agreement: agreement || (usePaypetal ? {
+                    terms: { ...buildInvestmentQuote({ farm, project: farmInvestment, template: investmentTemplate,
+                        amount: amountValue, pendingAmount: pendingReservation || 0 }), payoutFrequency: 'at_maturity' }
+                } : null),
                 gatewayResponse: {
                     initializationStatus: 'created'
                 }
@@ -1251,6 +1270,20 @@ async function investInFarm(req, res, options = {}) {
                 shouldInitialize: true
             };
         });
+
+        if (result.payment.gateway === 'paypetal') {
+            const service = paymentService || require('../../../services/payments/service').getPaymentService();
+            if (result.payment.status === 'pending') {
+                const instructions = await service.investmentInstructions(result.payment);
+                await result.payment.update({ gatewayResponse: { instructions } });
+            }
+            return res.success({ transactionId: result.payment.id,
+                payment: formatInvestmentPayment(result.payment),
+                investment: formatFundingSummary(result.payment.userFarmId, result.farmInvestment, result.totalExpectedFunding),
+                gateway: { provider: 'paypetal', ...result.payment.gatewayResponse?.instructions } },
+            result.created ? 'Transfer the investment to the project account using the supplied reference' : 'Investment transaction already exists',
+            result.created ? 201 : 200);
+        }
 
         if (result.shouldInitialize) {
             let paystackResponse;
@@ -1344,6 +1377,7 @@ async function investInFarm(req, res, options = {}) {
             : 'Investment transaction already exists',
         result.created ? 201 : 200);
     } catch (error) {
+        if (error.name === 'PaymentError' || error.name === 'PaypetalError') return res.fail(error.message, error.statusCode);
         if (error instanceof InvestmentRequestError || error instanceof InvestmentTermsError) {
             return res.fail(error.message, error.statusCode);
         }
@@ -1374,6 +1408,15 @@ async function verifyInvestmentPayment(req, res) {
         });
         if (!payment) {
             return res.fail('Investment transaction not found', 404);
+        }
+
+        if (payment.gateway === 'paypetal') {
+            const farmInvestment = await UserFarmInvestment.findByPk(payment.userFarmInvestmentId);
+            return res.success({ transactionId: payment.id, payment: formatInvestmentPayment(payment),
+                investment: formatFundingSummary(payment.userFarmId, farmInvestment, farmInvestment.expectedInvestment),
+                credited: false, alreadySettled: payment.status === 'successful',
+                confirmation: 'admin_statement_reconciliation' },
+            payment.status === 'successful' ? 'Project deposit reconciled successfully' : 'Awaiting project deposit reconciliation');
         }
 
         let settlement;

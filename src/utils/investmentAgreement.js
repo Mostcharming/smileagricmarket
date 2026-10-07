@@ -70,6 +70,8 @@ function buildInvestmentQuote({ farm, project, template, amount, pendingAmount =
         throw new InvestmentTermsError('Projected return exceeds the supported monetary range');
     }
     const currency = String(project.currency || template.currency || 'NGN').toUpperCase();
+    const returnMode = require('node:process').env.PAYMENTS_PROVIDER === 'paypetal'
+        ? require('./paypetal').settings().returnMode : 'principal_plus_roi';
     return {
         farmId: farm.id,
         farmName: farm.name,
@@ -80,6 +82,8 @@ function buildInvestmentQuote({ farm, project, template, amount, pendingAmount =
         principal: principal / 100,
         expectedProfit: Number(profit) / 100,
         totalReturn: Number(total) / 100,
+        maturityReturnMode: returnMode,
+        payoutAmount: returnMode === 'roi_only' ? Number(profit) / 100 : Number(total) / 100,
         roiPercentage: roiBasisPoints / 100,
         riskLevel: template.riskLevel,
         duration: { value: durationValue, unit: template.durationUnit, label: `${durationValue} ${template.durationUnit}` },
@@ -96,11 +100,13 @@ function buildInvestmentAgreement(quote) {
     // Availability changes do not alter the terms accepted by an investor.
     const { limits, suggestedAmounts, durationEditable, ...terms } = quote;
     const content = {
-        revision: '2026-09-23',
+        revision: '2026-10-07',
         terms: { ...terms, payoutFrequency: 'at_maturity', earlyExitAllowed: false },
         sections: SECTIONS.map(section => ({ ...section })),
         acknowledgements: { ...ACKNOWLEDGEMENTS }
     };
+    if (quote.maturityReturnMode === 'roi_only') content.sections.push({ id: 'maturity_payment',
+        title: 'Maturity payment', text: 'The scheduled maturity payout includes the calculated ROI only. It does not include repayment of the original investment principal.' });
     const version = createHash('sha256').update(JSON.stringify(content)).digest('hex');
     return { reference: `AGR-${version.slice(0, 12).toUpperCase()}`, version, ...content };
 }

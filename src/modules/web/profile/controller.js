@@ -189,6 +189,15 @@ async function setupWallet(req, res) {
             return res.fail('User not authenticated', 401);
         }
 
+        if (process.env.PAYMENTS_PROVIDER === 'paypetal') {
+            require('../../../utils/paypetal').requireEnabled();
+            const profile = await require('../../../services/payments/service').getPaymentService()
+                .setupAccount(userId, req.body);
+            return res.success({ id: profile.id, bankCode: profile.bankCode,
+                accountNumber: profile.accountNumber, accountName: profile.accountName,
+                status: profile.status, isVerified: profile.status === 'verified' }, 'Payout account registration queued', 202);
+        }
+
         if (!bankName || !accountNumber || !accountName) {
             return res.fail('Bank name, account number, and account name are required', 400);
         }
@@ -212,7 +221,8 @@ async function setupWallet(req, res) {
             await wallet.update({
                 bankName,
                 accountNumber,
-                accountName
+                accountName,
+                isVerified: false
             });
         }
 
@@ -229,7 +239,7 @@ async function setupWallet(req, res) {
         );
     } catch (error) {
         console.error('Setup wallet error:', error);
-        return res.fail(error.message, 500);
+        return res.fail(error.statusCode ? error.message : 'Failed to set up payout account', error.statusCode || 500, error.details);
     }
 }
 

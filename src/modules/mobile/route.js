@@ -15,6 +15,7 @@ router.use('/auth', authRouter);
 
 // All other routes require authentication
 router.use(securityMiddleware);
+router.use('/payments', require('../web/payments/route').router);
 
 // KYC routes - requires authentication
 router.use('/kyc', kycRouter);

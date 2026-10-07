@@ -5,7 +5,7 @@ const config = {
         feUrl: "https://app.smileagrimarket.com",
         db: {
             master: {
-                host: "192.168.1.165",
+                host: "127.0.0.1",
                 port: 5432,
                 username: "postgres",
                 password: "Spartan920",

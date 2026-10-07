@@ -28,6 +28,7 @@ function addMobileInvestmentSwagger(spec) {
         farmId: uuid, farmName: { type: 'string' }, investmentProjectId: uuid,
         investmentTemplateId: uuid, investmentName: { type: 'string' }, currency: { type: 'string', example: 'NGN' },
         principal: money, expectedProfit: money, totalReturn: money, roiPercentage: money,
+        payoutAmount: money, maturityReturnMode: { type: 'string', enum: ['roi_only', 'principal_plus_roi'] },
         riskLevel: { type: 'string', enum: ['low', 'medium', 'high'] }, duration, startDate: date, payoutDate: date
     };
     const quoteExample = buildInvestmentQuote({

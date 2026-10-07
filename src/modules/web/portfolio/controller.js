@@ -206,7 +206,9 @@ function formatPaymentForPortfolio(payment, asOf) {
         portfolioStatus,
         amountInCents: toMoneyCents(data.amount),
         expectedReturnInCents,
-        earnedReturnInCents: portfolioStatus === 'completed' ? expectedReturnInCents : 0,
+        earnedReturnInCents: data.gateway === 'paypetal'
+            ? (data.RoiPayout?.status === 'completed' ? toMoneyCents(data.RoiPayout.roi) : 0)
+            : (portfolioStatus === 'completed' ? expectedReturnInCents : 0),
         currency: String(data.currency || DEFAULT_CURRENCY).toUpperCase()
     };
 }
@@ -252,6 +254,11 @@ async function findPortfolioPayments(investorId, includeFarmDetails = false, use
             ]
         }
     ];
+
+    if (require('node:process').env.PAYPETAL_ENABLED === 'true') {
+        include.push({ model: models.InvestorPayout, as: 'RoiPayout', required: false,
+            attributes: ['id', 'amount', 'roi', 'returnMode', 'status', 'dueAt', 'completedAt'] });
+    }
 
     if (includeFarmDetails) {
         include.unshift({
@@ -458,11 +465,11 @@ function buildPortfolioSummary(payments, asOf = new Date()) {
     );
     const currentEarnedReturns = entries.filter(entry =>
         entry.portfolioStatus === 'completed'
-        && isWithinRange(entry.effectiveEndDate, currentMonthStart, currentMonthEnd)
+        && isWithinRange(entry.gateway === 'paypetal' ? new Date(entry.RoiPayout?.completedAt) : entry.effectiveEndDate, currentMonthStart, currentMonthEnd)
     );
     const previousEarnedReturns = entries.filter(entry =>
         entry.portfolioStatus === 'completed'
-        && isWithinRange(entry.effectiveEndDate, previousMonthStart, previousMonthEnd)
+        && isWithinRange(entry.gateway === 'paypetal' ? new Date(entry.RoiPayout?.completedAt) : entry.effectiveEndDate, previousMonthStart, previousMonthEnd)
     );
 
     const firstInvestmentByFarm = new Map();

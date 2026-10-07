@@ -821,6 +821,13 @@ async function createInvestmentProject(req, res) {
             })), { transaction });
         }
 
+        if (require('node:process').env.PAYMENTS_PROVIDER === 'paypetal') {
+            const { requireEnabled } = require('../../../utils/paypetal');
+            requireEnabled();
+            await require('../../../services/payments/service').getPaymentService()
+                .ensureProject(createdProject, userId, transaction);
+        }
+
         await transaction.commit();
         transaction = null;
 
@@ -847,7 +854,7 @@ async function createInvestmentProject(req, res) {
             await transaction.rollback();
         }
         console.error('Create investment project error:', error);
-        return res.fail('Failed to create investment project', 500);
+        return res.fail(error.statusCode ? error.message : 'Failed to create investment project', error.statusCode || 500);
     }
 }
 

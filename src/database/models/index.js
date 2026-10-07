@@ -24,9 +24,12 @@ module.exports = (sequelize) => {
         InvestmentMilestone: require('./InvestmentMilestone')(sequelize),
         InvestmentPayment: require('./InvestmentPayment')(sequelize),
         BetaSignup: require('./BetaSignup')(sequelize),
+        ...require('./payments')(sequelize),
     };
 
     // Define associations
+    models.InvestmentPayment.hasOne(models.InvestorPayout, { foreignKey: 'investmentPaymentId', as: 'RoiPayout' });
+    models.UserFarmInvestment.hasOne(models.ProjectEscrow, { foreignKey: 'userFarmInvestmentId', as: 'Escrow' });
     models.FarmCategory.hasMany(models.Milestone, {
         foreignKey: 'farmCategoryId',
         as: 'Milestones',

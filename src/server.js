@@ -208,4 +208,10 @@ app.listen(PORT, HOST, () => {
   console.log(`🌐 Network access: http://${localIP}:${PORT}/api-docs`);
 });
 
+if (process.env.PAYPETAL_ENABLED === 'true') {
+  const worker = require('./services/payments/worker').startPaymentWorker();
+  process.once('SIGTERM', () => worker.stop());
+  process.once('SIGINT', () => worker.stop());
+}
+
 module.exports = app;
