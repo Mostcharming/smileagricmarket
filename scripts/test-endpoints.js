@@ -572,8 +572,11 @@ async function run() {
     const betaSignup = await httpCheck('public beta signup', 'POST', '/web/beta-signups', {
         body: {
             email: betaSignupEmail,
-            firstName: `Beta ${runId}`,
-            type: 'investor'
+            name: `Beta ${runId}`,
+            location: 'Lagos, Nigeria',
+            phoneNumber: '08012345678',
+            type: 'investor',
+            investmentTimeline: 'Within the next 3 months'
         },
         expectedStatus: 201
     });
@@ -632,6 +635,12 @@ async function run() {
         betaSignups.body.data.signups.find(signup => signup.email === betaSignupEmail)?.type,
         'investor'
     );
+    const savedBetaSignup = betaSignups.body.data.signups.find(signup => signup.email === betaSignupEmail);
+    assert.equal(savedBetaSignup.name, `Beta ${runId}`);
+    assert.equal(savedBetaSignup.location, 'Lagos, Nigeria');
+    assert.equal(savedBetaSignup.phoneNumber, '08012345678');
+    assert.equal(savedBetaSignup.investmentTimeline, 'Within the next 3 months');
+    assert.equal(savedBetaSignup.produce, null);
 
     const betaExport = await httpCheck(
         'marketing admin downloads all beta signups',

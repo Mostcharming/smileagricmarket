@@ -13,13 +13,8 @@ function normalizeEmail(email) {
     return typeof email === 'string' ? email.trim().toLowerCase() : '';
 }
 
-function normalizeFirstName(firstName) {
-    if (typeof firstName !== 'string') {
-        return null;
-    }
-
-    const normalized = firstName.trim().replace(/\s+/g, ' ');
-    return normalized ? normalized.slice(0, 100) : null;
+function normalizeText(value) {
+    return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
 }
 
 function normalizeUserType(userType) {
@@ -32,7 +27,9 @@ function normalizeUserType(userType) {
         investor: 'investor',
         investors: 'investor',
         farm_owner: 'farm_owner',
-        farm_owners: 'farm_owner'
+        farm_owners: 'farm_owner',
+        farmer: 'farm_owner',
+        farmers: 'farm_owner'
     };
 
     return aliases[normalized] || null;
@@ -45,7 +42,7 @@ async function sendConfirmationEmail(signup) {
                 id: signup.id,
                 email: signup.email,
                 firstName: signup.firstName,
-                fullName: signup.firstName
+                fullName: signup.name || signup.firstName
             },
             'beta_signup',
             'BETA_SIGNUP_TEMPLATE',
@@ -69,9 +66,13 @@ async function sendConfirmationEmail(signup) {
 
 async function createBetaSignup(req, res) {
     const email = normalizeEmail(req.body?.email);
-    const firstName = normalizeFirstName(
-        req.body?.firstName || req.body?.first_name || req.body?.name
+    const name = normalizeText(
+        req.body?.name ?? req.body?.fullName ?? req.body?.firstName ?? req.body?.first_name
     );
+    const location = normalizeText(req.body?.location);
+    const phoneNumber = normalizeText(req.body?.phoneNumber ?? req.body?.phone);
+    const produce = normalizeText(req.body?.produce);
+    const investmentTimeline = normalizeText(req.body?.investmentTimeline);
     const userType = normalizeUserType(
         req.body?.type || req.body?.userType || req.body?.user_type
     );
@@ -84,12 +85,38 @@ async function createBetaSignup(req, res) {
         return res.fail('Type must be either investor or farm_owner', 400);
     }
 
+    if (!name || name.length > 200) {
+        return res.fail('Name is required and must not exceed 200 characters', 400);
+    }
+    if (!location || location.length > 254) {
+        return res.fail('Location is required and must not exceed 254 characters', 400);
+    }
+    if (!/^\+?[\d\s().-]+$/.test(phoneNumber)
+        || phoneNumber.length > 30 || !/^\d{10,15}$/.test(phoneNumber.replace(/\D/g, ''))) {
+        return res.fail('A valid phone number with 10 to 15 digits is required', 400);
+    }
+    if (userType === 'farm_owner' && (!produce || produce.length > 1000)) {
+        return res.fail('What do you produce? Provide an answer of up to 1000 characters', 400);
+    }
+    if (userType === 'investor' && (!investmentTimeline || investmentTimeline.length > 254)) {
+        return res.fail('How soon do you want to invest? Provide an answer of up to 254 characters', 400);
+    }
+
+    const details = {
+        name,
+        firstName: name.split(' ')[0].slice(0, 100),
+        location,
+        phoneNumber,
+        produce: userType === 'farm_owner' ? produce : null,
+        investmentTimeline: userType === 'investor' ? investmentTimeline : null
+    };
+
     try {
         const [signup, created] = await BetaSignup.findOrCreate({
             where: { email },
             defaults: {
                 email,
-                firstName,
+                ...details,
                 userType,
                 source: 'landing_page'
             }

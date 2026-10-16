@@ -205,7 +205,7 @@ function addSwaggerExamples(spec) {
                     if (type === 'text/csv') {
                         media.schema ||= { type: 'string' };
                         media.example = route.includes('beta-signups')
-                            ? 'email,first_name,user_type,source,confirmation_email_sent_at,created_at\nfarmer@example.com,Ada,investor,landing_page,2026-09-08T10:00:00.000Z,2026-09-08T10:00:00.000Z\n'
+                            ? 'email,first_name,name,location,phone_number,produce,investment_timeline,user_type,source,confirmation_email_sent_at,created_at\nfarmer@example.com,Ada,Ada Okafor,Lagos,+2348012345678,,Within 3 months,investor,landing_page,2026-09-08T10:00:00.000Z,2026-09-08T10:00:00.000Z\n'
                             : 'Milestone ID,User Full Name,User Email,Farm,Farm Location,Investment,Investment Project ID,Milestone,Amount Requested,Currency,Review Status,Funding Status,Requested At,Reviewed At,Maturity Date\n';
                     } else {
                         media.example = sampleSchema(spec, media.schema);

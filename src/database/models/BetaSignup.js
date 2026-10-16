@@ -25,6 +25,32 @@ module.exports = (sequelize) => {
             allowNull: true,
             field: 'first_name'
         },
+        // Nullable for signups collected before the expanded beta form.
+        name: {
+            type: DataTypes.STRING(200),
+            allowNull: true,
+            field: 'name'
+        },
+        location: {
+            type: DataTypes.STRING(254),
+            allowNull: true,
+            field: 'location'
+        },
+        phoneNumber: {
+            type: DataTypes.STRING(30),
+            allowNull: true,
+            field: 'phone_number'
+        },
+        produce: {
+            type: DataTypes.STRING(1000),
+            allowNull: true,
+            field: 'produce'
+        },
+        investmentTimeline: {
+            type: DataTypes.STRING(254),
+            allowNull: true,
+            field: 'investment_timeline'
+        },
         userType: {
             type: DataTypes.ENUM('investor', 'farm_owner'),
             allowNull: false,

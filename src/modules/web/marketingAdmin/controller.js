@@ -35,10 +35,17 @@ function buildSignupWhere(query) {
     const searchableFields = [
         { email: { [Op.iLike]: pattern } },
         { firstName: { [Op.iLike]: pattern } },
+        { name: { [Op.iLike]: pattern } },
+        { location: { [Op.iLike]: pattern } },
+        { phoneNumber: { [Op.iLike]: pattern } },
+        { produce: { [Op.iLike]: pattern } },
+        { investmentTimeline: { [Op.iLike]: pattern } },
         { source: { [Op.iLike]: pattern } }
     ];
 
-    if (['investor', 'farm_owner'].includes(normalizedUserType)) {
+    if (['farmer', 'farmers'].includes(normalizedUserType)) {
+        searchableFields.push({ userType: 'farm_owner' });
+    } else if (['investor', 'farm_owner'].includes(normalizedUserType)) {
         searchableFields.push({ userType: normalizedUserType });
     }
 
@@ -66,6 +73,11 @@ function formatSignup(signup) {
         id: signup.id,
         email: signup.email,
         firstName: signup.firstName,
+        name: signup.name || signup.firstName,
+        location: signup.location,
+        phoneNumber: signup.phoneNumber,
+        produce: signup.produce,
+        investmentTimeline: signup.investmentTimeline,
         type: signup.userType,
         source: signup.source,
         confirmationEmailSentAt: signup.confirmationEmailSentAt,
@@ -92,6 +104,11 @@ function toCsv(signups) {
     const header = [
         'email',
         'first_name',
+        'name',
+        'location',
+        'phone_number',
+        'produce',
+        'investment_timeline',
         'user_type',
         'source',
         'confirmation_email_sent_at',
@@ -101,6 +118,11 @@ function toCsv(signups) {
     const rows = signups.map(signup => [
         signup.email,
         signup.firstName,
+        signup.name || signup.firstName,
+        signup.location,
+        signup.phoneNumber,
+        signup.produce,
+        signup.investmentTimeline,
         signup.userType,
         signup.source,
         signup.confirmationEmailSentAt,
@@ -185,6 +207,11 @@ async function listBetaSignups(req, res) {
                 'id',
                 'email',
                 'firstName',
+                'name',
+                'location',
+                'phoneNumber',
+                'produce',
+                'investmentTimeline',
                 'userType',
                 'source',
                 'confirmationEmailSentAt',
@@ -229,6 +256,11 @@ async function downloadBetaSignups(req, res) {
             attributes: [
                 'email',
                 'firstName',
+                'name',
+                'location',
+                'phoneNumber',
+                'produce',
+                'investmentTimeline',
                 'userType',
                 'source',
                 'confirmationEmailSentAt',

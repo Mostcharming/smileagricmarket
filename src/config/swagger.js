@@ -168,6 +168,11 @@ const options = {
                             type: 'string',
                             nullable: true,
                         },
+                        name: { type: 'string', maxLength: 200, nullable: true, example: 'Ada Okafor' },
+                        location: { type: 'string', maxLength: 254, nullable: true, example: 'Lagos, Nigeria' },
+                        phoneNumber: { type: 'string', maxLength: 30, nullable: true, example: '+2348012345678' },
+                        produce: { type: 'string', maxLength: 1000, nullable: true, description: 'What the farmer produces. Null for investors and legacy signups.' },
+                        investmentTimeline: { type: 'string', maxLength: 254, nullable: true, description: 'How soon the investor wants to invest. Null for farmers and legacy signups.' },
                         type: {
                             type: 'string',
                             enum: ['investor', 'farm_owner'],

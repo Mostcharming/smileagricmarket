@@ -110,7 +110,7 @@ router.post('/login', login);
  *     tags:
  *       - Web Marketing Admin
  *     summary: List beta signups
- *     description: Returns beta email submissions in newest-first order with pagination and text search.
+ *     description: Returns beta signups in newest-first order with pagination and text search. Each signup includes name, location, phoneNumber, email, type, produce and investmentTimeline. produce is null for investors; investmentTimeline is null for farmers. Fields not collected for older signups remain null. Farmer type is returned as farm_owner. Existing firstName and pagination fields are retained.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -134,7 +134,7 @@ router.post('/login', login);
  *         schema:
  *           type: string
  *           maxLength: 254
- *         description: Case-insensitive search by email, first name, or source
+ *         description: Case-insensitive search by name, email, location, phone, produce, investment timeline, type or source
  *         example: ada@example.com
  *     responses:
  *       200:
@@ -178,6 +178,42 @@ router.post('/login', login);
  *                         hasPreviousPage:
  *                           type: boolean
  *                           example: false
+ *             example:
+ *               error: false
+ *               message: Beta signups retrieved successfully
+ *               data:
+ *                 signups:
+ *                   - id: 11111111-1111-4111-8111-111111111111
+ *                     name: Ada Okafor
+ *                     firstName: Ada
+ *                     location: Lagos, Nigeria
+ *                     phoneNumber: '+2348012345678'
+ *                     email: ada@example.com
+ *                     type: investor
+ *                     produce: null
+ *                     investmentTimeline: Within the next 3 months
+ *                     source: landing_page
+ *                     confirmationEmailSentAt: '2026-10-16T10:00:00.000Z'
+ *                     createdAt: '2026-10-16T10:00:00.000Z'
+ *                   - id: 22222222-2222-4222-8222-222222222222
+ *                     name: Tunde Adeyemi
+ *                     firstName: Tunde
+ *                     location: Ibadan, Oyo State
+ *                     phoneNumber: '08012345678'
+ *                     email: tunde@example.com
+ *                     type: farm_owner
+ *                     produce: Cassava, maize and tomatoes
+ *                     investmentTimeline: null
+ *                     source: landing_page
+ *                     confirmationEmailSentAt: null
+ *                     createdAt: '2026-10-15T10:00:00.000Z'
+ *                 pagination:
+ *                   currentPage: 1
+ *                   totalPages: 1
+ *                   totalItems: 2
+ *                   limit: 20
+ *                   hasNextPage: false
+ *                   hasPreviousPage: false
  *       400:
  *         description: Invalid query
  *       401:
@@ -196,7 +232,7 @@ router.get('/beta-signups', verifyMarketingAdminToken, listBetaSignups);
  *     tags:
  *       - Web Marketing Admin
  *     summary: Download all beta signups
- *     description: Downloads every beta signup matching the optional query as a UTF-8 CSV file. This endpoint is not paginated.
+ *     description: Downloads every beta signup matching the optional query as a UTF-8 CSV file. Includes name, location, phone_number, produce and investment_timeline alongside the existing columns. Inapplicable answers and missing legacy fields are empty CSV cells. This endpoint is not paginated.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -205,7 +241,7 @@ router.get('/beta-signups', verifyMarketingAdminToken, listBetaSignups);
  *         schema:
  *           type: string
  *           maxLength: 254
- *         description: Case-insensitive search by email, first name, or source
+ *         description: Case-insensitive search by name, email, location, phone, produce, investment timeline, type or source
  *         example: ada@example.com
  *     responses:
  *       200:

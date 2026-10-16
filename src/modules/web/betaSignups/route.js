@@ -13,7 +13,7 @@ const router = express.Router();
  *     tags:
  *       - Beta Signups
  *     summary: Join the AgriMarket beta
- *     description: Stores a landing-page beta signup and sends a confirmation email for new submissions.
+ *     description: Requires name, location, phone number, email and type. Farmers must answer what they produce; investors must state how soon they want to invest. Accepts farmer as an alias for farm_owner. Existing emails remain registered without overwriting their details. Sends a confirmation email for new submissions.
  *     requestBody:
  *       required: true
  *       content:
@@ -23,26 +23,79 @@ const router = express.Router();
  *             required:
  *               - email
  *               - type
+ *               - name
+ *               - location
+ *               - phoneNumber
+ *             oneOf:
+ *               - properties:
+ *                   type:
+ *                     enum: [investor]
+ *                 required: [investmentTimeline]
+ *               - properties:
+ *                   type:
+ *                     enum: [farm_owner, farmer]
+ *                 required: [produce]
  *             properties:
  *               email:
  *                 type: string
  *                 format: email
  *                 example: ada@example.com
- *               firstName:
+ *               name:
  *                 type: string
- *                 maxLength: 100
- *                 example: Ada
+ *                 minLength: 1
+ *                 maxLength: 200
+ *                 example: Ada Okafor
+ *                 description: Full name. fullName and legacy firstName/first_name are also accepted.
+ *               location:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 254
+ *                 example: Ibadan, Oyo State
+ *               phoneNumber:
+ *                 type: string
+ *                 maxLength: 30
+ *                 example: '+2348012345678'
+ *                 description: Phone number with 10 to 15 digits. phone is also accepted.
  *               type:
  *                 type: string
- *                 enum: [investor, farm_owner]
+ *                 enum: [investor, farm_owner, farmer]
  *                 example: investor
+ *               produce:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 1000
+ *                 description: What do you produce? Required for farm_owner/farmer; ignored for investors.
+ *                 example: Cassava, maize and tomatoes
+ *               investmentTimeline:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 254
+ *                 description: How soon do you want to invest? Required for investors; ignored for farmers.
+ *                 example: Within the next 3 months
+ *           examples:
+ *             investor:
+ *               value:
+ *                 name: Ada Okafor
+ *                 location: Lagos, Nigeria
+ *                 phoneNumber: '+2348012345678'
+ *                 email: ada@example.com
+ *                 type: investor
+ *                 investmentTimeline: Within the next 3 months
+ *             farmer:
+ *               value:
+ *                 name: Tunde Adeyemi
+ *                 location: Ibadan, Oyo State
+ *                 phoneNumber: '08012345678'
+ *                 email: tunde@example.com
+ *                 type: farm_owner
+ *                 produce: Cassava, maize and tomatoes
  *     responses:
  *       201:
  *         description: Beta signup created
  *       200:
  *         description: Email was already registered
  *       400:
- *         description: Invalid email address or user type
+ *         description: Invalid or missing contact details, user type, produce or investment timeline
  *       429:
  *         description: Too many signup attempts
  */
