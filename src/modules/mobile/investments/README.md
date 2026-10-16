@@ -16,8 +16,8 @@ Swagger is available at `/api-docs` and `/api-docs.json` under **Mobile Investme
 | Farm detail, projects, milestones and history | `GET /investments/{farmId}` | Use an ID from `investmentProjects` for the calculator and payment; the farm ID is not a project ID. |
 | Calculator | `GET /investments/projects/{investmentProjectId}/quote?amount=250000` | Returns principal, expected profit, total return, fixed term, payout date, amount bounds and suggested amounts. No payment is created. |
 | Review agreement | `GET /investments/projects/{investmentProjectId}/agreement?amount=250000` | Returns quote, agreement version, review sections and the three acknowledgement labels. |
-| Make payment | `POST /investments/{investmentProjectId}/invest` | Requires approved investor KYC, an account email, agreement acceptance, and an idempotency key. Returns a Paystack checkout URL and access code. |
-| Complete checkout | `POST /investments/payments/{transactionId}/verify` | Checks Paystack server-side and credits the project once. Never confirm payment based solely on the SDK callback. |
+| Make payment | `POST /investments/{investmentProjectId}/invest` | Requires approved KYC, email, verified PayPetal payout account, agreement acceptance, and an idempotency key. Returns project bank-transfer instructions. |
+| Check payment | `POST /investments/payments/{transactionId}/verify` | Reads saved deposit reconciliation status. An admin must match the actual bank statement before funds are credited. |
 | Investment confirmed | `GET /investments/payments/{transactionId}` | Show success only when `confirmed` is true. Includes saved amount, ROI, duration, farm and projected return. |
 | Agreement download | `GET /investments/payments/{transactionId}/agreement?download=true` | Authenticated UTF-8 `.txt` attachment. Omit `download` for JSON. Not proof of payment; the document includes payment status. |
 | Portfolio overview | `GET /portfolio` | Investor totals and return summary. |
@@ -83,12 +83,12 @@ Confirmation, download and portfolio profit use the accepted terms even after th
 template changes. Legacy web payments have no agreement and keep their existing
 portfolio calculation behavior; agreement download for these returns 404.
 
-Use `gateway.accessCode` with the mobile Paystack SDK or open
-`gateway.authorizationUrl`. Keep the internal `transactionId` for verification.
-The existing signed webhook at `/api/v1/web/payments/paystack/webhook` also settles
-mobile payments; no unauthenticated mobile verification endpoint is introduced.
-The configured Paystack callback remains shared with web. Integrators should use
-the SDK completion event to trigger verification and their own in-app navigation.
+PayPetal is the default provider. Display `gateway.bankName`, `accountName`,
+`accountNumber`, `amount`, `currency` and `reference` for the bank transfer. Keep the
+internal `transactionId` to read its pending or reconciled status. Verification
+does not confirm deposits automatically; financial admins reconcile the statement.
+Paystack initialization, verification and its webhook are temporarily disabled
+with HTTP 503. No SDK checkout or automatic Paystack fallback is available.
 
 ## Deployment and design boundaries
 

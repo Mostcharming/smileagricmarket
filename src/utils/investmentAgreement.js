@@ -70,7 +70,7 @@ function buildInvestmentQuote({ farm, project, template, amount, pendingAmount =
         throw new InvestmentTermsError('Projected return exceeds the supported monetary range');
     }
     const currency = String(project.currency || template.currency || 'NGN').toUpperCase();
-    const returnMode = require('node:process').env.PAYMENTS_PROVIDER === 'paypetal'
+    const returnMode = require('./paypetal').settings().provider === 'paypetal'
         ? require('./paypetal').settings().returnMode : 'principal_plus_roi';
     return {
         farmId: farm.id,

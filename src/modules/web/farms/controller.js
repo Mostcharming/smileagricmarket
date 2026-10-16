@@ -821,7 +821,7 @@ async function createInvestmentProject(req, res) {
             })), { transaction });
         }
 
-        if (require('node:process').env.PAYMENTS_PROVIDER === 'paypetal') {
+        if (require('../../../utils/paypetal').settings().provider === 'paypetal') {
             const { requireEnabled } = require('../../../utils/paypetal');
             requireEnabled();
             await require('../../../services/payments/service').getPaymentService()

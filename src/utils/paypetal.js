@@ -2,6 +2,7 @@
 
 const axios = require('axios');
 const JSONbig = require('json-bigint')({ storeAsString: true });
+const process = require('node:process');
 
 class PaypetalError extends Error {
     constructor(message, { statusCode = 502, code = 'paypetal_error', uncertain = false } = {}) {
@@ -12,7 +13,7 @@ class PaypetalError extends Error {
 }
 
 function settings(env = process.env) {
-    const provider = env.PAYMENTS_PROVIDER || 'paystack';
+    const provider = env.PAYMENTS_PROVIDER || 'paypetal';
     if (!['paystack', 'paypetal'].includes(provider)) {
         throw new PaypetalError('Invalid PAYMENTS_PROVIDER', { statusCode: 503 });
     }

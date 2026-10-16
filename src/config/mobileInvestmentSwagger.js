@@ -63,7 +63,7 @@ function addMobileInvestmentSwagger(spec) {
     };
     spec.components.schemas.MobileInvestmentAcceptance = acceptance;
     const invest = spec.paths['/mobile/investments/{investmentProjectId}/invest'].post;
-    invest.description += ' Mobile checkout requires the reviewed agreement version, all three acknowledgements, and an Idempotency-Key (header or body). A changed amount or project term invalidates the review. No funds are credited until server-side Paystack verification. Use the returned accessCode with the mobile Paystack SDK or open authorizationUrl; verify the transaction after checkout. The existing signed /web/payments/paystack/webhook also settles mobile payments.';
+    invest.description += ' Mobile checkout requires the reviewed agreement version, all three acknowledgements, and an Idempotency-Key (header or body). A changed amount or project term invalidates the review. PayPetal returns bank-transfer instructions; the deposit stays pending until an admin reconciles the bank statement. Paystack checkout is temporarily disabled.';
     invest.requestBody.content['application/json'].schema.properties.agreementAcceptance = ref('MobileInvestmentAcceptance');
     invest.requestBody.content['application/json'].schema.required.push('agreementAcceptance');
     invest.requestBody.content['application/json'].example = {

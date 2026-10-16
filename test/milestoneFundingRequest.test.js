@@ -72,6 +72,12 @@ function setup() {
                 transaction: async callback => callback ? callback({}) : { commit: async () => {}, rollback: async () => {} }
             } };
             if (name === '../../../database/models') return () => models;
+            if (name === '../../../utils/paypetal') return {
+                settings: () => ({ provider: 'paypetal' }), requireEnabled: () => ({})
+            };
+            if (name === '../../../services/payments/service') return {
+                getPaymentService: () => ({ ensureProject: async () => {} })
+            };
             if (name === 'sequelize') return { Op: {} };
             if (name.endsWith('/uploadMilestoneFundingEvidence')) return {
                 cleanupMilestoneFundingEvidenceFiles: () => { cleaned = true; }

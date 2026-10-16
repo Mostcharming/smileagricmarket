@@ -189,7 +189,7 @@ async function setupWallet(req, res) {
             return res.fail('User not authenticated', 401);
         }
 
-        if (process.env.PAYMENTS_PROVIDER === 'paypetal') {
+        if (require('../../../utils/paypetal').settings().provider === 'paypetal') {
             require('../../../utils/paypetal').requireEnabled();
             const profile = await require('../../../services/payments/service').getPaymentService()
                 .setupAccount(userId, req.body);

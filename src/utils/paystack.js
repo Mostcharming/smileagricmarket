@@ -17,6 +17,13 @@ class PaystackError extends Error {
 function getPaystackConfig() {
     const paystackConfig = config.paystack || {};
 
+    if (paystackConfig.enabled !== true) {
+        throw new PaystackError('Paystack is temporarily disabled', {
+            statusCode: 503,
+            code: 'paystack_disabled'
+        });
+    }
+
     if (!paystackConfig.secretKey) {
         throw new PaystackError('Paystack is not configured', {
             statusCode: 503,

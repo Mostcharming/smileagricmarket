@@ -997,7 +997,7 @@ async function investInFarm(req, res, options = {}) {
             validateAgreementAcceptance(req.body?.agreementAcceptance);
         }
 
-        const usePaypetal = require('node:process').env.PAYMENTS_PROVIDER === 'paypetal';
+        const usePaypetal = require('../../../utils/paypetal').settings().provider === 'paypetal';
         let paymentService;
         if (usePaypetal) {
             const config = require('../../../utils/paypetal').requireEnabled();
@@ -1015,7 +1015,7 @@ async function investInFarm(req, res, options = {}) {
             attributes: ['id', 'email', 'fullName']
         });
         if (!investor?.email) {
-            return res.fail('A verified email address is required to pay with Paystack', 409);
+            return res.fail('A verified email address is required to invest', 409);
         }
 
         const approvedKyc = await KYC.findOne({
@@ -1419,6 +1419,7 @@ async function verifyInvestmentPayment(req, res) {
             payment.status === 'successful' ? 'Project deposit reconciled successfully' : 'Awaiting project deposit reconciliation');
         }
 
+        getPaystackConfig();
         let settlement;
         if (payment.status === 'successful') {
             settlement = await settlePaystackPayment(payment.id, {

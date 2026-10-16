@@ -4,6 +4,8 @@ The implementation follows the requested **one physical account per project** an
 
 ## Configuration and rollout
 
+PayPetal is the default provider. Paystack is temporarily disabled: initialization, verification and its webhook return HTTP 503 without contacting Paystack. Legacy payment records remain available for history. Restoring Paystack requires both `PAYSTACK_ENABLED=true` and `PAYMENTS_PROVIDER=paystack`, plus its credentials. Never restore it to work around an unavailable PayPetal service; PayPetal checkout has no automatic fallback.
+
 1. Run `npm test` and the optional disposable PostgreSQL integration test described below.
 2. Apply `20261007000000-create-paypetal-escrow.js` with the normal Sequelize migration process. Do not remove payment tables after provider instructions have been created; rollback deliberately refuses to discard those records.
 3. Set the variables in `.env.example`: `PAYPETAL_ENABLED=true`, `PAYMENTS_PROVIDER=paypetal`, sandbox keys, `PAYPETAL_DEPOSIT_RECONCILIATION=manual`, and a separately funded merchant `PAYPETAL_REPAYMENT_SUBWALLET_ID`. ROI-only is the default maturity policy.

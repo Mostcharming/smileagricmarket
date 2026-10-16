@@ -88,7 +88,7 @@ test('provider business rejection preserves its documented reconciliation error 
 test('configuration defaults to disabled sandbox integration with ROI-only payouts', () => {
     const config = settings({});
     assert.equal(config.enabled, false);
-    assert.equal(config.provider, 'paystack');
+    assert.equal(config.provider, 'paypetal');
     assert.equal(config.returnMode, 'roi_only');
     assert.equal(config.baseUrl, 'https://sandbox.paypetalhq.xyz');
     assert.throws(() => settings({ PAYPETAL_BASE_URL: 'https://untrusted.example' }), /host/);

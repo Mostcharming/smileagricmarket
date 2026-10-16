@@ -166,6 +166,8 @@ async function setup(t) {
         vm.runInNewContext(fs.readFileSync(absolute, 'utf8'), {
             module, exports: module.exports, console, Buffer, Date, URL, setTimeout, clearTimeout,
             require: name => {
+                // Exercise the retained legacy checkout only through an explicit provider selection.
+                if (name === 'node:process') return { env: { PAYMENTS_PROVIDER: 'paystack' } };
                 const resolved = localRequire.resolve(name);
                 if (resolved === path.join(src, 'database/index.js')) return { sequelize };
                 if (resolved === path.join(src, 'database/models/index.js')) return () => models;

@@ -142,7 +142,7 @@ test('real PostgreSQL: shared-account deposits, durable releases, ROI only, and 
                 if (name === '../../../database') return { sequelize };
                 if (name === '../../../database/models') return () => models;
                 if (name === '../../../services/payments/service') return { getPaymentService: () => service };
-                if (name === '../../../utils/paypetal') return { requireEnabled: () => config };
+                if (name === '../../../utils/paypetal') return { settings: () => ({ provider: 'paypetal', ...config }), requireEnabled: () => config };
                 if (name === 'node:process') return { env: { PAYMENTS_PROVIDER: 'paypetal' } };
                 if (name === './paymentService') return { majorAmountToSubunit: value => Math.round(Number(value) * 100),
                     settlePaystackPayment: () => { throw new Error('Paystack settlement must not run'); } };

@@ -67,6 +67,9 @@ const currentConfig =
         : config.development;
 
 currentConfig.paystack = {
+    // Legacy integration stays available for an explicit future reactivation.
+    enabled: process.env.PAYSTACK_ENABLED === 'true'
+        && process.env.PAYMENTS_PROVIDER === 'paystack',
     secretKey: process.env.PAYSTACK_SECRET_KEY || '',
     baseUrl: (process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co').replace(/\/+$/, ''),
     callbackUrl: process.env.PAYSTACK_CALLBACK_URL
