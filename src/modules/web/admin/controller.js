@@ -279,7 +279,6 @@ async function approveKYC(req, res) {
                 );
             } catch (notifyError) {
                 console.error('Failed to send KYC approval notification:', notifyError);
-                // Continue even if notification fails
             }
         }
 
@@ -355,7 +354,6 @@ async function rejectKYC(req, res) {
                 );
             } catch (notifyError) {
                 console.error('Failed to send KYC rejection notification:', notifyError);
-                // Continue even if notification fails
             }
         }
 
@@ -375,7 +373,6 @@ async function rejectKYC(req, res) {
     }
 }
 
-// ==================== ADMIN USER FARMS ====================
 const {
     UserFarm,
     FarmCategory,
@@ -416,7 +413,6 @@ function addFundingEvidenceUrls(req, milestone) {
     };
 }
 
-// List all user farms (admin)
 async function listAllUserFarms(req, res) {
     try {
         let {
@@ -431,7 +427,6 @@ async function listAllUserFarms(req, res) {
         limit = parseInt(limit);
         const offset = (page - 1) * limit;
 
-        // Build where clause
         const whereClause = {};
         if (search) {
             whereClause.name = { [Op.iLike]: `%${search}%` };
@@ -477,13 +472,11 @@ async function listAllUserFarms(req, res) {
             }]
         });
 
-        // Get total count
         const total = await UserFarm.count({
             where: whereClause,
             distinct: true
         });
 
-        // Fetch farms with pagination
         const farms = await UserFarm.findAll({
             where: whereClause,
             include: [
@@ -518,7 +511,6 @@ async function listAllUserFarms(req, res) {
     }
 }
 
-// Get single user farm details (admin)
 async function getUserFarmDetails(req, res) {
     try {
         const { farmId } = req.params;
@@ -641,7 +633,6 @@ async function getUserFarmDetails(req, res) {
         if (!farm) {
             return res.fail('Farm not found', 404);
         }
-        // Map fileUrl to full URL for all documents
         const farmObj = farm.toJSON ? farm.toJSON() : farm;
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
@@ -658,10 +649,8 @@ async function getUserFarmDetails(req, res) {
         farmObj.SelectedMilestones = (farmObj.SelectedMilestones || []).map(
             milestone => addFundingEvidenceUrls(req, milestone)
         );
-        // Attach user details (uploader) with additional metrics
         let userDetails = null;
         if (farmObj.User) {
-            // Count verified farms for the user
             const verifiedFarmsCount = await UserFarm.count({
                 where: {
                     userId: farmObj.User.id,
@@ -669,7 +658,6 @@ async function getUserFarmDetails(req, res) {
                 }
             });
 
-            // Sum all investments received for the user's farms
             const userFarmIds = await UserFarm.findAll({
                 where: { userId: farmObj.User.id },
                 attributes: ['id'],
@@ -707,7 +695,6 @@ async function getUserFarmDetails(req, res) {
     }
 }
 
-// Approve user farm (admin)
 async function approveUserFarm(req, res) {
     try {
         const { farmId } = req.body;
@@ -739,18 +726,22 @@ async function approveUserFarm(req, res) {
 
         if (user) {
             try {
+                const channels = [
+                    user.email ? 'email' : null,
+                    user.phoneNumber ? 'sms' : null
+                ].filter(Boolean);
+
                 await notify(
                     user,
                     'user',
                     'FARM_APPROVED_TEMPLATE',
                     { farmName: farm.name },
-                    ['sms'],
+                    channels,
                     true,
                     models
                 );
             } catch (notifyError) {
                 console.error('Failed to send farm approval notification:', notifyError);
-                // Continue even if notification fails
             }
         }
 
@@ -767,7 +758,6 @@ async function approveUserFarm(req, res) {
     }
 }
 
-// Reject user farm (admin)
 async function rejectUserFarm(req, res) {
     try {
         const { farmId, note } = req.body;
@@ -815,7 +805,6 @@ async function rejectUserFarm(req, res) {
                 );
             } catch (notifyError) {
                 console.error('Failed to send farm rejection notification:', notifyError);
-                // Continue even if notification fails
             }
         }
 
@@ -853,8 +842,6 @@ async function updateUserFarmMilestoneStatus(req, res) {
             );
         }
 
-        // Keep the legacy status route compatible while ensuring that a release
-        // cannot bypass checklist validation or the milestone audit trail.
         if (status === 'completed') {
             req.body = { ...req.body, action: 'approve' };
             return reviewUserInvestmentMilestone(req, res);

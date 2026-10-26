@@ -1,7 +1,5 @@
 'use strict';
 
-// Swagger UI renders tags as a flat list; add audience headings above the
-// ordered topic sections. Observe rerenders so filtering keeps headings correct.
 const swaggerGroupingScript = `
 (() => {
     const groups = ['Web Admin', 'Web Marketing', 'Mobile', 'Beta', 'Web'];

@@ -1,7 +1,5 @@
 'use strict';
 
-// Delete dependants before their parent records so this migration remains safe
-// even where a foreign key uses RESTRICT rather than CASCADE.
 const USER_DATA_TABLES_IN_DELETE_ORDER = [
     'milestone_funding_evidence',
     'investment_payments',

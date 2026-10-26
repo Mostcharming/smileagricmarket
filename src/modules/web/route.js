@@ -17,44 +17,31 @@ const router = require('express').Router();
 
 router.use(responseFormatter);
 
-// Auth routes - no security middleware needed
 router.use('/auth', authRouter);
 
-// Public landing-page beta signup route
 router.use('/beta-signups', betaSignupsRouter);
 
-// Admin routes - has its own authentication
 router.use('/admin', adminRouter);
 
-// Marketing admin routes - has its own restricted authentication
 router.use('/marketing-admin', marketingAdminRouter);
 
-// Paystack calls this signed public endpoint without a user bearer token.
 router.use('/payments/paystack', paystackRouter);
 
-// All other routes require authentication
 router.use(securityMiddleware);
 router.use('/payments', require('./payments/route').router);
 
-// KYC routes - requires authentication
 router.use('/kyc', kycRouter);
 
-// Profile routes - requires authentication
 router.use('/profile', profileRouter);
 
-// Dashboard routes - requires authentication
 router.use('/dashboard', dashboardRouter);
 
-// Investments routes - requires authentication
 router.use('/investments', investmentsRouter);
 
-// Portfolio routes - requires authentication
 router.use('/portfolio', portfolioRouter);
 
-// Farms routes - requires authentication
 router.use('/farms', farmsRouter);
 
-// Farm Categories routes - requires authentication
 router.use('/farm-categories', farmCategoriesRouter);
 
 router.use(errorHandler);

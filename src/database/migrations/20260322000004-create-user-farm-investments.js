@@ -82,17 +82,14 @@ module.exports = {
             }
         });
 
-        // Create index on user_farm_id
         await queryInterface.addIndex('user_farm_investments', ['user_farm_id'], {
             name: 'user_farm_investments_user_farm_id_idx'
         });
 
-        // Create index on investment_status
         await queryInterface.addIndex('user_farm_investments', ['investment_status'], {
             name: 'user_farm_investments_investment_status_idx'
         });
 
-        // Create composite index on user_farm_id and is_active
         await queryInterface.addIndex('user_farm_investments', ['user_farm_id', 'is_active'], {
             name: 'user_farm_investments_user_farm_id_is_active_idx'
         });

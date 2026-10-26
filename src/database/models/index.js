@@ -27,7 +27,6 @@ module.exports = (sequelize) => {
         ...require('./payments')(sequelize),
     };
 
-    // Define associations
     models.InvestmentPayment.hasOne(models.InvestorPayout, { foreignKey: 'investmentPaymentId', as: 'RoiPayout' });
     models.UserFarmInvestment.hasOne(models.ProjectEscrow, { foreignKey: 'userFarmInvestmentId', as: 'Escrow' });
     models.FarmCategory.hasMany(models.Milestone, {
@@ -41,7 +40,6 @@ module.exports = (sequelize) => {
         as: 'FarmCategory'
     });
 
-    // Investment product associations
     models.FarmCategory.hasMany(models.Investment, {
         foreignKey: 'farmCategoryId',
         as: 'Investments',
@@ -86,7 +84,6 @@ module.exports = (sequelize) => {
         as: 'Investment'
     });
 
-    // User Notifications associations
     models.User.hasMany(models.UserNotification, {
         foreignKey: 'userId',
         as: 'Notifications',
@@ -98,7 +95,6 @@ module.exports = (sequelize) => {
         as: 'User'
     });
 
-    // Admin Notifications associations
     models.Admin.hasMany(models.AdminNotification, {
         foreignKey: 'adminId',
         as: 'Notifications',
@@ -110,7 +106,6 @@ module.exports = (sequelize) => {
         as: 'Admin'
     });
 
-    // User Wallet associations
     models.User.hasOne(models.Wallet, {
         foreignKey: 'userId',
         as: 'Wallet',
@@ -122,7 +117,6 @@ module.exports = (sequelize) => {
         as: 'User'
     });
 
-    // User KYC associations
     models.User.hasMany(models.KYC, {
         foreignKey: 'userId',
         as: 'KYCs',
@@ -134,7 +128,6 @@ module.exports = (sequelize) => {
         as: 'User'
     });
 
-    // User Farms associations
     models.User.hasMany(models.UserFarm, {
         foreignKey: 'userId',
         as: 'Farms',
@@ -146,7 +139,6 @@ module.exports = (sequelize) => {
         as: 'User'
     });
 
-    // User Farm Milestones associations (Many-to-Many through UserFarmMilestone)
     models.UserFarm.hasMany(models.UserFarmMilestone, {
         foreignKey: 'userFarmId',
         as: 'SelectedMilestones',
@@ -180,7 +172,6 @@ module.exports = (sequelize) => {
         as: 'InvestmentMilestone'
     });
 
-    // Many-to-Many association through UserFarmMilestone
     models.UserFarm.belongsToMany(models.Milestone, {
         through: models.UserFarmMilestone,
         foreignKey: 'userFarmId',
@@ -195,7 +186,6 @@ module.exports = (sequelize) => {
         as: 'UserFarms'
     });
 
-    // User Farm Investments associations
     models.UserFarm.hasMany(models.UserFarmInvestment, {
         foreignKey: 'userFarmId',
         as: 'InvestmentProjects',
@@ -273,7 +263,6 @@ module.exports = (sequelize) => {
         as: 'Admin'
     });
 
-    // Evidence supplied by a farm owner when requesting milestone funding
     models.UserFarmMilestone.hasMany(models.MilestoneFundingEvidence, {
         foreignKey: 'userFarmMilestoneId',
         as: 'FundingEvidence',
@@ -285,7 +274,6 @@ module.exports = (sequelize) => {
         as: 'Milestone'
     });
 
-    // Payments made by users into investable farms
     models.User.hasMany(models.InvestmentPayment, {
         foreignKey: 'investorId',
         as: 'InvestmentPayments',
@@ -330,7 +318,6 @@ module.exports = (sequelize) => {
         as: 'InvestmentTemplate'
     });
 
-    // Farm Documents associations
     models.UserFarm.hasMany(models.FarmDocument, {
         foreignKey: 'userFarmId',
         as: 'Documents',

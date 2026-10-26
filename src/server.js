@@ -189,7 +189,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5011;
 const HOST = '0.0.0.0';
 
-// Get local IP address for network access
 const os = require('os');
 function getLocalIP() {
   const interfaces = os.networkInterfaces();

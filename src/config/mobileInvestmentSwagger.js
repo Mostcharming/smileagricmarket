@@ -2,8 +2,6 @@
 
 const { buildInvestmentQuote, buildInvestmentAgreement } = require('../utils/investmentAgreement');
 
-// Shared mobile endpoints use the web controllers. Copy their complete OpenAPI
-// definitions so examples and filtering/payment contracts cannot drift apart.
 function addMobileInvestmentSwagger(spec) {
     for (const [path, item] of Object.entries(spec.paths)) {
         if (!/^\/web\/(investments|portfolio|farm-categories)(\/|$)/.test(path)) continue;

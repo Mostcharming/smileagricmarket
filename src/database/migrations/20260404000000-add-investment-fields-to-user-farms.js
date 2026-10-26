@@ -19,7 +19,6 @@ module.exports = {
             comment: 'Currency code for investment amount (e.g., USD, EUR, GBP)'
         });
 
-        // Create index on currency if needed for filtering
         await queryInterface.addIndex('user_farms', ['currency'], {
             name: 'user_farms_currency_idx'
         });

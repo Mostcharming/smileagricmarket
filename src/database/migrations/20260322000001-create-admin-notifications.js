@@ -68,17 +68,14 @@ module.exports = {
             }
         });
 
-        // Create index on admin_id
         await queryInterface.addIndex('admin_notifications', ['admin_id'], {
             name: 'admin_notifications_admin_id_idx'
         });
 
-        // Create composite index on admin_id and is_read
         await queryInterface.addIndex('admin_notifications', ['admin_id', 'is_read'], {
             name: 'admin_notifications_admin_id_is_read_idx'
         });
 
-        // Create index on created_at for sorting
         await queryInterface.addIndex('admin_notifications', ['created_at'], {
             name: 'admin_notifications_created_at_idx'
         });

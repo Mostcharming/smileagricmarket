@@ -92,7 +92,6 @@ module.exports = {
             }
         });
 
-        // Create indexes
         await queryInterface.addIndex('kyc', ['user_id']);
         await queryInterface.addIndex('kyc', ['status']);
         await queryInterface.addIndex('kyc', ['identification_number']);

@@ -130,7 +130,6 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             if (account) await provider.updatePayoutAccount(profile.customerId, data);
             else await provider.addPayoutAccount(profile.customerId, data);
         }
-        // Re-read instead of trusting an acknowledgement of a non-idempotent write.
         const saved = listData(await provider.payoutAccounts(profile.customerId)).find(item => item.customerId === profile.customerId);
         if (saved?.accountNumber !== profile.accountNumber || saved?.bankCode !== profile.bankCode) throw new PaymentError('Payout account registration is not confirmed');
         await sequelize.transaction(async transaction => {
@@ -428,7 +427,6 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
     }
 
     async function reconcileReference(reference) {
-        // Unsigned events are hints only. No supplied amount, status, or beneficiary is trusted.
         const escrow = await ProjectEscrow.findOne({ where: { reference } });
         const payout = !escrow ? await InvestorPayout.findOne({ where: { reference } }) : null;
         if (escrow) {
@@ -447,7 +445,6 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             const job = await PaymentJob.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
             if (!job) throw new PaymentError('Payment job not found', 404);
             if (!['blocked', 'retry'].includes(job.status)) throw new PaymentError('Only a blocked or retrying payment job can be retried');
-            // Creation-attempt markers are deliberately retained: retry never recreates a possibly funded instruction.
             await job.update({ status: 'pending', attempts: 0, availableAt: now(), lastError: null,
                 retryHistory: [...(job.retryHistory || []), { adminId, at: now().toISOString(), fromStatus: job.status, reason: job.lastError }] }, { transaction });
             return job;

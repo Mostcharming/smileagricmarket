@@ -52,12 +52,10 @@ module.exports = {
             }
         });
 
-        // Create index on farm_category_id
         await queryInterface.addIndex('milestones', ['farm_category_id'], {
             name: 'milestones_farm_category_id_idx'
         });
 
-        // Create composite index on farm_category_id and order
         await queryInterface.addIndex('milestones', ['farm_category_id', 'order'], {
             name: 'milestones_farm_category_id_order_idx'
         });

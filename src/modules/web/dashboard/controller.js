@@ -21,12 +21,10 @@ async function getUserDashboard(req, res) {
             return res.fail('User not found', 404);
         }
 
-        // Get total farms listed
         const totalFarmsListed = await UserFarm.count({
             where: { userId, isActive: true }
         });
 
-        // Farm verification is independent from investment project lifecycle.
         const farms = await UserFarm.findAll({
             where: { userId, isActive: true },
             attributes: ['id']
@@ -50,7 +48,6 @@ async function getUserDashboard(req, res) {
             }
         });
 
-        // Get expected investments and investments received
         const investmentData = await UserFarmInvestment.findOne({
             attributes: [
                 [sequelize.fn('SUM', sequelize.col('expected_investment')), 'totalExpectedInvestment'],
@@ -69,7 +66,6 @@ async function getUserDashboard(req, res) {
         const totalInvestmentReceived = investmentData?.totalInvestmentReceived || 0;
         const investmentPending = totalExpectedInvestment - totalInvestmentReceived;
 
-        // Get detailed farm breakdown
         const farmBreakdown = await UserFarm.findAll({
             where: { userId, isActive: true },
             include: [
@@ -161,7 +157,6 @@ async function getDashboardStats(req, res) {
             return res.fail('User not authenticated', 401);
         }
 
-        // Get farms count by status
         const farmsCount = await UserFarm.count({
             where: { userId, isActive: true }
         });
@@ -172,7 +167,6 @@ async function getDashboardStats(req, res) {
         });
         const activeFarmIds = activeFarms.map(farm => farm.id);
 
-        // Get investment statistics
         const investmentProjects = await UserFarmInvestment.findAll({
             where: {
                 userFarmId: { [Op.in]: activeFarmIds },
@@ -191,7 +185,6 @@ async function getDashboardStats(req, res) {
         }, new Map());
         const investmentStats = [...investmentStatsByStatus.values()];
 
-        // Get milestone completion rate
         const milestoneStats = await UserFarmMilestone.findAll({
             attributes: [
                 'fundingStatus',

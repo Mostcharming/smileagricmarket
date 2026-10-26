@@ -43,13 +43,11 @@ module.exports = {
             }
         });
 
-        // Create unique index on name
         await queryInterface.addIndex('farm_categories', ['name'], {
             unique: true,
             name: 'farm_categories_name_unique'
         });
 
-        // Create index on is_active
         await queryInterface.addIndex('farm_categories', ['is_active'], {
             name: 'farm_categories_is_active_idx'
         });

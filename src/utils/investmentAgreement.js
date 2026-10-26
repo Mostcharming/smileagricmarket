@@ -23,7 +23,6 @@ class InvestmentTermsError extends Error {
     }
 }
 
-// Parse money as integers, including at the upper end of DECIMAL(15, 2).
 function moneyCents(value) {
     if (!['number', 'string'].includes(typeof value)) return null;
     const match = String(value).trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
@@ -97,7 +96,6 @@ function buildInvestmentQuote({ farm, project, template, amount, pendingAmount =
 }
 
 function buildInvestmentAgreement(quote) {
-    // Availability changes do not alter the terms accepted by an investor.
     const { limits, suggestedAmounts, durationEditable, ...terms } = quote;
     const content = {
         revision: '2026-10-07',

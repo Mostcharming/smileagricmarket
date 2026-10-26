@@ -1,4 +1,5 @@
 const path = require('path');
+require('dotenv').config({ quiet: true });
 
 const config = {
     development: {
@@ -66,8 +67,18 @@ const currentConfig =
         ? config.production
         : config.development;
 
+currentConfig.db.master = {
+    ...currentConfig.db.master,
+    host: process.env.DB_HOST || currentConfig.db.master.host,
+    port: Number(process.env.DB_PORT) || currentConfig.db.master.port,
+    username: process.env.DB_USERNAME || currentConfig.db.master.username,
+    password: process.env.DB_PASSWORD ?? currentConfig.db.master.password,
+    database: process.env.DB_NAME || currentConfig.db.master.database,
+    dialect: process.env.DB_DIALECT || currentConfig.db.master.dialect
+};
+currentConfig.feUrl = process.env.FE_URL || currentConfig.feUrl;
+
 currentConfig.paystack = {
-    // Legacy integration stays available for an explicit future reactivation.
     enabled: process.env.PAYSTACK_ENABLED === 'true'
         && process.env.PAYMENTS_PROVIDER === 'paystack',
     secretKey: process.env.PAYSTACK_SECRET_KEY || '',

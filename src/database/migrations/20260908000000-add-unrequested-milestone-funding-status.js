@@ -2,7 +2,6 @@
 
 module.exports = {
     async up(queryInterface) {
-        // PostgreSQL must commit a new enum value before it can be used.
         await queryInterface.sequelize.query(`
             ALTER TYPE "enum_user_farm_milestones_funding_status"
             ADD VALUE IF NOT EXISTS 'not_requested'
@@ -12,7 +11,6 @@ module.exports = {
                 ALTER TABLE "user_farm_milestones"
                 ALTER COLUMN "funding_status" SET DEFAULT 'not_requested'
             `, { transaction });
-            // Preserve submitted requests, evidence, and all admin review activity.
             await queryInterface.sequelize.query(`
                 UPDATE "user_farm_milestones" AS milestone
                 SET "funding_status" = 'not_requested'
@@ -50,6 +48,5 @@ module.exports = {
                 ALTER COLUMN "funding_status" SET DEFAULT 'request_for_funding'
             `, { transaction });
         });
-        // Leave the unused enum label in place; PostgreSQL cannot drop one value.
     }
 };

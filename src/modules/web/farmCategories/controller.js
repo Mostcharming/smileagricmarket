@@ -110,11 +110,6 @@ async function findCategoryWithInvestmentTemplates(categoryId) {
     });
 }
 
-/**
- * Get all farm categories
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
 async function getCategories(req, res) {
     try {
         const categories = await FarmCategory.findAll({
@@ -156,11 +151,6 @@ async function getCategories(req, res) {
     }
 }
 
-/**
- * Get milestones by category ID
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
 async function getMilestonesByCategory(req, res) {
     try {
         const { categoryId } = req.params;

@@ -15,9 +15,6 @@ const {
     deleteMilestonesByCategory
 } = require('./farmCategoryController');
 
-/**
- * Middleware to verify admin token
- */
 const verifyAdminToken = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization || req.headers['x-access-token'] || req.query.token;
@@ -44,7 +41,6 @@ const verifyAdminToken = (req, res, next) => {
     }
 };
 
-// ==================== FARM CATEGORY ROUTES ====================
 
 /**
  * @swagger
@@ -373,7 +369,6 @@ router.put('/farm-categories/:categoryId', verifyAdminToken, updateFarmCategory)
  */
 router.delete('/farm-categories/:categoryId', verifyAdminToken, deleteFarmCategory);
 
-// ==================== MILESTONE ROUTES ====================
 
 /**
  * @swagger

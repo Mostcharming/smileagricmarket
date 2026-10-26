@@ -1,7 +1,5 @@
 'use strict';
 
-// Fill documentation gaps from the declared schemas. Handwritten examples always win.
-// Endpoints whose response schemas are not yet declared have explicit samples below.
 const UUID = '11111111-1111-4111-8111-111111111111';
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const MILESTONE_ID = '33333333-3333-4333-8333-333333333333';
@@ -166,7 +164,6 @@ function addSwaggerExamples(spec) {
                         status: 'success', amount: 5000000, currency: 'NGN', paid_at: DATE } }
                     : sampleSchema(spec, media.schema);
             }
-            // Bodyless operations still get a concrete request URL in Swagger UI.
             if (!operation.requestBody && !operation.description?.includes('Example request:')) {
                 const query = parameters.filter(item => item.in === 'query' && (item.required || own(item.schema || {}, 'default')))
                     .map(item => `${item.name}=${encodeURIComponent(item.example)}`).join('&');

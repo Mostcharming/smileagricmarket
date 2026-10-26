@@ -16,14 +16,10 @@ const {
     updateUserFarmMilestoneStatus
 } = require('./controller');
 
-// Import farmCategoryRouter
 const farmCategoryRouter = require('./farmCategoryRoute');
 const investmentRouter = require('./investmentRoute');
 const userInvestmentRouter = require('./userInvestmentRoute');
 
-/**
- * Middleware to verify admin token
- */
 const verifyAdminToken = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization || req.headers['x-access-token'] || req.query.token;
@@ -1025,7 +1021,6 @@ router.put(
     updateUserFarmMilestoneStatus
 );
 
-// Mount farm category routes
 router.use('/', farmCategoryRouter);
 router.use('/', investmentRouter);
 router.use('/', userInvestmentRouter);

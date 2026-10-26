@@ -69,7 +69,6 @@ module.exports = {
             }
         });
 
-        // Create unique index on act field
         await queryInterface.addIndex('notification_templates', ['act'], {
             unique: true,
             name: 'notification_templates_act_unique'

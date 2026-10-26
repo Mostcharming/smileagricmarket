@@ -7,7 +7,6 @@ const { Op } = require('sequelize');
 const models = defineModels(sequelize);
 const { FarmCategory, Milestone, Investment } = models;
 
-// ==================== FARM CATEGORY FUNCTIONS ====================
 
 async function createFarmCategory(req, res) {
     try {
@@ -17,7 +16,6 @@ async function createFarmCategory(req, res) {
             return res.fail('Farm category name is required', 400);
         }
 
-        // Check if category already exists
         const existingCategory = await FarmCategory.findOne({
             where: { name: name.trim() }
         });
@@ -66,7 +64,6 @@ async function getAllFarmCategories(req, res) {
             ]
         });
 
-        // Add milestone count to each category
         const categoriesWithCount = categories.map(cat => ({
             id: cat.id,
             name: cat.name,
@@ -148,7 +145,6 @@ async function updateFarmCategory(req, res) {
             return res.fail('Farm category not found', 404);
         }
 
-        // Check if another category with the same name exists
         if (name.trim() !== category.name) {
             const existingCategory = await FarmCategory.findOne({
                 where: { name: name.trim() }
@@ -194,7 +190,6 @@ async function deleteFarmCategory(req, res) {
             return res.fail('Farm category not found', 404);
         }
 
-        // Check if category has any milestones
         const milestoneCount = await Milestone.count({
             where: { farmCategoryId: categoryId }
         });
@@ -223,7 +218,6 @@ async function deleteFarmCategory(req, res) {
     }
 }
 
-// ==================== MILESTONE FUNCTIONS ====================
 
 async function createMilestone(req, res) {
     try {
@@ -238,7 +232,6 @@ async function createMilestone(req, res) {
             return res.fail('Milestone name is required', 400);
         }
 
-        // Check if category exists
         const category = await FarmCategory.findByPk(categoryId);
 
         if (!category) {
@@ -317,7 +310,6 @@ async function getMilestonesByCategory(req, res) {
             return res.fail('Category ID is required', 400);
         }
 
-        // Check if category exists
         const category = await FarmCategory.findByPk(categoryId);
 
         if (!category) {
@@ -424,7 +416,6 @@ async function deleteMilestonesByCategory(req, res) {
             return res.fail('Category ID is required', 400);
         }
 
-        // Check if category exists
         const category = await FarmCategory.findByPk(categoryId);
 
         if (!category) {
@@ -449,13 +440,11 @@ async function deleteMilestonesByCategory(req, res) {
 }
 
 module.exports = {
-    // Farm Category
     createFarmCategory,
     getAllFarmCategories,
     getFarmCategoryById,
     updateFarmCategory,
     deleteFarmCategory,
-    // Milestones
     createMilestone,
     getAllMilestones,
     getMilestonesByCategory,

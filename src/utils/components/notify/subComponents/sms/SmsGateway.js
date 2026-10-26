@@ -38,8 +38,10 @@ class SmsGateway {
                 type: 'plain'
             };
 
-            const response = await axios.post('https://v3.api.termii.com/api/sms/send', payload);
-            console.log('Temii Response:', response);
+            const response = await axios.post(
+                this.config.baseUrl || 'https://v3.api.termii.com/api/sms/send',
+                payload
+            );
 
 
 

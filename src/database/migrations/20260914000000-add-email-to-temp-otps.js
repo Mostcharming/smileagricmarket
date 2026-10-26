@@ -15,7 +15,6 @@ module.exports = {
 
     async down(queryInterface, Sequelize) {
         await queryInterface.sequelize.transaction(async transaction => {
-            // Email-only challenges cannot be represented by the old schema.
             await queryInterface.bulkDelete('temp_otps', { phone_number: null }, { transaction });
             await queryInterface.removeIndex('temp_otps', ['email'], { transaction });
             await queryInterface.removeColumn('temp_otps', 'email', { transaction });

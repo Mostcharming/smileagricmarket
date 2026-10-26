@@ -56,8 +56,13 @@ class Notify {
         }
 
         if (errors.length > 0) {
-            const errorMessage = errors.map(e => `${e.method}: ${e.error}`).join('; ');
-            throw new Error(`Notification failed - ${errorMessage}`);
+            const service = errors.length > 1
+                ? 'Notification'
+                : errors[0].method === 'sms' ? 'SMS' : 'Email';
+            const error = new Error(`${service} service is currently unavailable. Please try again later.`);
+            error.statusCode = 503;
+            error.cause = errors;
+            throw error;
         }
     }
 

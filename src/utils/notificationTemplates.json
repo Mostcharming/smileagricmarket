@@ -58,6 +58,14 @@
     "emailBody": "Great news! Your identity verification has been successfully approved.",
     "shortcodes": []
   },
+  "FARM_APPROVED_TEMPLATE": {
+    "name": "Farm Approved",
+    "description": "Email and SMS sent to the farm owner after admin approval",
+    "smsBody": "Your farm {farmName} has been approved on AgriMarket. Sign in to view and manage your farm.",
+    "emailSubject": "Your AgriMarket Farm Has Been Approved",
+    "emailBody": "<p>Great news! Your farm <strong>{farmName}</strong> has been approved on AgriMarket.</p><p>Sign in to your account to view and manage your farm.</p>",
+    "shortcodes": ["farmName"]
+  },
   "KYC_REJECTED_TEMPLATE": {
     "name": "KYC Rejected",
     "description": "SMS and Email template sent when KYC is rejected",

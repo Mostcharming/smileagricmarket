@@ -59,7 +59,6 @@ async function sendConfirmationEmail(signup) {
         await signup.update({ confirmationEmailSentAt: new Date() });
         return true;
     } catch (error) {
-        // The signup is still valid if the email provider is temporarily unavailable.
         console.error('Failed to send beta signup confirmation email:', error);
     }
 }

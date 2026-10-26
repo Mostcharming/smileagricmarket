@@ -18,7 +18,6 @@ function accountWhere(body = {}) {
     return null;
 }
 
-// All changes lock the account first, serializing requests even before a reset row exists.
 module.exports = (sequelize, { User, MobilePasswordReset }) => ({
     accountWhere,
     async request(where) {

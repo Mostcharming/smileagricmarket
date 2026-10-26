@@ -2,15 +2,12 @@
 
 module.exports = {
     up: async (queryInterface, Sequelize) => {
-        // Drop NotificationLog table first (has foreign key dependency)
         await queryInterface.dropTable('NotificationLogs', { force: true });
 
-        // Drop NotificationTemplate table
         await queryInterface.dropTable('NotificationTemplates', { force: true });
     },
 
     down: async (queryInterface, Sequelize) => {
-        // Recreate NotificationTemplate table
         await queryInterface.createTable('NotificationTemplates', {
             id: {
                 allowNull: false,
@@ -39,7 +36,6 @@ module.exports = {
             },
         });
 
-        // Recreate NotificationLog table
         await queryInterface.createTable('NotificationLogs', {
             id: {
                 allowNull: false,

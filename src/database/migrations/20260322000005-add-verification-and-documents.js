@@ -4,7 +4,6 @@ const { DataTypes } = require('sequelize');
 
 module.exports = {
     up: async (queryInterface, Sequelize) => {
-        // Add verification_status to user_farms table
         await queryInterface.addColumn('user_farms', 'verification_status', {
             type: DataTypes.ENUM('pending', 'approved', 'rejected'),
             allowNull: false,
@@ -13,7 +12,6 @@ module.exports = {
             comment: 'Farm verification status'
         });
 
-        // Create farm_documents table
         await queryInterface.createTable('farm_documents', {
             id: {
                 type: DataTypes.UUID,
@@ -76,7 +74,6 @@ module.exports = {
             }
         });
 
-        // Create indexes on farm_documents
         await queryInterface.addIndex('farm_documents', ['user_farm_id'], {
             name: 'farm_documents_user_farm_id_idx'
         });
@@ -85,7 +82,6 @@ module.exports = {
             name: 'farm_documents_document_type_idx'
         });
 
-        // Add index on verification_status
         await queryInterface.addIndex('user_farms', ['verification_status'], {
             name: 'user_farms_verification_status_idx'
         });

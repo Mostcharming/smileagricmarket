@@ -776,8 +776,6 @@ Object.assign(specs.components.schemas.Investment.properties, {
 
 const groupedSpecs = addSwaggerExamples(addPaymentSwagger(addMobileInvestmentSwagger(addSwaggerExamples(specs))));
 
-// Declare the display order and classify after adding generated endpoints so
-// shared payment routes appear under the client or role that uses them.
 const groups = [
     { name: 'Web Admin', description: 'Administration, users, KYC reviews, farms, investments, milestones, and payment operations.' },
     { name: 'Web', description: 'Web authentication, profiles, KYC, farms, investments, portfolios, and payments.' },

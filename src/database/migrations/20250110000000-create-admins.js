@@ -69,7 +69,6 @@ module.exports = {
             }
         });
 
-        // Create unique index on email
         await queryInterface.addIndex('admins', ['email'], {
             unique: true,
             name: 'admins_email_unique'

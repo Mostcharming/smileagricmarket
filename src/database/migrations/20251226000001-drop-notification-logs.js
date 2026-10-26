@@ -2,12 +2,10 @@
 
 module.exports = {
     up: async (queryInterface, Sequelize) => {
-        // Drop NotificationLogs table
         await queryInterface.dropTable('NotificationLogs', { force: true });
     },
 
     down: async (queryInterface, Sequelize) => {
-        // Recreate NotificationLogs table if rollback is needed
         await queryInterface.createTable('NotificationLogs', {
             id: {
                 allowNull: false,

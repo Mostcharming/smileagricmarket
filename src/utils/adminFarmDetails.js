@@ -38,7 +38,6 @@ function addAdminFarmDetails(farm, payments = [], today = new Date()) {
         activeProjectsCount: projects.filter(project => project.isActive !== false && project.status === 'active').length,
         totalFundingGoalAmount,
         totalFundsRaised: round(projects.reduce((sum, project) => sum + project.amountRaised, 0)),
-        // Same funding-goal-weighted milestone progress as the web farm view.
         completionPercentage: totalFundingGoalAmount > 0
             ? round(projects.reduce((sum, project) => sum + project.fundingGoalAmount * project.completionPercentage, 0)
                 / totalFundingGoalAmount) : 0,

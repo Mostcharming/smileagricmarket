@@ -1,52 +1,34 @@
-/**
- * Input validation and sanitization utilities
- */
 
 const PHONE_REGEX = /^[\d\s\-\+\(\)]+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SAFE_STRING_REGEX = /^[a-zA-Z0-9\s\-_.,!?&'()]*$/;
 
-/**
- * Validate phone number format
- */
 function validatePhoneNumber(phone) {
     if (!phone || typeof phone !== 'string') return false;
     const cleaned = phone.replace(/\D/g, '');
     return cleaned.length >= 10 && cleaned.length <= 15;
 }
 
-/**
- * Validate email format
- */
 function validateEmail(email) {
     if (!email || typeof email !== 'string') return false;
     return EMAIL_REGEX.test(email) && email.length <= 254;
 }
 
-/**
- * Validate OTP (must be numeric, 4-6 digits)
- */
 function validateOTP(otp) {
     if (!otp || typeof otp !== 'string') return false;
     return /^\d{4,6}$/.test(otp);
 }
 
-/**
- * Sanitize string input - remove potential XSS vectors
- */
 function sanitizeString(str) {
     if (typeof str !== 'string') return str;
 
     return str
-        .replace(/[<>]/g, '') // Remove angle brackets
-        .replace(/javascript:/gi, '') // Remove javascript: protocol
-        .replace(/on\w+\s*=/gi, '') // Remove event handlers
+        .replace(/[<>]/g, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+\s*=/gi, '')
         .trim();
 }
 
-/**
- * Sanitize object - recursively sanitizes string properties
- */
 function sanitizeObject(obj) {
     if (!obj || typeof obj !== 'object') return obj;
 
@@ -68,9 +50,6 @@ function sanitizeObject(obj) {
     return sanitized;
 }
 
-/**
- * Validate request body has required fields
- */
 function validateRequiredFields(obj, fields = []) {
     const missing = [];
     for (const field of fields) {
@@ -84,11 +63,7 @@ function validateRequiredFields(obj, fields = []) {
     };
 }
 
-/**
- * Express middleware for input validation and sanitization
- */
 function inputValidationMiddleware(req, res, next) {
-    // Sanitize all input
     if (req.body && typeof req.body === 'object') {
         req.body = sanitizeObject(req.body);
     }

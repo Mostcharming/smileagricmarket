@@ -29,7 +29,6 @@ async function readQuote(req) {
     const pendingAmount = await InvestmentPayment.sum('amount', {
         where: { userFarmInvestmentId: project.id, status: 'pending' }
     });
-    // A project has one fixed term; the client must select another project to change it.
     if (req.query.durationValue !== undefined || req.query.durationUnit !== undefined) {
         throw new InvestmentTermsError('Duration is fixed by the project; select another project to change it');
     }

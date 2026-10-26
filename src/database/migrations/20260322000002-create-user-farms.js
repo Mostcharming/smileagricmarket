@@ -73,17 +73,14 @@ module.exports = {
             }
         });
 
-        // Create index on user_id
         await queryInterface.addIndex('user_farms', ['user_id'], {
             name: 'user_farms_user_id_idx'
         });
 
-        // Create index on farm_category_id
         await queryInterface.addIndex('user_farms', ['farm_category_id'], {
             name: 'user_farms_farm_category_id_idx'
         });
 
-        // Create composite index on user_id and is_active
         await queryInterface.addIndex('user_farms', ['user_id', 'is_active'], {
             name: 'user_farms_user_id_is_active_idx'
         });

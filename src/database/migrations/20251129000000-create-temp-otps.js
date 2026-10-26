@@ -41,7 +41,6 @@ module.exports = {
             }
         });
 
-        // Create index on phone_number for faster lookups
         await queryInterface.addIndex('temp_otps', ['phone_number']);
     },
 

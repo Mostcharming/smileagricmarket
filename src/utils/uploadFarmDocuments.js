@@ -111,7 +111,6 @@ function uploadFarmDocuments(req, res, next) {
             documents: []
         };
 
-        // "photos" is the new UX field; "pictures" remains accepted for compatibility.
         const uploadedPictures = [
             ...(req.files?.photos || []),
             ...(req.files?.pictures || [])
@@ -128,7 +127,6 @@ function uploadFarmDocuments(req, res, next) {
                 });
         });
 
-        // Process documents
         if (req.files && req.files.documents && Array.isArray(req.files.documents)) {
             req.files.documents.forEach(file => {
                 req.farmFiles.documents.push({

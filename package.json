@@ -6,12 +6,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node --test test/*.test.js",
-    "test:endpoints": "node scripts/test-endpoints.js",
     "lint": "eslint src/",
     "format": "prettier --write 'src/**/*.js'",
     "migrate": "npx sequelize-cli db:migrate",
     "seed": "npx sequelize-cli db:seed:all",
+    "seed:local": "node scripts/seed-local-users.js",
     "migrate:undo": "npx sequelize-cli db:migrate:undo",
     "pm2:dev": "pm2 start ecosystem.config.js --env development",
     "pm2:prod": "pm2 start ecosystem.config.js --env production --update-env",

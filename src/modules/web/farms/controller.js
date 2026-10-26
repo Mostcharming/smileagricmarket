@@ -445,21 +445,17 @@ async function listUserFarms(req, res) {
             return res.fail('User not authenticated', 401);
         }
 
-        // Get pagination parameters
         const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.min(parseInt(req.query.limit) || 10, 100); // Max 100 per page
+        const limit = Math.min(parseInt(req.query.limit) || 10, 100);
         const offset = (page - 1) * limit;
 
-        // Get search parameter
         const search = req.query.search ? req.query.search.trim() : '';
 
-        // Build where clause
         const whereClause = {
             userId,
             isActive: true
         };
 
-        // Add search filter if provided
         if (search) {
             whereClause[Op.or] = [
                 { name: { [Op.iLike]: `%${search}%` } },
@@ -467,12 +463,10 @@ async function listUserFarms(req, res) {
             ];
         }
 
-        // Get total count
         const total = await UserFarm.count({
             where: whereClause
         });
 
-        // Fetch farms with pagination
         const farms = await UserFarm.findAll({
             where: whereClause,
             include: [
@@ -490,12 +484,10 @@ async function listUserFarms(req, res) {
             offset
         });
 
-        // Calculate pagination metadata
         const totalPages = Math.ceil(total / limit);
         const hasNextPage = page < totalPages;
         const hasPreviousPage = page > 1;
 
-        // Map fileUrl to full URL for each farm's documents
         const farmsWithFullUrls = farms.map(farm => {
             const farmObj = farm.toJSON();
             if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
@@ -559,7 +551,6 @@ async function getFarmById(req, res) {
             return res.fail('Farm not found', 404);
         }
 
-        // Map fileUrl to full URL for all documents
         let farmObj = farm.toJSON();
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
@@ -672,7 +663,6 @@ async function createFarm(req, res) {
             ]
         });
 
-        // Map fileUrl to full URL for all documents
         let farmObj = createdFarm.toJSON ? createdFarm.toJSON() : createdFarm;
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
@@ -747,7 +737,6 @@ async function createInvestmentProject(req, res) {
             return res.fail('Active farm category not found', 404);
         }
 
-        // The newest active admin template is the category's current template.
         const investmentTemplate = await Investment.findOne({
             where: {
                 farmCategoryId: category.id,
@@ -952,7 +941,6 @@ async function deleteFarm(req, res) {
             return res.fail('Farm not found', 404);
         }
 
-        // Soft delete by marking as inactive
         farm.isActive = false;
         await farm.save();
 
@@ -1127,7 +1115,6 @@ async function uploadFarmDocumentsToFarm(req, res) {
             return res.fail('Farm ID is required', 400);
         }
 
-        // Verify farm ownership
         const farm = await UserFarm.findOne({
             where: { id: farmId, userId }
         });
@@ -1142,7 +1129,6 @@ async function uploadFarmDocumentsToFarm(req, res) {
 
         const documentsToCreate = [];
 
-        // Add pictures
         if (req.farmFiles.pictures && req.farmFiles.pictures.length > 0) {
             req.farmFiles.pictures.forEach(picture => {
                 documentsToCreate.push({
@@ -1156,7 +1142,6 @@ async function uploadFarmDocumentsToFarm(req, res) {
             });
         }
 
-        // Add documents
         if (req.farmFiles.documents && req.farmFiles.documents.length > 0) {
             req.farmFiles.documents.forEach(doc => {
                 documentsToCreate.push({
@@ -1182,7 +1167,6 @@ async function uploadFarmDocumentsToFarm(req, res) {
             }]
         });
 
-        // Map fileUrl to full URL for all documents
         const farmObj = updatedFarm.toJSON ? updatedFarm.toJSON() : updatedFarm;
         if (farmObj.Documents && Array.isArray(farmObj.Documents)) {
             farmObj.Documents = farmObj.Documents.map(doc => ({
@@ -1223,12 +1207,10 @@ async function deleteFarmDocument(req, res) {
             return res.fail('Document not found', 404);
         }
 
-        // Verify ownership
         if (document.Farm.userId !== userId) {
             return res.fail('Unauthorized to delete this document', 403);
         }
 
-        // Delete the document file
         const filePath = document.fileUrl.replace('/upload/farm-documents/', '');
         const fullPath = path.join(__dirname, '../../..', '..', 'uploads', 'farm-documents', filePath);
 
@@ -1240,7 +1222,6 @@ async function deleteFarmDocument(req, res) {
             console.error('Error deleting file:', err);
         }
 
-        // Delete from database
         await document.destroy();
 
         return res.success({}, 'Document deleted successfully');
@@ -1267,7 +1248,6 @@ async function removeMilestoneFromFarm(req, res) {
             return res.fail('Farm ID and Milestone ID are required', 400);
         }
 
-        // Verify farm ownership
         const farm = await UserFarm.findOne({
             where: { id: farmId, userId }
         });

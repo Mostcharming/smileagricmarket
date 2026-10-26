@@ -25,7 +25,6 @@ module.exports = (sequelize) => {
             allowNull: true,
             field: 'first_name'
         },
-        // Nullable for signups collected before the expanded beta form.
         name: {
             type: DataTypes.STRING(200),
             allowNull: true,

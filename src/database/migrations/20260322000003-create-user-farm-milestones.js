@@ -57,23 +57,19 @@ module.exports = {
             }
         });
 
-        // Create index on user_farm_id
         await queryInterface.addIndex('user_farm_milestones', ['user_farm_id'], {
             name: 'user_farm_milestones_user_farm_id_idx'
         });
 
-        // Create index on milestone_id
         await queryInterface.addIndex('user_farm_milestones', ['milestone_id'], {
             name: 'user_farm_milestones_milestone_id_idx'
         });
 
-        // Create composite unique index to prevent duplicate assignments
         await queryInterface.addIndex('user_farm_milestones', ['user_farm_id', 'milestone_id'], {
             name: 'user_farm_milestones_unique_idx',
             unique: true
         });
 
-        // Create index on is_completed for queries
         await queryInterface.addIndex('user_farm_milestones', ['is_completed'], {
             name: 'user_farm_milestones_is_completed_idx'
         });

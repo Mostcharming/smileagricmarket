@@ -52,7 +52,6 @@ async function requestOtp(req, res) {
         const otp = generateCode(6, { letters: false, numbers: true });
         const otpExpiry = null;
 
-        // Delete all previous TempOtp records for this phone number
         const deleted = await models.TempOtp.destroy({ where: { phoneNumber } });
         await TempOtp.create({
             phoneNumber,
@@ -75,7 +74,7 @@ async function requestOtp(req, res) {
         );
     } catch (error) {
         console.error('Request OTP error:', error);
-        return res.fail(error.message, 500);
+        return res.fail(error.message, error.statusCode || 500);
     }
 }
 
@@ -92,7 +91,6 @@ async function resendOtp(req, res) {
         });
 
         const otp = generateCode(6, { letters: false, numbers: true });
-        // const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
         const otpExpiry = null;
 
         if (existingUser) {
@@ -130,7 +128,7 @@ async function resendOtp(req, res) {
         );
     } catch (error) {
         console.error('Resend OTP error:', error);
-        return res.fail(error.message, 500);
+        return res.fail(error.message, error.statusCode || 500);
     }
 }
 
@@ -173,9 +171,6 @@ async function verifyOtp(req, res) {
             return res.fail('Invalid OTP', 400);
         }
 
-        // if (new Date() > otpExpiry) {
-        //     return res.fail('OTP has expired', 400);
-        // }
 
         if (isNewUser) {
             await TempOtp.destroy({
@@ -360,7 +355,6 @@ async function forgot(req, res) {
             );
         }
 
-        // Keep responses identical for unknown accounts and requests within the resend cooldown.
         const message = 'If an account exists, a password reset OTP will be sent';
         return res.success({ message }, message);
     } catch (error) {

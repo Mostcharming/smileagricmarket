@@ -7,9 +7,6 @@ const { toBackendApiUrl } = require('../../../utils/url');
 const models = defineModels(sequelize);
 const { User, KYC, Wallet } = models;
 
-/**
- * Upload or update user profile picture
- */
 async function uploadProfilePicture(req, res) {
     try {
         const userId = req.user?.id;
@@ -46,9 +43,6 @@ async function uploadProfilePicture(req, res) {
     }
 }
 
-/**
- * Update user profile information
- */
 async function updateProfile(req, res) {
     try {
         const userId = req.user?.id;
@@ -63,7 +57,6 @@ async function updateProfile(req, res) {
             return res.fail('User not found', 404);
         }
 
-        // Validation
         if (email && email !== user.email) {
             const existingUser = await User.findOne({ where: { email } });
             if (existingUser) {
@@ -78,7 +71,6 @@ async function updateProfile(req, res) {
             }
         }
 
-        // Update only provided fields
         const updateData = {};
         if (fullName) updateData.fullName = fullName;
         if (gender) updateData.gender = gender;
@@ -106,9 +98,6 @@ async function updateProfile(req, res) {
     }
 }
 
-/**
- * Get user profile information
- */
 async function getProfile(req, res) {
     try {
         const userId = req.user?.id;
@@ -136,7 +125,6 @@ async function getProfile(req, res) {
             return res.fail('User not found', 404);
         }
 
-        // Get latest KYC
         const latestKYC = user.KYCs && user.KYCs.length > 0
             ? user.KYCs[user.KYCs.length - 1]
             : null;
@@ -177,9 +165,6 @@ async function getProfile(req, res) {
     }
 }
 
-/**
- * Setup wallet account
- */
 async function setupWallet(req, res) {
     try {
         const userId = req.user?.id;
@@ -243,10 +228,6 @@ async function setupWallet(req, res) {
     }
 }
 
-/**
- * Get profile completion status
- * Returns completion percentage (0-100) and missing fields
- */
 async function getProfileCompletionStatus(req, res) {
     try {
         const userId = req.user?.id;
@@ -274,41 +255,32 @@ async function getProfileCompletionStatus(req, res) {
             return res.fail('User not found', 404);
         }
 
-        // Calculate completion
         let completionScore = 0;
-        let totalFields = 8; // 8 required items for 100%
+        let totalFields = 8;
         const missingFields = [];
 
-        // 1. Full Name
         if (user.fullName) completionScore++;
         else missingFields.push('fullName');
 
-        // 2. Gender
         if (user.gender) completionScore++;
         else missingFields.push('gender');
 
-        // 3. Email
         if (user.email) completionScore++;
         else missingFields.push('email');
 
-        // 4. Phone Number
         if (user.phoneNumber && user.isPhoneVerified) completionScore++;
         else missingFields.push('phoneNumber');
 
-        // 5. Bio
         if (user.bio) completionScore++;
         else missingFields.push('bio');
 
-        // 6. Profile Picture
         if (user.profileImageUrl) completionScore++;
         else missingFields.push('profilePicture');
 
-        // 7. KYC Verification (approved status)
         const approvedKYC = user.KYCs && user.KYCs.some(kyc => kyc.status === 'approved');
         if (approvedKYC) completionScore++;
         else missingFields.push('kycVerification');
 
-        // 8. Wallet Setup
         if (user.Wallet && user.Wallet.isVerified) completionScore++;
         else missingFields.push('walletSetup');
 
@@ -338,9 +310,6 @@ async function getProfileCompletionStatus(req, res) {
     }
 }
 
-/**
- * Get wallet information
- */
 async function getWallet(req, res) {
     try {
         const userId = req.user?.id;

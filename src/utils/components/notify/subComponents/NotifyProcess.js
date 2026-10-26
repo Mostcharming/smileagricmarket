@@ -39,7 +39,6 @@ class NotifyProcess {
         }
 
         try {
-            // Verify templateLoader is available and has getTemplate method
             if (!templateLoader || typeof templateLoader.getTemplate !== 'function') {
                 throw new Error('Template loader is not properly initialized or getTemplate method is not available');
             }
@@ -60,13 +59,11 @@ class NotifyProcess {
                         ? escapeHtml(value)
                         : String(value);
 
-                    // Replace both {{code}} and {code}
                     message = message.replace(new RegExp(`{{${code}}}`, 'g'), replacement);
                     message = message.replace(new RegExp(`{${code}}`, 'g'), replacement);
                 }
             }
 
-            // Replace firstName if available
             if (this.user && this.user.firstName) {
                 const firstName = this.notifyConfig === 'email'
                     ? escapeHtml(this.user.firstName)
@@ -99,10 +96,6 @@ class NotifyProcess {
     }
 
     async createErrorLog(message) {
-        // await AdminNotification.create({
-        //     title: message,
-        //     clickUrl: '#'
-        // });
     }
 }
 

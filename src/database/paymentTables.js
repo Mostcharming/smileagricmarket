@@ -1,6 +1,5 @@
 'use strict';
 
-// Shared definitions keep the migration and Sequelize models aligned.
 module.exports = S => {
     const id = { type: S.UUID, primaryKey: true, allowNull: false, defaultValue: S.UUIDV4 };
     const text = (nullable = true) => ({ type: S.STRING, allowNull: nullable });

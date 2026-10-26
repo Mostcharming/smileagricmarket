@@ -28,7 +28,6 @@ function safeUrl(value, fallback) {
             return parsed.toString();
         }
     } catch (error) {
-        // Use the known-safe fallback below.
     }
 
     return fallback;
@@ -147,6 +146,23 @@ function kycApprovedEmail({ appUrl }) {
         ctaLabel: 'Explore AgriMarket',
         ctaUrl: appUrl,
         closingText: 'See you on AgriMarket,'
+    };
+}
+
+function farmApprovedEmail({ appUrl, shortCodes }) {
+    const farmName = escapeHtml(shortCodes.farmName);
+
+    return {
+        label: 'Farm verification',
+        title: 'Your farm has been approved.',
+        preheader: 'Your farm has been approved on AgriMarket. Sign in to view and manage your farm.',
+        bodyHtml: [
+            paragraph(`Great news! Your farm <strong>${farmName}</strong> has been approved on AgriMarket.`),
+            paragraph('Sign in to your account to view and manage your farm.')
+        ].join(''),
+        ctaLabel: 'Sign In to AgriMarket',
+        ctaUrl: `${appUrl.replace(/\/$/, '')}/login`,
+        closingText: 'Thank you for being part of AgriMarket.'
     };
 }
 
@@ -277,6 +293,7 @@ const contentBuilders = {
     EMAIL_OTP_TEMPLATE: otpEmail,
     WELCOME_EMAIL_TEMPLATE: welcomeEmail,
     KYC_APPROVED_TEMPLATE: kycApprovedEmail,
+    FARM_APPROVED_TEMPLATE: farmApprovedEmail,
     KYC_REJECTED_TEMPLATE: kycRejectedEmail,
     PASSWORD_RESET_TEMPLATE: passwordResetEmail,
     PASSWORD_RESET_SUCCESS_TEMPLATE: passwordResetSuccessfulEmail,

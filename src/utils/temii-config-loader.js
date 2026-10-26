@@ -34,6 +34,12 @@ function getTemiiConfig() {
     }
 
     cachedConfig = mergeConfig(cachedConfig, {
+        sms: {
+            provider: process.env.SMS_PROVIDER || cachedConfig.sms?.provider,
+            apiKey: process.env.TERMII_API_KEY || cachedConfig.sms?.apiKey,
+            senderId: process.env.TERMII_SENDER_ID || cachedConfig.sms?.senderId,
+            baseUrl: process.env.TERMII_BASE_URL || cachedConfig.sms?.baseUrl
+        },
         email: {
             provider: process.env.EMAIL_PROVIDER || cachedConfig.email?.provider,
             host: process.env.SMTP_HOST || cachedConfig.email?.host,
@@ -49,6 +55,7 @@ function getTemiiConfig() {
             domain: process.env.MAILGUN_DOMAIN || cachedConfig.email?.domain,
             fromEmail: process.env.EMAIL_FROM || cachedConfig.email?.fromEmail,
             fromName: process.env.EMAIL_FROM_NAME || cachedConfig.email?.fromName,
+            defaultSubject: process.env.EMAIL_DEFAULT_SUBJECT || cachedConfig.email?.defaultSubject,
             url: process.env.MAILGUN_URL || cachedConfig.email?.url
         }
     });

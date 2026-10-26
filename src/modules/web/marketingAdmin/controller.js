@@ -92,7 +92,6 @@ function csvValue(value) {
 
     let normalized = value instanceof Date ? value.toISOString() : String(value);
 
-    // Prevent spreadsheet applications from treating user-controlled values as formulas.
     if (/^[=+\-@]/.test(normalized)) {
         normalized = `'${normalized}`;
     }

@@ -1,6 +1,7 @@
 'use strict';
 
 const bcrypt = require('bcrypt');
+const { randomBytes } = require('node:crypto');
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
 const generateCode = require('../../../utils/verificationCode');
@@ -67,7 +68,6 @@ async function requestOtp(req, res) {
         const otp = generateCode(6, { letters: false, numbers: true });
         const otpExpiry = identity.email ? new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000) : null;
 
-        // Replace the previous challenge for the selected destination.
         await TempOtp.destroy({ where: identity });
         await TempOtp.create({
             ...identity,
@@ -83,7 +83,7 @@ async function requestOtp(req, res) {
         );
     } catch (error) {
         console.error('Request OTP error:', error);
-        return res.fail(error.message, 500);
+        return res.fail(error.message, error.statusCode || 500);
     }
 }
 
@@ -102,7 +102,6 @@ async function resendOtp(req, res) {
         const otp = generateCode(6, { letters: false, numbers: true });
         const otpExpiry = identity.email ? new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000) : null;
 
-        // Keep email challenges separate from legacy SMS challenges on User.
         if (existingUser && !identity.email) {
             await existingUser.update({ otp, otpExpiry });
         } else {
@@ -129,7 +128,7 @@ async function resendOtp(req, res) {
         );
     } catch (error) {
         console.error('Resend OTP error:', error);
-        return res.fail(error.message, 500);
+        return res.fail(error.message, error.statusCode || 500);
     }
 }
 
@@ -178,7 +177,6 @@ async function verifyOtp(req, res) {
         }
 
         if (identity.email) {
-            // Consume only the code we checked, even if a resend or another verification races this request.
             const consumed = await TempOtp.destroy({ where: { ...identity, otp: storedOtp } });
             if (!consumed) return res.fail('OTP not found or expired', 404);
         }
@@ -356,14 +354,14 @@ async function setPassword(req, res) {
 
 async function forgot(req, res) {
     try {
-        const { phoneNumber, email } = req.body || {};
+        const identity = getOtpIdentity(req.body);
 
-        if (!phoneNumber && !email) {
-            return res.fail('Phone number or email is required', 400);
+        if (!identity) {
+            return res.fail('A valid phone number or email is required', 400);
         }
 
         const user = await User.findOne({
-            where: phoneNumber ? { phoneNumber } : { email }
+            where: identity
         });
 
         if (!user) {
@@ -373,7 +371,7 @@ async function forgot(req, res) {
             );
         }
 
-        const resetToken = generateCode(32, { letters: true, numbers: true });
+        const resetToken = randomBytes(32).toString('hex');
         const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
         await user.update({
@@ -381,7 +379,7 @@ async function forgot(req, res) {
             resetTokenExpiry
         });
 
-        const resetLink = `${process.env.FE_URL || 'https://app.smileagrimarket.com'}/reset-password/${resetToken}`;
+        const resetLink = `${(process.env.FE_URL || 'https://app.smileagrimarket.com').replace(/\/+$/, '')}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
         await sendNotificationSafely(
             user,
@@ -391,7 +389,7 @@ async function forgot(req, res) {
         );
 
         return res.success(
-            { message: 'Password reset link sent' },
+            { message: 'If an account exists, a reset link will be sent' },
             'If an account exists, a reset link will be sent'
         );
     } catch (error) {
@@ -402,14 +400,14 @@ async function forgot(req, res) {
 
 async function resendResetToken(req, res) {
     try {
-        const { phoneNumber, email } = req.body || {};
+        const identity = getOtpIdentity(req.body);
 
-        if (!phoneNumber && !email) {
-            return res.fail('Phone number or email is required', 400);
+        if (!identity) {
+            return res.fail('A valid phone number or email is required', 400);
         }
 
         const user = await User.findOne({
-            where: phoneNumber ? { phoneNumber } : { email }
+            where: identity
         });
 
         if (!user) {
@@ -419,7 +417,7 @@ async function resendResetToken(req, res) {
             );
         }
 
-        const resetToken = generateCode(32, { letters: true, numbers: true });
+        const resetToken = randomBytes(32).toString('hex');
         const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
         await user.update({
@@ -427,7 +425,7 @@ async function resendResetToken(req, res) {
             resetTokenExpiry
         });
 
-        const resetLink = `${process.env.FE_URL || 'https://app.smileagrimarket.com'}/reset-password/${resetToken}`;
+        const resetLink = `${(process.env.FE_URL || 'https://app.smileagrimarket.com').replace(/\/+$/, '')}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
         await sendNotificationSafely(
             user,
@@ -437,7 +435,7 @@ async function resendResetToken(req, res) {
         );
 
         return res.success(
-            { message: 'Password reset link sent' },
+            { message: 'If an account exists, a reset link will be sent' },
             'If an account exists, a reset link will be sent'
         );
     } catch (error) {
@@ -450,7 +448,7 @@ async function verifyResetToken(req, res) {
     try {
         const { resetToken } = req.body || {};
 
-        if (!resetToken) {
+        if (typeof resetToken !== 'string' || !resetToken.trim()) {
             return res.fail('Reset token is required', 400);
         }
 
@@ -462,7 +460,8 @@ async function verifyResetToken(req, res) {
             return res.fail('Invalid reset token', 404);
         }
 
-        if (new Date() > user.resetTokenExpiry) {
+        if (!user.resetTokenExpiry || !Number.isFinite(new Date(user.resetTokenExpiry).getTime())
+            || Date.now() >= new Date(user.resetTokenExpiry).getTime()) {
             return res.fail('Reset token has expired', 400);
         }
 
@@ -484,7 +483,9 @@ async function reset(req, res) {
     try {
         const { resetToken, password, passwordConfirmation } = req.body || {};
 
-        if (!resetToken || !password || !passwordConfirmation) {
+        if (typeof resetToken !== 'string' || !resetToken.trim()
+            || typeof password !== 'string' || !password
+            || typeof passwordConfirmation !== 'string' || !passwordConfirmation) {
             return res.fail('Reset token, password, and password confirmation are required', 400);
         }
 
@@ -496,25 +497,30 @@ async function reset(req, res) {
             return res.fail('Password must be at least 6 characters long', 400);
         }
 
-        const user = await User.findOne({
-            where: { resetToken }
+        const result = await sequelize.transaction(async transaction => {
+            const user = await User.findOne({
+                where: { resetToken },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!user) return { message: 'Invalid reset token', status: 404 };
+
+            if (!user.resetTokenExpiry || !Number.isFinite(new Date(user.resetTokenExpiry).getTime())
+                || Date.now() >= new Date(user.resetTokenExpiry).getTime()) {
+                return { message: 'Reset token has expired', status: 400 };
+            }
+
+            await user.update({
+                password: await bcrypt.hash(password, 10),
+                resetToken: null,
+                resetTokenExpiry: null
+            }, { transaction });
+            return { user };
         });
 
-        if (!user) {
-            return res.fail('Invalid reset token', 404);
-        }
-
-        if (new Date() > user.resetTokenExpiry) {
-            return res.fail('Reset token has expired', 400);
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        await user.update({
-            password: hashedPassword,
-            resetToken: null,
-            resetTokenExpiry: null
-        });
+        if (!result.user) return res.fail(result.message, result.status);
+        const user = result.user;
 
         await sendNotificationSafely(
             user,

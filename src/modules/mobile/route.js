@@ -10,17 +10,13 @@ const router = require('express').Router();
 
 router.use(responseFormatter);
 
-// Auth routes - no security middleware needed
 router.use('/auth', authRouter);
 
-// All other routes require authentication
 router.use(securityMiddleware);
 router.use('/payments', require('../web/payments/route').router);
 
-// KYC routes - requires authentication
 router.use('/kyc', kycRouter);
 
-// Investor browsing/history share the web contract and the same account records.
 router.use('/investments', investmentsRouter);
 router.use('/portfolio', portfolioRouter);
 router.use('/farm-categories', farmCategoriesRouter);

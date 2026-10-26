@@ -3,6 +3,7 @@
 const axios = require('axios');
 const JSONbig = require('json-bigint')({ storeAsString: true });
 const process = require('node:process');
+const { logPaypetalEvent } = require('./paypetalLogger');
 
 class PaypetalError extends Error {
     constructor(message, { statusCode = 502, code = 'paypetal_error', uncertain = false } = {}) {
@@ -50,6 +51,8 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
     let authenticating;
     async function send(method, path, data, accessToken) {
         const config = getSettings();
+        const context = { method: method.toUpperCase(), url: config.baseUrl + path };
+        logPaypetalEvent({ event: 'request', ...context });
         let response;
         try {
             response = await transport({
@@ -58,11 +61,18 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
                 transformResponse: [body => body], validateStatus: () => true
             });
         } catch (error) {
+            logPaypetalEvent({ event: 'transport_error', ...context,
+                errorCode: error.code, errorMessage: error.message });
             throw new PaypetalError('PayPetal connection failed; reconciliation required', { code: 'transport_error', uncertain: true });
         }
         let body;
         try { body = typeof response.data === 'string' ? JSONbig.parse(response.data) : response.data; }
-        catch (_) { throw new PaypetalError('Invalid PayPetal response', { uncertain: true }); }
+        catch (_) {
+            logPaypetalEvent({ event: 'invalid_response', ...context, httpStatus: response.status,
+                responseBody: { unreadable: true, length: String(response.data ?? '').length } });
+            throw new PaypetalError('Invalid PayPetal response', { uncertain: true });
+        }
+        logPaypetalEvent({ event: 'response', ...context, httpStatus: response.status, responseBody: body });
         if (response.status < 200 || response.status >= 300 || ![true, 'success'].includes(body?.status)) {
             throw new PaypetalError('PayPetal request rejected', {
                 statusCode: response.status === 401 ? 401 : response.status === 429 ? 429 : 502,
@@ -92,7 +102,6 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
     async function request(method, path, data) {
         try { return await send(method, path, data, await authenticate()); }
         catch (error) {
-            // A rejected authentication request has not executed the business operation.
             if (error.statusCode !== 401) throw error;
             token = null;
             return send(method, path, data, await authenticate());
