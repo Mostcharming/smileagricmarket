@@ -14,7 +14,6 @@ router.use('/auth', authRouter);
 
 router.use(securityMiddleware);
 router.use('/profile/wallet', require('../web/profile/walletRoute'));
-router.use('/payments', require('../web/payments/route').router);
 
 router.use('/kyc', kycRouter);
 

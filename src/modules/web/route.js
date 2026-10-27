@@ -28,7 +28,6 @@ router.use('/marketing-admin', marketingAdminRouter);
 router.use('/payments/paystack', paystackRouter);
 
 router.use(securityMiddleware);
-router.use('/payments', require('./payments/route').router);
 
 router.use('/kyc', kycRouter);
 

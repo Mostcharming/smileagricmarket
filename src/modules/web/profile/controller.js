@@ -193,7 +193,7 @@ async function setupWallet(req, res) {
                 .setupAccount(userId, req.body);
             return res.success({ id: profile.id, bankCode: profile.bankCode, bankName: profile.bankName,
                 accountNumber: profile.accountNumber, accountName: profile.accountName,
-                status: profile.status, isVerified: profile.status === 'verified' }, 'Payout account registration queued', 202);
+                status: profile.status, isVerified: profile.status === 'verified' }, 'Wallet setup successfully', 200);
         }
 
         if (!bankName || !accountNumber || !accountName) {

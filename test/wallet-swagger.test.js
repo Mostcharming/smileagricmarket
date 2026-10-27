@@ -17,8 +17,10 @@ for (const audience of ['web', 'mobile']) {
         const setup = spec.paths[prefix + '/setup'].post;
         assert.deepEqual(setup.requestBody.content['application/json'].schema.required, ['bankCode', 'accountNumber', 'accountName']);
         assert.equal(setup.requestBody.content['application/json'].example.accountName, 'ADA OKAFOR');
-        assert.ok(setup.responses['202']);
-        for (const suffix of ['/banks', '/accounts/validate', '/accounts', '/payouts', '/returns']) {
+        assert.ok(setup.responses['200']);
+        assert.equal(setup.responses['202'], undefined);
+        assert.equal(setup.responses['200'].content['application/json'].example.data.isVerified, true);
+        for (const suffix of ['/banks', '/accounts/validate', '/accounts', '/payouts', '/returns', '/projects/{projectId}']) {
             assert.equal(spec.paths[`/${audience}/payments${suffix}`], undefined);
         }
         const details = spec.paths[prefix + '/get'].get;

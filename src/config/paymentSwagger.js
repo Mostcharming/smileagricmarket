@@ -15,10 +15,6 @@ function addPaymentSwagger(spec) {
             401: { description: 'Authentication required' }, 403: { description: 'Not authorized' },
             409: { description: 'Payment precondition not met' }, 503: { description: 'PayPetal is not configured' } }
     });
-    const paths = {
-        '/projects/{projectId}': { get: operation('Get project payment account', 'Only the farm owner or an investor in this project can access these details. No withdrawal endpoint is provided.', null, 'projectId') }
-    };
-    for (const prefix of ['/web/payments', '/mobile/payments']) for (const [path, item] of Object.entries(paths)) spec.paths[prefix + path] = JSON.parse(JSON.stringify(item));
     const admin = '/web/admin/payments';
     spec.paths[admin + '/jobs'] = { get: operation('List payment jobs', 'Filter by status to find blocked, pending, retrying or completed jobs.') };
     spec.paths[admin + '/jobs/{jobId}/retry'] = { post: operation('Retry provider reconciliation', 'Retries the saved instruction without clearing uncertain creation markers or generating another reference.', null, 'jobId') };

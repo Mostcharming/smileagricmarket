@@ -88,7 +88,8 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             bankName = (await listBanks()).find(bank => bank.bankCode === resolved.bankCode)?.bankName;
             if (!bankName) throw new PaymentError('Selected bank was not found in the supported bank list', 400);
         }
-        return sequelize.transaction(async transaction => {
+        const leaseToken = randomUUID();
+        const { profile, job } = await sequelize.transaction(async transaction => {
             const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
             if (!user) throw new PaymentError('User not found', 404);
             const approved = await KYC.findOne({ where: { userId, status: 'approved' }, transaction });
@@ -109,16 +110,23 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             if (profile.payoutAttemptedAt && (profile.bankCode !== resolved.bankCode || profile.accountNumber !== resolved.accountNumber)) {
                 throw new PaymentError('Payout account registration outcome is unknown; reconcile it before changing accounts');
             }
+            const job = await enqueue('sync_account', profile.id, transaction);
+            if (job.status === 'running' && (!job.leaseUntil || new Date(job.leaseUntil) > now())) {
+                throw new PaymentError('Payout account registration is already processing');
+            }
+            // Claim the durable job before committing so the worker cannot race this request.
+            await job.update({ status: 'running', attempts: ['completed', 'blocked'].includes(job.status) ? 1 : job.attempts + 1,
+                availableAt: now(), leaseToken, leaseUntil: new Date(now().getTime() + 10 * 60000), lastError: null }, { transaction });
             await profile.update({ bankCode: resolved.bankCode, accountNumber: resolved.accountNumber,
                 accountName: resolved.accountName, bankName: bankName.slice(0, 255),
                 verifiedAt: null, status: 'pending', lastError: null }, { transaction });
             const [wallet] = await Wallet.findOrCreate({ where: { userId }, defaults: {}, transaction });
             await wallet.update({ bankName: profile.bankName, accountNumber: profile.accountNumber,
                 accountName: profile.accountName, isVerified: false }, { transaction });
-            const job = await enqueue('sync_account', profile.id, transaction);
-            if (['completed', 'blocked'].includes(job.status)) await job.update({ status: 'pending', attempts: 0, availableAt: now(), lastError: null }, { transaction });
-            return profile;
+            return { profile, job };
         });
+        await executeJob(job, leaseToken, { resolvedAccount: resolved, throwOnError: true });
+        return PaymentProfile.findByPk(profile.id);
     }
 
     async function ensureCustomer(id) {
@@ -179,7 +187,7 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
         return profile;
     }
 
-    async function syncAccount(id) {
+    async function syncAccount(id, resolvedAccount) {
         const profile = await sequelize.transaction(async transaction => {
             const row = await PaymentProfile.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
             if (row.status === 'verified') return row;
@@ -189,8 +197,12 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
         if (profile.status === 'verified') return;
         const customerProfile = await ensureCustomer(id);
         profile.customerId = customerProfile.customerId;
-        const resolved = await validateAccount(profile);
-        if (resolved.accountName !== profile.accountName) throw new PaymentError('Payout account name changed; reconfirm the account');
+        const resolved = resolvedAccount || await validateAccount(profile);
+        if (resolved.accountNumber !== profile.accountNumber || resolved.bankCode !== profile.bankCode
+            || typeof resolved.accountName !== 'string'
+            || resolved.accountName.trim().toUpperCase() !== profile.accountName.trim().toUpperCase()) {
+            throw new PaymentError('Payout account name or details changed; reconfirm the account');
+        }
         const accounts = listData(await provider.payoutAccounts(profile.customerId))
             .filter(item => item.customerId === profile.customerId);
         if (accounts.length > 1) throw new PaymentError('Multiple payout accounts found for this customer; reconcile in PayPetal');
@@ -487,12 +499,17 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             return row;
         });
         if (!job) return false;
+        return executeJob(job, leaseToken);
+    }
+
+    async function executeJob(job, leaseToken, { resolvedAccount, throwOnError = false } = {}) {
         const heartbeat = setInterval(() => {
             PaymentJob.update({ leaseUntil: new Date(now().getTime() + 10 * 60000) },
                 { where: { id: job.id, leaseToken, status: 'running' } }).catch(() => {});
         }, 60000);
         heartbeat.unref();
-        const handlers = { create_customer: ensureCustomer, provision_project: provisionProject, sync_account: syncAccount,
+        const handlers = { create_customer: ensureCustomer, provision_project: provisionProject,
+            sync_account: id => syncAccount(id, resolvedAccount),
             activate_project: activateProject, release_milestone: releaseMilestone, pay_roi: payRoi };
         try {
             if (!handlers[job.action]) throw new PaymentError('Unknown payment job action');
@@ -511,6 +528,7 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             if (job.action === 'provision_project' || job.action === 'activate_project') await ProjectEscrow.update({ lastError: message }, { where: { id: job.entityId } });
             if (job.action === 'pay_roi') await InvestorPayout.update({ lastError: message }, { where: { id: job.entityId } });
             if (job.action === 'release_milestone') await EscrowRelease.update({ lastError: message }, { where: { id: job.entityId } });
+            if (throwOnError) throw error;
         } finally { clearInterval(heartbeat); }
         return true;
     }

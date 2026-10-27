@@ -31,7 +31,7 @@ function addWalletSwagger(spec) {
             } } }, 401: errors[401], 502: errors[502], 503: errors[503] }
         } };
         spec.paths[prefix + '/get'] = { get: { ...common, summary: 'Get wallet details',
-            description: `Returns the authenticated user's saved bank details, bankCode, verification status and latest registration error. Poll this endpoint after POST ${prefix}/setup to check payout registration. Reads saved details without making a PayPetal API call.`,
+            description: `Returns the authenticated user's saved bank details, bankCode, verification status and latest registration error. Use this endpoint to inspect saved details or reconciliation after an interrupted setup request. Reads saved details without making a PayPetal API call.`,
             responses: { 200: { description: 'Wallet retrieved successfully', content: { 'application/json': {
                 schema: envelope({ type: 'object', properties: { ...wallet.properties,
                     userId: { ...string, format: 'uuid' },
@@ -48,15 +48,15 @@ function addWalletSwagger(spec) {
             } } }, 401: errors[401], 404: { description: 'Wallet has not been set up' } }
         } };
         spec.paths[prefix + '/setup'] = { post: { ...common, summary: 'Create or update wallet account',
-            description: `Select a bank from GET ${prefix}/banks, then submit bankCode, accountNumber and accountName here. The backend validates the supplied accountName against the bank account name resolved by PayPetal. bankName is optional and is taken from the selected bank when omitted. Requires approved KYC and supports phone-only users. Creates or updates the wallet and queues PayPetal payout registration using the saved customerId. Returns HTTP 202; poll GET ${prefix}/get for status and isVerified. Verification completes after the provider confirms the account.`,
+            description: `Select a bank from GET ${prefix}/banks, then submit bankCode, accountNumber and the customer-confirmed accountName here. In one request, the backend validates the bank account with PayPetal, checks the resolved name against accountName, then registers the payout account using the saved customerId. A name mismatch returns HTTP 409 with the resolved name for customer confirmation; resubmit only after confirmation. Failed validation stops the flow before saving wallet details or calling add payout account. bankName is optional and is taken from the selected bank when omitted. Requires approved KYC and supports phone-only users. Returns HTTP 200 with status=verified and isVerified=true after PayPetal confirms matching payout details. Interrupted provider requests are retained for safe reconciliation; GET ${prefix}/get shows their saved status.`,
             requestBody: { required: true, content: { 'application/json': {
                 schema: { type: 'object', required: ['bankCode', 'accountNumber', 'accountName'], properties: account },
                 example: { bankCode: '011', accountNumber: '0123456789', accountName: 'ADA OKAFOR' }
             } } },
-            responses: { 202: { description: 'Wallet saved; payout account registration queued', content: { 'application/json': {
-                schema: envelope(wallet), example: { error: false, message: 'Payout account registration queued', data: {
+            responses: { 200: { description: 'Wallet saved and payout account registered with PayPetal', content: { 'application/json': {
+                schema: envelope(wallet), example: { error: false, message: 'Wallet setup successfully', data: {
                     id: '11111111-1111-4111-8111-111111111111', bankCode: '011', bankName: 'First Bank Nigeria',
-                    accountNumber: '0123456789', accountName: 'ADA OKAFOR', status: 'pending', isVerified: false
+                    accountNumber: '0123456789', accountName: 'ADA OKAFOR', status: 'verified', isVerified: true
                 } }
             } } }, ...errors }
         } };

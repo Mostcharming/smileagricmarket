@@ -25,20 +25,6 @@ const handle = fn => async (req, res) => {
 const pagination = query => ({ limit: Math.min(Math.max(Number.parseInt(query.limit, 10) || 20, 1), 100),
     offset: (Math.max(Number.parseInt(query.page, 10) || 1, 1) - 1) * Math.min(Math.max(Number.parseInt(query.limit, 10) || 20, 1), 100) });
 
-const router = express.Router();
-router.get('/projects/:projectId', handle(async (req, res) => {
-    const { models } = storage();
-    const projectId = uuid(req.params.projectId);
-    const escrow = await models.ProjectEscrow.findOne({ where: { userFarmInvestmentId: projectId } });
-    if (!escrow) throw new PaymentError('Project escrow not found', 404);
-    const investor = await models.InvestmentPayment.findOne({ where: { userFarmInvestmentId: projectId, investorId: req.user.id } });
-    if (escrow.ownerId !== req.user.id && !investor) throw new PaymentError('Project escrow not found', 404);
-    return res.success({ investmentProjectId: projectId, bankName: escrow.bankName, accountName: escrow.accountName,
-        accountNumber: escrow.accountNumber, currency: escrow.currency, targetAmount: escrow.targetAmount,
-        confirmedAmount: escrow.confirmedAmount, releasedAmount: escrow.releasedAmount, status: escrow.status,
-        canWithdraw: false }, 'Project payment account');
-}));
-
 const adminRouter = express.Router();
 adminRouter.use((req, res, next) => req.admin?.id ? next() : res.fail('Admin authentication required', 401));
 adminRouter.use((req, res, next) => req.admin?.role === 'marketing_admin' ? res.fail('Financial admin access required', 403) : next());
@@ -87,4 +73,4 @@ adminRouter.post('/projects/:projectId/provision', handle(async (req, res) => {
     return res.success(escrow, 'Physical project account provisioning queued', 202);
 }));
 
-module.exports = { router, adminRouter };
+module.exports = { adminRouter };

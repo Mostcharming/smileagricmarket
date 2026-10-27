@@ -94,9 +94,11 @@ test('payout client posts accountNumber and bankCode to the customer path and re
 async function payoutFixture(overrides = {}) {
     const account = payoutResponse.responseData;
     const calls = [];
-    const f = fixture({ async validateAccount() { return account; }, async payoutAccounts() { return []; },
+    const operations = [];
+    const f = fixture({ async validateAccount() { operations.push('validate'); return account; },
+        async payoutAccounts() { operations.push('list'); return []; },
         async banks() { return [{ code: '011', name: 'First Bank' }]; },
-        async addPayoutAccount(id, data) { calls.push({ id, data }); return payoutResponse; }, ...overrides });
+        async addPayoutAccount(id, data) { operations.push('add'); calls.push({ id, data }); return payoutResponse; }, ...overrides });
     const user = await f.registration.registerUser({ fullName: identity.fullname, phoneNumber: identity.phoneNumber, email: null });
     const profile = f.tables.PaymentProfile[0];
     await profile.update({ customerId: account.customerId });
@@ -104,7 +106,7 @@ async function payoutFixture(overrides = {}) {
     await f.models.KYC.create({ userId: user.id, status: 'approved' });
     const input = { bankCode: account.bankCode, accountNumber: account.accountNumber,
         accountName: account.accountName, bankName: 'First Bank' };
-    return { ...f, user, profile, input, calls };
+    return { ...f, user, profile, input, calls, operations };
 }
 
 test('wallet bank listing exposes bankCode and bankName while preserving leading zeros and logos', async () => {
@@ -136,14 +138,14 @@ test('wallet setup rejects missing, empty and non-string account names before ca
     assert.equal(f.tables.Wallet.length, 0);
 });
 
-test('phone-only wallet setup queues add-payout-account and saves its full response before verifying the wallet', async () => {
+test('phone-only wallet setup validates then adds the payout account before returning verified details', async () => {
     const f = await payoutFixture();
-    await f.service.setupAccount(f.user.id, f.input);
+    const saved = await f.service.setupAccount(f.user.id, f.input);
     assert.equal(f.user.email, null);
-    assert.equal(f.profile.status, 'pending');
-    assert.equal(f.tables.Wallet[0].isVerified, false);
-    assert.equal(f.calls.length, 0);
-    await f.service.runNextJob();
+    assert.deepEqual(f.operations, ['validate', 'list', 'add']);
+    assert.equal(saved.status, 'verified');
+    assert.equal(f.tables.PaymentJob[1].status, 'completed');
+    assert.equal(f.tables.PaymentJob[1].leaseToken, null);
     assert.deepEqual(f.calls, [{ id: payoutResponse.responseData.customerId,
         data: { accountNumber: '0123456789', bankCode: '011' } }]);
     assert.deepEqual(f.profile.payoutResponse, payoutResponse);
@@ -166,8 +168,7 @@ test('payout account registration keeps approved-KYC and account-name confirmati
 test('a mismatched payout response is retained without verifying the wallet', async () => {
     const invalid = { ...payoutResponse, responseData: { ...payoutResponse.responseData, customerId: 'another_customer' } };
     const f = await payoutFixture({ async addPayoutAccount() { return invalid; } });
-    await f.service.setupAccount(f.user.id, f.input);
-    await f.service.runNextJob();
+    await assert.rejects(f.service.setupAccount(f.user.id, f.input), /payout account details do not match/);
     assert.deepEqual(f.profile.payoutResponse, invalid);
     assert.equal(f.profile.status, 'pending');
     assert.equal(f.tables.Wallet[0].isVerified, false);
@@ -179,8 +180,7 @@ test('payout timeout recovery verifies the saved account without a duplicate add
     let created = false;
     const f = await payoutFixture({ async payoutAccounts() { return created ? [payoutResponse.responseData] : []; },
         async addPayoutAccount() { calls++; created = true; throw new PaypetalError('timeout', { uncertain: true }); } });
-    await f.service.setupAccount(f.user.id, f.input);
-    await f.service.runNextJob();
+    await assert.rejects(f.service.setupAccount(f.user.id, f.input), /timeout/);
     assert.ok(f.profile.payoutAttemptedAt);
     assert.equal(f.tables.Wallet[0].isVerified, false);
     await f.service.runNextJob();
@@ -193,8 +193,7 @@ test('payout timeout recovery verifies the saved account without a duplicate add
 test('unknown payout outcomes block repeat POSTs and account changes until reconciliation', async () => {
     let calls = 0;
     const f = await payoutFixture({ async addPayoutAccount() { calls++; throw new PaypetalError('timeout', { uncertain: true }); } });
-    await f.service.setupAccount(f.user.id, f.input);
-    await f.service.runNextJob();
+    await assert.rejects(f.service.setupAccount(f.user.id, f.input), /timeout/);
     await f.service.runNextJob();
     assert.equal(calls, 1);
     assert.equal(f.tables.PaymentJob[1].status, 'blocked');
@@ -220,6 +219,34 @@ test('changing an existing payout account uses PUT and stores the new response',
     assert.equal(f.calls.length, 0);
     assert.deepEqual(f.profile.payoutResponse, payoutResponse);
     assert.equal(f.profile.status, 'verified');
+});
+
+test('a validation failure stops wallet setup before saving details or creating a payout account', async () => {
+    const f = await payoutFixture({ async validateAccount() { throw new PaypetalError('Account verification failed'); } });
+    await assert.rejects(f.service.setupAccount(f.user.id, f.input), /Account verification failed/);
+    assert.equal(f.calls.length, 0);
+    assert.equal(f.tables.Wallet.length, 0);
+    assert.equal(f.tables.PaymentJob.length, 1); // Only the completed signup customer job exists.
+});
+
+test('the worker cannot claim a wallet registration while the setup request is executing it', async () => {
+    let release;
+    let started;
+    const waiting = new Promise(resolve => { release = resolve; });
+    const entered = new Promise(resolve => { started = resolve; });
+    let calls = 0;
+    const f = await payoutFixture({ async addPayoutAccount() { calls++; started(); await waiting; return payoutResponse; } });
+    const setup = f.service.setupAccount(f.user.id, f.input);
+    await entered;
+    try {
+        assert.equal(f.tables.PaymentJob[1].status, 'running');
+        assert.ok(f.tables.PaymentJob[1].leaseToken);
+        assert.equal(await f.service.runNextJob(), false);
+        assert.equal(calls, 1);
+    } finally { release(); }
+    const profile = await setup;
+    assert.equal(profile.status, 'verified');
+    assert.equal(calls, 1);
 });
 
 test('registration atomically saves the user, customer identity and a unique durable job', async () => {
