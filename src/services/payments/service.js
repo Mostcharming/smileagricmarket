@@ -4,6 +4,7 @@ const { randomUUID } = require('crypto');
 const { Op } = require('sequelize');
 const { resolveInvestmentProjectStatus } = require('../../utils/investmentProject');
 const { PaymentError, amount, decimal, allocateMilestones, providerAmount, assertAgreement, maturityTerms, listData } = require('./domain');
+const { completeIdentity, customerIdentity } = require('./customerRegistration');
 
 function createPaymentService({ sequelize, models, provider, getSettings, now = () => new Date() }) {
     const { PaymentProfile, ProjectEscrow, PaymentDeposit, EscrowRelease, InvestorPayout, PaymentJob,
@@ -82,6 +83,9 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             const [profile] = await PaymentProfile.findOrCreate({ where: { userId }, defaults: { identity: {
                 fullname: user.fullName, email: user.email, phoneNumber: user.phoneNumber
             } }, transaction });
+            if (!profile.customerId && !profile.creationAttemptedAt) {
+                await profile.update({ identity: customerIdentity(user) }, { transaction });
+            }
             if (profile.status === 'syncing') throw new PaymentError('Payout account registration is already processing');
             if (!user.fullName || !user.email) throw new PaymentError('Full name and email are required');
             await profile.update({ bankCode: resolved.bankCode, accountNumber: resolved.accountNumber,
@@ -96,6 +100,57 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
         });
     }
 
+    async function ensureCustomer(id) {
+        const { profile, create } = await sequelize.transaction(async transaction => {
+            const profile = await PaymentProfile.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+            if (!profile) throw new PaymentError('Payment profile not found', 404);
+            if (profile.customerId) return { profile, create: false };
+            if (!profile.identity || !completeIdentity(profile.identity)) {
+                throw new PaymentError('Full name is required to create a PayPetal customer');
+            }
+            const create = !profile.creationAttemptedAt;
+            // Commit the attempt before the API call so a timeout or crash cannot cause a second POST.
+            if (create) await profile.update({ creationAttemptedAt: now() }, { transaction });
+            return { profile, create };
+        });
+        if (profile.customerId) return profile;
+
+        let customer;
+        if (create) {
+            let response;
+            try {
+                response = await provider.createCustomer(profile.identity);
+            } catch (error) {
+                // Explicit rejections can be retried; transport failures require reconciliation.
+                if (error.uncertain === false) await profile.update({ creationAttemptedAt: null });
+                throw error;
+            }
+            customer = response?.dataResponse || response?.responseData;
+            // Retain the envelope and every customer field, including provider timestamps and extra fields.
+            await profile.update({ customerResponse: response, customerData: customer || null,
+                ...(typeof customer?.customerId === 'string' && customer.customerId.trim()
+                    ? { customerId: customer.customerId, customerLastError: null } : {}) });
+        } else {
+            const customers = listData(await provider.customers());
+            const identity = profile.identity;
+            const matches = customers.filter(item => identity.email
+                ? item.email?.toLowerCase() === identity.email.toLowerCase()
+                : identity.phoneNumber ? item.phoneNumber === identity.phoneNumber : item.fullname === identity.fullname);
+            if (matches.length > 1) throw new PaymentError('Ambiguous PayPetal customer identity');
+            customer = matches[0];
+            if (customer && (customer.fullname !== identity.fullname
+                || (identity.phoneNumber && customer.phoneNumber !== identity.phoneNumber))) {
+                throw new PaymentError('Existing PayPetal customer does not match the saved user identity');
+            }
+            if (!customer) throw new PaymentError('Customer creation outcome is unknown; reconcile it in PayPetal');
+        }
+        if (typeof customer?.customerId !== 'string' || !customer.customerId.trim()) {
+            throw new PaymentError('PayPetal returned no customer ID');
+        }
+        await profile.update({ customerId: customer.customerId, customerData: customer, customerLastError: null });
+        return profile;
+    }
+
     async function syncAccount(id) {
         const profile = await sequelize.transaction(async transaction => {
             const row = await PaymentProfile.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
@@ -104,22 +159,8 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             return row;
         });
         if (profile.status === 'verified') return;
-        if (!profile.customerId) {
-            const customers = listData(await provider.customers());
-            const matches = customers.filter(customer => customer.email?.toLowerCase() === profile.identity.email?.toLowerCase());
-            if (matches.length > 1) throw new PaymentError('Ambiguous PayPetal customer identity');
-            let customer = matches[0];
-            if (customer && (customer.fullname !== profile.identity.fullname || customer.phoneNumber !== profile.identity.phoneNumber)) {
-                throw new PaymentError('Existing PayPetal customer does not match the saved user identity');
-            }
-            if (!customer && profile.creationAttemptedAt) throw new PaymentError('Customer creation outcome is unknown; reconcile it in PayPetal');
-            if (!customer) {
-                await profile.update({ creationAttemptedAt: now() });
-                customer = await provider.createCustomer(profile.identity);
-            }
-            if (!customer?.customerId) throw new PaymentError('PayPetal returned no customer ID');
-            await profile.update({ customerId: customer.customerId });
-        }
+        const customerProfile = await ensureCustomer(id);
+        profile.customerId = customerProfile.customerId;
         const resolved = await validateAccount(profile);
         if (resolved.accountName !== profile.accountName) throw new PaymentError('Payout account name changed; reconfirm the account');
         const accounts = listData(await provider.payoutAccounts(profile.customerId));
@@ -404,7 +445,7 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
                 { where: { id: job.id, leaseToken, status: 'running' } }).catch(() => {});
         }, 60000);
         heartbeat.unref();
-        const handlers = { provision_project: provisionProject, sync_account: syncAccount,
+        const handlers = { create_customer: ensureCustomer, provision_project: provisionProject, sync_account: syncAccount,
             activate_project: activateProject, release_milestone: releaseMilestone, pay_roi: payRoi };
         try {
             if (!handlers[job.action]) throw new PaymentError('Unknown payment job action');
@@ -419,6 +460,7 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
                 availableAt: new Date(now().getTime() + Math.min(3600000, 10000 * 2 ** Math.min(job.attempts, 8))),
                 leaseUntil: null, leaseToken: null }, { where: { id: job.id, leaseToken } });
             if (job.action === 'sync_account') await PaymentProfile.update({ status: 'pending', lastError: message }, { where: { id: job.entityId } });
+            if (job.action === 'create_customer') await PaymentProfile.update({ customerLastError: message }, { where: { id: job.entityId } });
             if (job.action === 'provision_project' || job.action === 'activate_project') await ProjectEscrow.update({ lastError: message }, { where: { id: job.entityId } });
             if (job.action === 'pay_roi') await InvestorPayout.update({ lastError: message }, { where: { id: job.entityId } });
             if (job.action === 'release_milestone') await EscrowRelease.update({ lastError: message }, { where: { id: job.entityId } });
@@ -453,7 +495,7 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
 
     return { ensureProject, provisionProject, validateAccount, setupAccount, verifiedProfile, acceptingProject,
         investmentInstructions, recordDeposit, queueMilestone, runNextJob, retryJob, reconcileReference,
-        activateProject, releaseMilestone, payRoi, scheduleMaturity, syncAccount };
+        activateProject, releaseMilestone, payRoi, scheduleMaturity, syncAccount, ensureCustomer };
 }
 
 let instance;

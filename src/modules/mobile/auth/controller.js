@@ -9,6 +9,8 @@ const { signToken } = require('../../../middlewares/common/security');
 
 const models = defineModels(sequelize);
 const { User, TempOtp, KYC } = models;
+const { registerUser } = require('../../../services/payments/customerRegistration')
+    .createCustomerRegistration({ sequelize, models });
 const passwordReset = require('./passwordReset')(sequelize, models);
 
 const OTP_EXPIRY_MINUTES = 30;
@@ -298,7 +300,7 @@ async function setPassword(req, res) {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newUser = await User.create({
+        const newUser = await registerUser({
             phoneNumber,
             email: email || null,
             fullName: fullName || null,
@@ -465,7 +467,7 @@ async function signupWithPassword(req, res) {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newUser = await User.create({
+        const newUser = await registerUser({
             phoneNumber,
             email: email || null,
             fullName: fullName || null,

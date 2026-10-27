@@ -6,6 +6,8 @@ const { toBackendApiUrl } = require('../../../utils/url');
 
 const models = defineModels(sequelize);
 const { User, KYC, Wallet } = models;
+const { updateUser } = require('../../../services/payments/customerRegistration')
+    .createCustomerRegistration({ sequelize, models });
 
 async function uploadProfilePicture(req, res) {
     try {
@@ -78,17 +80,18 @@ async function updateProfile(req, res) {
         if (phoneNumber) updateData.phoneNumber = phoneNumber;
         if (bio !== undefined) updateData.bio = bio;
 
-        await user.update(updateData);
+        const updatedUser = await updateUser(userId, updateData);
+        if (!updatedUser) return res.fail('User not found', 404);
 
         return res.success(
             {
-                id: user.id,
-                fullName: user.fullName,
-                email: user.email,
-                phoneNumber: user.phoneNumber,
-                gender: user.gender,
-                bio: user.bio,
-                isPhoneVerified: user.isPhoneVerified
+                id: updatedUser.id,
+                fullName: updatedUser.fullName,
+                email: updatedUser.email,
+                phoneNumber: updatedUser.phoneNumber,
+                gender: updatedUser.gender,
+                bio: updatedUser.bio,
+                isPhoneVerified: updatedUser.isPhoneVerified
             },
             'Profile updated successfully'
         );

@@ -13,7 +13,8 @@ module.exports = S => {
             id, userId: foreign('users'), customerId: text(), bankCode: text(), accountNumber: text(),
             accountName: text(), bankName: text(), verifiedAt: date,
             status: { ...text(false), defaultValue: 'pending' }, identity: json,
-            lastError: text(), creationAttemptedAt: date
+            lastError: text(), creationAttemptedAt: date,
+            customerResponse: json, customerData: json, customerLastError: text()
         }, indexes: [{ unique: true, fields: ['user_id'] }, { unique: true, fields: ['customer_id'] }] },
         ProjectEscrow: { table: 'project_escrows', fields: {
             id, userFarmInvestmentId: foreign('user_farm_investments'), ownerId: foreign('users'),

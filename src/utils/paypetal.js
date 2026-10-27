@@ -49,7 +49,7 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
     let token;
     let expires = 0;
     let authenticating;
-    async function send(method, path, data, accessToken) {
+    async function send(method, path, data, accessToken, fullResponse = false) {
         const config = getSettings();
         const context = { method: method.toUpperCase(), url: config.baseUrl + path };
         logPaypetalEvent({ event: 'request', ...context });
@@ -57,7 +57,7 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
         try {
             response = await transport({
                 method, url: config.baseUrl + path, data, timeout: config.timeoutMs,
-                headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
                 transformResponse: [body => body], validateStatus: () => true
             });
         } catch (error) {
@@ -80,7 +80,7 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
                 uncertain: response.status >= 500
             });
         }
-        return body.status === true ? body.dataResponse : body.responseData;
+        return fullResponse ? body : body.status === true ? body.dataResponse : body.responseData;
     }
     async function authenticate() {
         if (token && expires > Date.now() + 60000) return token;
@@ -99,18 +99,18 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
         }
         return authenticating;
     }
-    async function request(method, path, data) {
-        try { return await send(method, path, data, await authenticate()); }
+    async function request(method, path, data, fullResponse = false) {
+        try { return await send(method, path, data, await authenticate(), fullResponse); }
         catch (error) {
             if (error.statusCode !== 401) throw error;
             token = null;
-            return send(method, path, data, await authenticate());
+            return send(method, path, data, await authenticate(), fullResponse);
         }
     }
     const encode = encodeURIComponent;
     return {
         request,
-        createCustomer: data => request('post', '/api/v1/customer', data),
+        createCustomer: data => request('post', '/api/v1/customer', data, true),
         customers: () => request('get', '/api/v1/customer/all'),
         banks: () => request('get', '/api/v1/account/banks'),
         validateAccount: data => request('post', '/api/v1/account/bank/validate', data),
