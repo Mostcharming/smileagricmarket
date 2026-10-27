@@ -5,7 +5,7 @@ const defineModels = require('../../../database/models');
 const { toBackendApiUrl } = require('../../../utils/url');
 
 const models = defineModels(sequelize);
-const { User, KYC, Wallet } = models;
+const { User, KYC, Wallet, PaymentProfile } = models;
 const { updateUser } = require('../../../services/payments/customerRegistration')
     .createCustomerRegistration({ sequelize, models });
 
@@ -337,14 +337,21 @@ async function getWallet(req, res) {
             return res.fail('Wallet not found', 404);
         }
 
+        const profile = await PaymentProfile.findOne({ where: { userId },
+            attributes: ['bankCode', 'status', 'verifiedAt', 'lastError'] });
+
         return res.success(
             {
                 id: wallet.id,
                 userId: wallet.userId,
                 bankName: wallet.bankName,
+                bankCode: profile?.bankCode || null,
                 accountNumber: wallet.accountNumber,
                 accountName: wallet.accountName,
                 isVerified: wallet.isVerified,
+                status: profile?.status || (wallet.isVerified ? 'verified' : 'pending'),
+                verifiedAt: profile?.verifiedAt || null,
+                lastError: profile?.lastError || null,
                 createdAt: wallet.createdAt,
                 updatedAt: wallet.updatedAt
             },

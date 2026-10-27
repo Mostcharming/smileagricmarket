@@ -26,12 +26,13 @@ Creating a customer does not mark the payout bank account verified. Payout setup
 
 ## Wallet setup and payout registration
 
-The **Web Profile Wallet** and **Mobile Profile Wallet** Swagger categories each contain two authenticated endpoints:
+The **Web Profile Wallet** and **Mobile Profile Wallet** Swagger categories each contain three authenticated endpoints:
 
 - `GET /v1/{web|mobile}/profile/wallet/banks` returns all supported banks as `bankCode`, `bankName`, and optional `logoUrl`. Bank codes stay strings, including leading zeros.
-- `POST /v1/{web|mobile}/profile/wallet/setup` creates or updates the wallet. Submit `bankCode` and `accountNumber`. The backend resolves the bank and account names internally; optional `accountName` is checked when supplied, and optional `bankName` is saved when supplied. Returns HTTP 202 while payout registration is queued.
+- `POST /v1/{web|mobile}/profile/wallet/setup` creates or updates the wallet. Submit `bankCode`, `accountNumber` and `accountName`. The supplied account name must match PayPetal's resolved account name, ignoring case and surrounding whitespace. Missing or blank account names return HTTP 400; a mismatched name returns HTTP 409 with the resolved name. `bankName` is optional and is resolved internally when omitted. Returns HTTP 202 while payout registration is queued.
+- `GET /v1/{web|mobile}/profile/wallet/get` retrieves the user's saved wallet details, including bank code, bank and account names, account number, verification status, verification timestamp and latest registration error. Poll after setup for registration completion; returns 404 if the wallet has not been set up.
 
-Approved KYC remains required for setup. Phone-only users do not need to supply a real email. The separate user-facing payment bank-list, account-validation, account-registration/status and ROI-payout-list routes were removed. The former profile wallet-get route was also removed so each Profile Wallet category contains only bank listing and setup. Web profile details continue to include the wallet and its verification flag.
+Approved KYC remains required for setup. Phone-only users do not need to supply a real email. The separate user-facing payment bank-list, account-validation, account-registration/status and ROI-payout-list routes were removed. Wallet details are available through the Profile Wallet category for both web and mobile. Web profile details also include the wallet and its verification flag.
 
 After setup, the `sync_account` job reuses the saved PayPetal customer ID and posts to `/api/v1/escrow/trustcore/payout/{customerId}` with exactly `accountNumber` and `bankCode`. An existing payout account is reused when its details match; changing an existing account uses the provider's PUT endpoint.
 

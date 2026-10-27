@@ -75,8 +75,10 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
     }
 
     async function setupAccount(userId, input) {
+        const accountName = typeof input?.accountName === 'string' ? input.accountName.trim() : '';
+        if (!accountName) throw new PaymentError('accountName is required', 400);
         const resolved = await validateAccount(input);
-        if (input.accountName !== undefined && String(input.accountName).trim().toUpperCase() !== resolved.accountName.trim().toUpperCase()) {
+        if (accountName.toUpperCase() !== resolved.accountName.trim().toUpperCase()) {
             const error = new PaymentError('Confirm the resolved account name before saving this payout account', 409);
             error.details = { accountName: resolved.accountName };
             throw error;

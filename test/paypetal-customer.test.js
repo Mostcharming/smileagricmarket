@@ -114,14 +114,26 @@ test('wallet bank listing exposes bankCode and bankName while preserving leading
         { bankCode: '090125', bankName: 'Microfinance Bank' }]);
 });
 
-test('wallet setup needs only bankCode and accountNumber and resolves the names internally', async () => {
+test('wallet setup validates the supplied account name and resolves the bank name internally', async () => {
     const f = await payoutFixture();
-    await f.service.setupAccount(f.user.id, { bankCode: '011', accountNumber: '0123456789' });
+    await f.service.setupAccount(f.user.id, { bankCode: '011', accountNumber: '0123456789', accountName: '  okafor adaeze chidimma  ' });
     assert.equal(f.profile.accountName, payoutResponse.responseData.accountName);
     assert.equal(f.profile.bankName, 'First Bank');
     await f.service.runNextJob();
     assert.equal(f.calls.length, 1);
     assert.equal(f.tables.Wallet[0].isVerified, true);
+});
+
+test('wallet setup rejects missing, empty and non-string account names before calling PayPetal', async () => {
+    let validations = 0;
+    const f = await payoutFixture({ async validateAccount() { validations++; return payoutResponse.responseData; } });
+    for (const accountName of [undefined, null, '', '   ', 123, {}]) {
+        await assert.rejects(f.service.setupAccount(f.user.id, { bankCode: '011', accountNumber: '0123456789', accountName }),
+            error => error.statusCode === 400 && error.message === 'accountName is required');
+    }
+    assert.equal(validations, 0);
+    assert.equal(f.calls.length, 0);
+    assert.equal(f.tables.Wallet.length, 0);
 });
 
 test('phone-only wallet setup queues add-payout-account and saves its full response before verifying the wallet', async () => {
