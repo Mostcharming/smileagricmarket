@@ -4,7 +4,8 @@ const { settings } = require('../../utils/paypetal');
 
 const customerIdentity = user => ({
     fullname: user.fullName?.trim() || null,
-    ...(user.email?.trim() ? { email: user.email.trim().toLowerCase() } : {}),
+    // A stable, non-personal placeholder for PayPetal only; never write it to users.email.
+    email: user.email?.trim().toLowerCase() || `smile-paypetal-${user.id}@example.com`,
     ...(user.phoneNumber?.trim() ? { phoneNumber: user.phoneNumber.trim() } : {})
 });
 const completeIdentity = identity => typeof identity?.fullname === 'string' && identity.fullname.trim().length > 0;

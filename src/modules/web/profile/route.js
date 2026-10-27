@@ -5,8 +5,6 @@ const {
     uploadProfilePicture,
     updateProfile,
     getProfile,
-    setupWallet,
-    getWallet,
     getProfileCompletionStatus
 } = require('./controller');
 
@@ -268,125 +266,6 @@ router.get('/get', getProfile);
  */
 router.get('/completion-status', getProfileCompletionStatus);
 
-/**
- * @swagger
- * /web/profile/wallet/setup:
- *   post:
- *     tags:
- *       - Web Profile Wallet
- *     summary: Setup wallet account
- *     description: Create or update user wallet account with bank details (bank name, account number, and account name)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - bankName
- *               - accountNumber
- *               - accountName
- *             properties:
- *               bankName:
- *                 type: string
- *                 description: Name of the bank
- *                 example: 'First Bank Nigeria'
- *               accountNumber:
- *                 type: string
- *                 description: Bank account number
- *                 example: '1234567890'
- *               accountName:
- *                 type: string
- *                 description: Account holder name
- *                 example: 'John Doe'
- *     responses:
- *       200:
- *         description: Wallet setup successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: 'Wallet setup successfully'
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     userId:
- *                       type: string
- *                       format: uuid
- *                     bankName:
- *                       type: string
- *                     accountNumber:
- *                       type: string
- *                     accountName:
- *                       type: string
- *                     isVerified:
- *                       type: boolean
- *       400:
- *         description: Invalid request body
- *       401:
- *         description: User not authenticated
- *       404:
- *         description: User not found
- */
-router.post('/wallet/setup', setupWallet);
-
-/**
- * @swagger
- * /web/profile/wallet/get:
- *   get:
- *     tags:
- *       - Web Profile Wallet
- *     summary: Get wallet information
- *     description: Retrieve user's wallet account information
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Wallet retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: 'Wallet retrieved successfully'
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     userId:
- *                       type: string
- *                       format: uuid
- *                     bankName:
- *                       type: string
- *                     accountNumber:
- *                       type: string
- *                     accountName:
- *                       type: string
- *                     isVerified:
- *                       type: boolean
- *       401:
- *         description: User not authenticated
- *       404:
- *         description: Wallet not found
- */
-router.get('/wallet/get', getWallet);
+router.use('/wallet', require('./walletRoute'));
 
 module.exports = router;

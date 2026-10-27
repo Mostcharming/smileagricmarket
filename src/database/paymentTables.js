@@ -14,7 +14,8 @@ module.exports = S => {
             accountName: text(), bankName: text(), verifiedAt: date,
             status: { ...text(false), defaultValue: 'pending' }, identity: json,
             lastError: text(), creationAttemptedAt: date,
-            customerResponse: json, customerData: json, customerLastError: text()
+            customerResponse: json, customerData: json, customerLastError: text(),
+            payoutResponse: json, payoutData: json, payoutAttemptedAt: date
         }, indexes: [{ unique: true, fields: ['user_id'] }, { unique: true, fields: ['customer_id'] }] },
         ProjectEscrow: { table: 'project_escrows', fields: {
             id, userFarmInvestmentId: foreign('user_farm_investments'), ownerId: foreign('users'),

@@ -50,6 +50,17 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             accountName: wallet.accountName, bankName: wallet.bankName, status: 'collecting', lastError: null });
     }
 
+    async function listBanks() {
+        return listData(await provider.banks()).map(bank => {
+            const bankCode = String(bank.code ?? bank.bankCode ?? '');
+            const bankName = bank.name ?? bank.bankName;
+            if (!/^\d{3,6}$/.test(bankCode) || typeof bankName !== 'string' || !bankName.trim()) {
+                throw new PaymentError('PayPetal returned invalid bank details');
+            }
+            return { bankCode, bankName, ...(bank.logoUrl ? { logoUrl: bank.logoUrl } : {}) };
+        });
+    }
+
     async function validateAccount(input) {
         const bankCode = String(input.bankCode || '').trim();
         const accountNumber = String(input.accountNumber || '').trim();
@@ -65,10 +76,15 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
 
     async function setupAccount(userId, input) {
         const resolved = await validateAccount(input);
-        if (String(input.accountName || '').trim().toUpperCase() !== resolved.accountName.trim().toUpperCase()) {
+        if (input.accountName !== undefined && String(input.accountName).trim().toUpperCase() !== resolved.accountName.trim().toUpperCase()) {
             const error = new PaymentError('Confirm the resolved account name before saving this payout account', 409);
             error.details = { accountName: resolved.accountName };
             throw error;
+        }
+        let bankName = String(input.bankName || resolved.bankName || '').trim();
+        if (!bankName) {
+            bankName = (await listBanks()).find(bank => bank.bankCode === resolved.bankCode)?.bankName;
+            if (!bankName) throw new PaymentError('Selected bank was not found in the supported bank list', 400);
         }
         return sequelize.transaction(async transaction => {
             const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
@@ -80,16 +96,19 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             const livePayout = await InvestorPayout.findOne({ where: { investorId: userId,
                 status: { [Op.in]: ['creating', 'funded', 'processing', 'unknown'] } }, transaction });
             if (liveProject || livePayout) throw new PaymentError('Payout account cannot change while funds are committed to a payout');
-            const [profile] = await PaymentProfile.findOrCreate({ where: { userId }, defaults: { identity: {
-                fullname: user.fullName, email: user.email, phoneNumber: user.phoneNumber
-            } }, transaction });
+            const [savedProfile] = await PaymentProfile.findOrCreate({ where: { userId },
+                defaults: { identity: customerIdentity(user) }, transaction });
+            const profile = await PaymentProfile.findByPk(savedProfile.id, { transaction, lock: transaction.LOCK.UPDATE });
             if (!profile.customerId && !profile.creationAttemptedAt) {
                 await profile.update({ identity: customerIdentity(user) }, { transaction });
             }
             if (profile.status === 'syncing') throw new PaymentError('Payout account registration is already processing');
-            if (!user.fullName || !user.email) throw new PaymentError('Full name and email are required');
+            if (!user.fullName) throw new PaymentError('Full name is required');
+            if (profile.payoutAttemptedAt && (profile.bankCode !== resolved.bankCode || profile.accountNumber !== resolved.accountNumber)) {
+                throw new PaymentError('Payout account registration outcome is unknown; reconcile it before changing accounts');
+            }
             await profile.update({ bankCode: resolved.bankCode, accountNumber: resolved.accountNumber,
-                accountName: resolved.accountName, bankName: String(input.bankName || '').slice(0, 255),
+                accountName: resolved.accountName, bankName: bankName.slice(0, 255),
                 verifiedAt: null, status: 'pending', lastError: null }, { transaction });
             const [wallet] = await Wallet.findOrCreate({ where: { userId }, defaults: {}, transaction });
             await wallet.update({ bankName: profile.bankName, accountNumber: profile.accountNumber,
@@ -105,6 +124,13 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             const profile = await PaymentProfile.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
             if (!profile) throw new PaymentError('Payment profile not found', 404);
             if (profile.customerId) return { profile, create: false };
+            // Upgrade pending phone-only profiles saved before placeholder emails were introduced.
+            // Preserve attempted identities so uncertain outcomes still reconcile the original request.
+            if (!profile.creationAttemptedAt && !profile.identity?.email?.trim()) {
+                const user = await User.findByPk(profile.userId, { transaction });
+                if (!user) throw new PaymentError('User not found', 404);
+                await profile.update({ identity: customerIdentity(user) }, { transaction });
+            }
             if (!profile.identity || !completeIdentity(profile.identity)) {
                 throw new PaymentError('Full name is required to create a PayPetal customer');
             }
@@ -163,19 +189,38 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
         profile.customerId = customerProfile.customerId;
         const resolved = await validateAccount(profile);
         if (resolved.accountName !== profile.accountName) throw new PaymentError('Payout account name changed; reconfirm the account');
-        const accounts = listData(await provider.payoutAccounts(profile.customerId));
-        const account = accounts.find(item => item.customerId === profile.customerId);
+        const accounts = listData(await provider.payoutAccounts(profile.customerId))
+            .filter(item => item.customerId === profile.customerId);
+        if (accounts.length > 1) throw new PaymentError('Multiple payout accounts found for this customer; reconcile in PayPetal');
+        const account = accounts[0];
         const matches = account?.accountNumber === profile.accountNumber && account?.bankCode === profile.bankCode;
+        let saved = account;
         if (!matches) {
+            if (profile.payoutAttemptedAt) {
+                throw new PaymentError('Payout account registration outcome is unknown; reconcile it in PayPetal');
+            }
             const data = { accountNumber: profile.accountNumber, bankCode: profile.bankCode };
-            if (account) await provider.updatePayoutAccount(profile.customerId, data);
-            else await provider.addPayoutAccount(profile.customerId, data);
+            await profile.update({ payoutAttemptedAt: now() });
+            let response;
+            try {
+                response = account ? await provider.updatePayoutAccount(profile.customerId, data)
+                    : await provider.addPayoutAccount(profile.customerId, data);
+            } catch (error) {
+                if (error.uncertain === false) await profile.update({ payoutAttemptedAt: null });
+                throw error;
+            }
+            saved = response?.responseData || response?.dataResponse;
+            await profile.update({ payoutResponse: response, payoutData: saved || null });
         }
-        const saved = listData(await provider.payoutAccounts(profile.customerId)).find(item => item.customerId === profile.customerId);
-        if (saved?.accountNumber !== profile.accountNumber || saved?.bankCode !== profile.bankCode) throw new PaymentError('Payout account registration is not confirmed');
+        if (saved?.customerId !== profile.customerId || saved?.accountNumber !== profile.accountNumber
+            || saved?.bankCode !== profile.bankCode || typeof saved?.accountName !== 'string'
+            || saved.accountName.trim().toUpperCase() !== profile.accountName.trim().toUpperCase()) {
+            throw new PaymentError('PayPetal payout account details do not match the saved instruction');
+        }
         await sequelize.transaction(async transaction => {
-            await profile.update({ status: 'verified', verifiedAt: now(), lastError: null }, { transaction });
-            await Wallet.update({ isVerified: true }, { where: { userId: profile.userId }, transaction });
+            await profile.update({ status: 'verified', verifiedAt: now(), lastError: null,
+                payoutData: saved, payoutAttemptedAt: null, accountName: saved.accountName }, { transaction });
+            await Wallet.update({ isVerified: true, accountName: saved.accountName }, { where: { userId: profile.userId }, transaction });
         });
     }
 
@@ -493,7 +538,7 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
         });
     }
 
-    return { ensureProject, provisionProject, validateAccount, setupAccount, verifiedProfile, acceptingProject,
+    return { ensureProject, provisionProject, listBanks, validateAccount, setupAccount, verifiedProfile, acceptingProject,
         investmentInstructions, recordDeposit, queueMilestone, runNextJob, retryJob, reconcileReference,
         activateProject, releaseMilestone, payRoi, scheduleMaturity, syncAccount, ensureCustomer };
 }

@@ -4,8 +4,6 @@ function addPaymentSwagger(spec) {
     const string = { type: 'string' };
     const uuid = { ...string, format: 'uuid' };
     const object = properties => ({ type: 'object', properties });
-    const account = { bankCode: { ...string, example: '058' }, accountNumber: { ...string, example: '0123456789' },
-        accountName: { ...string, example: 'ADA OKAFOR' }, bankName: { ...string, example: 'Guaranty Trust Bank' } };
     const operation = (summary, description, body = null, id = null) => ({
         tags: ['Payments'], summary, description, security: [{ bearerAuth: [] }],
         ...(id ? { parameters: [{ in: 'path', name: id, required: true, schema: uuid }] } : {}),
@@ -18,15 +16,6 @@ function addPaymentSwagger(spec) {
             409: { description: 'Payment precondition not met' }, 503: { description: 'PayPetal is not configured' } }
     });
     const paths = {
-        '/banks': { get: operation('List payout banks', 'Retrieve supported banks and their bank codes.') },
-        '/accounts/validate': { post: operation('Resolve a payout account', 'Show the resolved accountName to the user for confirmation before saving.',
-            { ...object(account), required: ['bankCode', 'accountNumber'] }) },
-        '/accounts': {
-            get: operation('Get payout account registration status', 'Returns pending or verified provider registration.'),
-            post: operation('Register a payout account', 'Requires approved KYC and the exact accountName previously resolved. Both farmers and investors use this endpoint. Registration completes asynchronously.',
-                { ...object(account), required: ['bankCode', 'accountNumber', 'accountName'] })
-        },
-        '/returns': { get: operation('List my ROI payouts', 'ROI only is paid at maturity. Scheduled and processing payments are not recorded as completed payments.') },
         '/projects/{projectId}': { get: operation('Get project payment account', 'Only the farm owner or an investor in this project can access these details. No withdrawal endpoint is provided.', null, 'projectId') }
     };
     for (const prefix of ['/web/payments', '/mobile/payments']) for (const [path, item] of Object.entries(paths)) spec.paths[prefix + path] = JSON.parse(JSON.stringify(item));
@@ -86,11 +75,7 @@ function addPaymentSwagger(spec) {
         webhook.description = 'Temporarily disabled. Returns HTTP 503 with received=false without processing or settling Paystack events. Retained for explicit future reactivation.';
         webhook.responses['503'] = { description: 'Paystack is temporarily disabled' };
     }
-    const legacyWallet = spec.paths['/web/profile/wallet/setup']?.post;
-    if (legacyWallet?.requestBody?.content?.['application/json']?.schema?.properties) {
-        Object.assign(legacyWallet.requestBody.content['application/json'].schema.properties, account);
-        legacyWallet.description += ' In PayPetal mode, bankCode and the confirmed resolved accountName are required and registration is asynchronous.';
-    }
+    require('./walletSwagger').addWalletSwagger(spec);
     return spec;
 }
 

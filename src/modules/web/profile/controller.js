@@ -168,6 +168,16 @@ async function getProfile(req, res) {
     }
 }
 
+async function getWalletBanks(req, res) {
+    try {
+        require('../../../utils/paypetal').requireEnabled();
+        const banks = await require('../../../services/payments/service').getPaymentService().listBanks();
+        return res.success(banks, 'Supported wallet banks');
+    } catch (error) {
+        return res.fail(error.statusCode ? error.message : 'Failed to retrieve wallet banks', error.statusCode || 500);
+    }
+}
+
 async function setupWallet(req, res) {
     try {
         const userId = req.user?.id;
@@ -181,7 +191,7 @@ async function setupWallet(req, res) {
             require('../../../utils/paypetal').requireEnabled();
             const profile = await require('../../../services/payments/service').getPaymentService()
                 .setupAccount(userId, req.body);
-            return res.success({ id: profile.id, bankCode: profile.bankCode,
+            return res.success({ id: profile.id, bankCode: profile.bankCode, bankName: profile.bankName,
                 accountNumber: profile.accountNumber, accountName: profile.accountName,
                 status: profile.status, isVerified: profile.status === 'verified' }, 'Payout account registration queued', 202);
         }
@@ -351,6 +361,7 @@ module.exports = {
     updateProfile,
     getProfile,
     setupWallet,
+    getWalletBanks,
     getWallet,
     getProfileCompletionStatus
 };

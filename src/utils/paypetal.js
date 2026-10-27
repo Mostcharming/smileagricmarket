@@ -125,8 +125,8 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
             }
             throw new PaypetalError('Payout account pagination exceeds supported limit');
         },
-        addPayoutAccount: (id, data) => request('post', `/api/v1/escrow/trustcore/payout/${encode(id)}`, data),
-        updatePayoutAccount: (id, data) => request('put', `/api/v1/escrow/trustcore/payout/${encode(id)}`, data),
+        addPayoutAccount: (id, data) => request('post', `/api/v1/escrow/trustcore/payout/${encode(id)}`, data, true),
+        updatePayoutAccount: (id, data) => request('put', `/api/v1/escrow/trustcore/payout/${encode(id)}`, data, true),
         createAgreement: data => request('post', '/api/v1/escrow/trustcores', data),
         agreement: reference => request('get', `/api/v1/escrow/trustcore?reference=${encode(reference)}`),
         milestones: reference => request('get', `/api/v1/escrow/trustcore/${encode(reference)}/milestones`),

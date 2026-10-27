@@ -22,22 +22,10 @@ const handle = fn => async (req, res) => {
         return res.fail(error.statusCode ? error.message : 'Payment operation failed', error.statusCode || 500, error.details);
     }
 };
-const profileResponse = row => row ? ({ id: row.id, bankCode: row.bankCode, bankName: row.bankName,
-    accountNumber: row.accountNumber, accountName: row.accountName, status: row.status,
-    isVerified: row.status === 'verified', verifiedAt: row.verifiedAt, lastError: row.lastError }) : null;
 const pagination = query => ({ limit: Math.min(Math.max(Number.parseInt(query.limit, 10) || 20, 1), 100),
     offset: (Math.max(Number.parseInt(query.page, 10) || 1, 1) - 1) * Math.min(Math.max(Number.parseInt(query.limit, 10) || 20, 1), 100) });
 
 const router = express.Router();
-router.get('/banks', handle(async (req, res) => res.success(await createClient().banks(), 'Supported payout banks')));
-router.post('/accounts/validate', handle(async (req, res) => res.success(await getPaymentService().validateAccount(req.body), 'Confirm this account name before saving')));
-router.post('/accounts', handle(async (req, res) => res.success(profileResponse(await getPaymentService().setupAccount(req.user.id, req.body)), 'Payout account registration queued', 202)));
-router.get('/accounts', handle(async (req, res) => res.success(profileResponse(await storage().models.PaymentProfile.findOne({ where: { userId: req.user.id } })), 'Payout account status')));
-router.get('/returns', handle(async (req, res) => {
-    const result = await storage().models.InvestorPayout.findAndCountAll({ where: { investorId: req.user.id }, ...pagination(req.query),
-        attributes: ['id', 'investmentPaymentId', 'amount', 'principal', 'roi', 'currency', 'returnMode', 'dueAt', 'status', 'completedAt', 'lastError'], order: [['dueAt', 'DESC']] });
-    return res.success(result, 'Investor ROI payouts');
-}));
 router.get('/projects/:projectId', handle(async (req, res) => {
     const { models } = storage();
     const projectId = uuid(req.params.projectId);
