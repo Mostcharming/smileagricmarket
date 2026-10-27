@@ -4,8 +4,13 @@ const {
     getInvestments,
     getInvestmentById,
     investInFarm,
-    verifyInvestmentPayment
+    confirmInvestmentPayment
 } = require('./controller');
+const { getQuote, getAgreementPreview, getPayment, getAcceptedAgreement } = require('../../mobile/investments/controller');
+router.get('/projects/:investmentProjectId/quote', getQuote);
+router.get('/projects/:investmentProjectId/agreement', getAgreementPreview);
+router.get('/payments/:transactionId', getPayment);
+router.get('/payments/:transactionId/agreement', getAcceptedAgreement);
 
 /**
  * @swagger
@@ -749,201 +754,44 @@ router.get('/:farmId', getInvestmentById);
  * @swagger
  * /web/investments/{investmentProjectId}/invest:
  *   post:
- *     tags:
- *       - Web Investments
- *     summary: Invest in another user's farm investment project
- *     description: Targets one investment project, saves an internal transaction, initializes Paystack, and returns the transaction ID, checkout URL, access code, and reference. Project funding is credited only after a successful Paystack verification or signed webhook.
+ *     tags: [Web Investments]
+ *     summary: Start a PayPetal investment or top-up checkout
+ *     description: Saves an investment payment and initializes PayPetal checkout. Open the returned payment URL, then call confirm-payment to check the saved provider transaction. New top-ups use a new idempotency key.
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: investmentProjectId
  *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: ID of one investment project from the farm's investmentProjects array; Paystack credits only this project.
+ *         schema: { type: string, format: uuid }
  *       - in: header
  *         name: Idempotency-Key
  *         required: false
- *         schema:
- *           type: string
- *           maxLength: 100
- *         description: A unique client-generated key that safely prevents duplicate investments when retrying a request.
+ *         schema: { type: string, maxLength: 100 }
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - amount
+ *             required: [amount, currency]
  *             properties:
- *               amount:
- *                 type: number
- *                 format: double
- *                 minimum: 0.01
- *                 example: 250000
- *               currency:
- *                 type: string
- *                 minLength: 3
- *                 maxLength: 3
- *                 example: NGN
- *               idempotencyKey:
- *                 type: string
- *                 maxLength: 100
- *                 description: Body alternative to the Idempotency-Key header.
+ *               amount: { type: number, minimum: 0.01, example: 250000 }
+ *               currency: { type: string, enum: [NGN] }
+ *               idempotencyKey: { type: string, maxLength: 100 }
  *     responses:
- *       201:
- *         description: Paystack transaction initialized successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Investment recorded successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     transactionId:
- *                       type: string
- *                       format: uuid
- *                       description: Saved SmileAgriMarket investment transaction ID
- *                     payment:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         transactionId:
- *                           type: string
- *                           format: uuid
- *                         reference:
- *                           type: string
- *                           description: Unique reference sent to Paystack
- *                         gatewayTransactionId:
- *                           type: string
- *                           nullable: true
- *                           description: Paystack numeric transaction ID, populated by verification/webhook and stored as text for precision
- *                         accessCode:
- *                           type: string
- *                           description: Access code used by Paystack Popup or mobile SDK
- *                         authorizationUrl:
- *                           type: string
- *                           format: uri
- *                         amount:
- *                           type: number
- *                           example: 250000
- *                         currency:
- *                           type: string
- *                           example: NGN
- *                         gateway:
- *                           type: string
- *                           example: paystack
- *                         status:
- *                           type: string
- *                           example: pending
- *                     investment:
- *                       type: object
- *                       properties:
- *                         farmId:
- *                           type: string
- *                           format: uuid
- *                         investmentProjectId:
- *                           type: string
- *                           format: uuid
- *                         fundingReceived:
- *                           type: number
- *                           example: 1500000
- *                         totalExpectedFunding:
- *                           type: number
- *                           example: 5000000
- *                         remainingFunding:
- *                           type: number
- *                           example: 3500000
- *                         percentFunded:
- *                           type: number
- *                           example: 30
- *                         investmentStatus:
- *                           type: string
- *                           enum: [not_started, funding_started, active, completed]
- *                         fundingStatus:
- *                           type: string
- *                           example: partial
- *                     gateway:
- *                       type: object
- *                       properties:
- *                         provider:
- *                           type: string
- *                           example: paystack
- *                         initialized:
- *                           type: boolean
- *                           example: true
- *                         reference:
- *                           type: string
- *                         authorizationUrl:
- *                           type: string
- *                           format: uri
- *                         accessCode:
- *                           type: string
- *       200:
- *         description: An idempotent retry returned the existing payment
- *       400:
- *         description: Invalid amount, currency, or investment limit
- *       401:
- *         description: User not authenticated
- *       403:
- *         description: Approved KYC is required or the user owns the farm
- *       404:
- *         description: Farm or investment template not found
- *       409:
- *         description: Farm is fully funded, unavailable, or the idempotency key conflicts
- *       500:
- *         description: Failed to process investment
- *       502:
- *         description: Paystack rejected initialization or returned an invalid response
- *       503:
- *         description: Paystack is not configured or unavailable
+ *       200: { description: Existing investment checkout }
+ *       201: { description: Investment checkout initialized }
+ *       400: { description: Invalid request }
+ *       401: { description: Authentication required }
+ *       403: { description: Approved KYC required or user owns farm }
+ *       404: { description: Investment project not found }
+ *       409: { description: Agreement, idempotency or funding conflict }
+ *       502: { description: PayPetal request failed }
+ *       503: { description: PayPetal is not enabled }
  */
 router.post('/:investmentProjectId/invest', investInFarm);
 
-/**
- * @swagger
- * /web/investments/payments/{transactionId}/verify:
- *   post:
- *     tags:
- *       - Web Investments
- *     summary: Verify and settle a Paystack investment
- *     description: Verifies the saved transaction with Paystack, confirms reference, amount, and currency, stores Paystack's transaction ID, and credits the farm exactly once when successful.
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: transactionId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Transaction ID returned by the invest endpoint
- *     responses:
- *       200:
- *         description: Current verified transaction state
- *       401:
- *         description: User not authenticated
- *       404:
- *         description: Investment transaction not found
- *       409:
- *         description: Paystack reference, amount, or currency does not match
- *       502:
- *         description: Paystack verification failed
- *       503:
- *         description: Paystack is not configured or unavailable
- */
-router.post('/payments/:transactionId/verify', verifyInvestmentPayment);
+router.post('/payments/:transactionId/confirm-payment', confirmInvestmentPayment);
 
 module.exports = router;

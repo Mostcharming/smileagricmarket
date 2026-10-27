@@ -61,7 +61,7 @@ function addMobileInvestmentSwagger(spec) {
     };
     spec.components.schemas.MobileInvestmentAcceptance = acceptance;
     const invest = spec.paths['/mobile/investments/{investmentProjectId}/invest'].post;
-    invest.description += ' Mobile checkout requires the reviewed agreement version, all three acknowledgements, and an Idempotency-Key (header or body). A changed amount or project term invalidates the review. PayPetal returns bank-transfer instructions; the deposit stays pending until an admin reconciles the bank statement. Paystack checkout is temporarily disabled.';
+    invest.description += ' Mobile checkout requires the reviewed agreement version, all three acknowledgements, and an Idempotency-Key (header or body). A changed amount or project term invalidates the review. PayPetal returns a checkout URL; confirm-payment checks the saved provider transaction. Paystack checkout is temporarily disabled.';
     invest.requestBody.content['application/json'].schema.properties.agreementAcceptance = ref('MobileInvestmentAcceptance');
     invest.requestBody.content['application/json'].schema.required.push('agreementAcceptance');
     invest.requestBody.content['application/json'].example = {
@@ -104,7 +104,7 @@ function addMobileInvestmentSwagger(spec) {
     };
     spec.paths['/mobile/investments/payments/{transactionId}'] = {
         get: operation('Read payment confirmation details',
-            'Owner-only saved payment state for the confirmation screen. confirmed is true only for successful payments. Call the verify endpoint after checkout; this GET does not call Paystack. Terms are taken from the accepted snapshot; legacy web payments without a snapshot have null term fields.',
+            'Owner-only saved payment state for the confirmation screen. confirmed is true only for successful payments. Call confirm-payment after checkout; this GET does not call PayPetal. Terms are taken from the accepted snapshot; legacy web payments without a snapshot have null term fields.',
             [parameter('transactionId')], success(object({
                 transactionId: uuid, reference: { type: 'string' },
                 status: { type: 'string', enum: ['recorded', 'pending', 'successful', 'failed', 'cancelled'] },

@@ -31,6 +31,7 @@ function settings(env = process.env) {
         provider, enabled, baseUrl, responseUnit, returnMode,
         secretKey: env.PAYPETAL_SECRET_KEY, appId: env.PAYPETAL_APP_ID,
         websiteUrl: env.WEBSITE_URL || 'https://smileagrimarket.com',
+        paymentRedirectUrl: env.PAYPETAL_PAYMENT_REDIRECT_URL || env.WEBSITE_URL || 'https://app.smileagrimarket.com',
         repaymentSubwalletId: env.PAYPETAL_REPAYMENT_SUBWALLET_ID,
         depositReconciliation: env.PAYPETAL_DEPOSIT_RECONCILIATION,
         timeoutMs: 20000
@@ -111,6 +112,8 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
     return {
         request,
         createCustomer: data => request('post', '/api/v1/customer', data, true),
+        initiatePayment: data => request('post', '/api/v1/pay/initiate', data, true),
+        transaction: reference => request('get', `/api/v1/transaction/${encode(reference)}`, undefined, true),
         customers: () => request('get', '/api/v1/customer/all'),
         banks: () => request('get', '/api/v1/account/banks'),
         validateAccount: data => request('post', '/api/v1/account/bank/validate', data),
@@ -132,8 +135,31 @@ function createClient({ transport = axios, getSettings = requireEnabled } = {}) 
         milestones: reference => request('get', `/api/v1/escrow/trustcore/${encode(reference)}/milestones`),
         releaseMilestone: (reference, id) => request('put', `/api/v1/escrow/trustcore/${encode(reference)}/milestones/${encode(id)}/release`),
         completeAgreement: reference => request('put', `/api/v1/escrow/trustcore/${encode(reference)}/complete`),
-        subwallets: () => request('get', '/api/v1/account/subwallets'),
-        createSubwallet: data => request('post', '/api/v1/account/subwallet/create', data)
+        subwallets: async () => {
+            const accounts = [];
+            let nextPage;
+            let pageBase;
+            for (let count = 0; count < 1000; count++) {
+                const result = await request('get', '/api/v1/account/subwallets'
+                    + (nextPage === undefined ? '' : `?page=${nextPage}&size=100`));
+                const page = result?.data ?? result;
+                if (Array.isArray(page)) return page;
+                if (!Array.isArray(page?.content) || !Number.isInteger(page.totalPages)
+                    || !Number.isInteger(page.pageNumber) || page.totalPages < 0
+                    || (nextPage !== undefined && page.pageNumber !== nextPage)) {
+                    throw new PaypetalError('Invalid subwallet pagination');
+                }
+                if (pageBase === undefined) {
+                    if (![0, 1].includes(page.pageNumber)) throw new PaypetalError('Invalid first subwallet page');
+                    pageBase = page.pageNumber;
+                }
+                accounts.push(...page.content);
+                if (page.pageNumber >= page.totalPages - 1 + pageBase) return accounts;
+                nextPage = page.pageNumber + 1;
+            }
+            throw new PaypetalError('Subwallet pagination exceeds supported limit');
+        },
+        createSubwallet: data => request('post', '/api/v1/account/subwallet/create', data, true)
     };
 }
 

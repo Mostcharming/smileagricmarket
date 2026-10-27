@@ -159,10 +159,7 @@ function addSwaggerExamples(spec) {
             }
             for (const media of Object.values(operation.requestBody?.content || {})) {
                 if (hasExample(media)) continue;
-                media.example = route === '/web/payments/paystack/webhook'
-                    ? { event: 'charge.success', data: { reference: 'smile_example_payment_001',
-                        status: 'success', amount: 5000000, currency: 'NGN', paid_at: DATE } }
-                    : sampleSchema(spec, media.schema);
+                media.example = sampleSchema(spec, media.schema);
             }
             if (!operation.requestBody && !operation.description?.includes('Example request:')) {
                 const query = parameters.filter(item => item.in === 'query' && (item.required || own(item.schema || {}, 'default')))
@@ -177,20 +174,10 @@ function addSwaggerExamples(spec) {
                         $ref: `#/components/schemas/${isError ? 'Error' : 'Success'}`
                     } } };
                     const media = response.content['application/json'];
-                    if (route === '/web/payments/paystack/webhook') {
-                        media.schema = { type: 'object', properties: { received: { type: 'boolean' } } };
-                        media.example = { received: !isError };
-                    } else if (isError) {
+                    if (isError) {
                         media.example = { error: true, message: response.description, data: null };
                     } else if (route === '/web/investments/{investmentProjectId}/invest') {
-                        media.schema = operation.responses['201'].content['application/json'].schema;
-                    } else if (route === '/web/investments/payments/{transactionId}/verify') {
-                        const paymentSchema = spec.paths['/web/investments/{investmentProjectId}/invest'].post.responses['201'].content['application/json'].schema;
-                        const paymentSample = sampleSchema(spec, paymentSchema);
-                        delete paymentSample.data.gateway;
-                        media.example = { ...paymentSample, message: 'Investment payment verified successfully',
-                            data: { ...paymentSample.data, credited: true, alreadySettled: false } };
-                        media.example.data.payment.status = 'successful';
+                        media.schema = operation.responses['201'].content?.['application/json']?.schema || media.schema;
                     } else {
                         const data = missingSuccessData(spec, route, method, code);
                         if (data === undefined) throw new Error(`Missing Swagger success example: ${method} ${route} ${code}`);

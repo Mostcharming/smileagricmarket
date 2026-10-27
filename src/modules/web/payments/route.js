@@ -70,7 +70,7 @@ adminRouter.post('/projects/:projectId/provision', handle(async (req, res) => {
         const farm = await models.UserFarm.findByPk(project.userFarmId, { transaction });
         return getPaymentService().ensureProject(project, farm.userId, transaction);
     });
-    return res.success(escrow, 'Physical project account provisioning queued', 202);
+    return res.success(escrow, escrow.providerWalletId ? 'Project subwallet ready' : 'Project subwallet provisioning pending', escrow.providerWalletId ? 200 : 202);
 }));
 
 module.exports = { adminRouter };

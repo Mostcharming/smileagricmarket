@@ -66,10 +66,10 @@ module.exports = (sequelize) => {
             field: 'gateway_reference'
         },
         gatewayTransactionId: {
-            type: DataTypes.STRING(30),
+            type: DataTypes.STRING(100),
             allowNull: true,
             field: 'gateway_transaction_id',
-            comment: 'Paystack transaction ID stored as text to preserve unsigned 64-bit precision'
+            comment: 'Provider transaction ID stored as text'
         },
         accessCode: {
             type: DataTypes.STRING(100),
@@ -102,6 +102,11 @@ module.exports = (sequelize) => {
             type: DataTypes.JSONB,
             allowNull: true,
             field: 'gateway_response'
+        },
+        initiationAttemptedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: 'initiation_attempted_at'
         }
     }, {
         tableName: 'investment_payments',

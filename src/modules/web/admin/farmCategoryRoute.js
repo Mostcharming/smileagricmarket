@@ -49,7 +49,7 @@ const verifyAdminToken = (req, res, next) => {
  *     tags:
  *       - Web Admin Farm Categories
  *     summary: Create Farm Category
- *     description: Create a new farm category
+ *     description: Create a new farm category. Names are unique across active and inactive categories, ignoring letter case and surrounding spaces. Duplicate requests return 409, including concurrent submissions.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -105,7 +105,7 @@ const verifyAdminToken = (req, res, next) => {
  *       403:
  *         description: Forbidden - Admin authentication required
  *       409:
- *         description: Conflict - Category name already exists
+ *         description: Conflict - Category name already exists (case-insensitive, ignoring surrounding spaces)
  *       500:
  *         description: Internal server error
  */
@@ -246,7 +246,7 @@ router.get('/farm-categories/:categoryId', verifyAdminToken, getFarmCategoryById
  *     tags:
  *       - Web Admin Farm Categories
  *     summary: Update Farm Category
- *     description: Update an existing farm category
+ *     description: Update an existing farm category. A rename cannot duplicate another category name, ignoring letter case and surrounding spaces. Updating the same category with its own name is allowed.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -312,7 +312,7 @@ router.get('/farm-categories/:categoryId', verifyAdminToken, getFarmCategoryById
  *       404:
  *         description: Farm category not found
  *       409:
- *         description: Conflict - Category name already exists
+ *         description: Conflict - Category name already exists (case-insensitive, ignoring surrounding spaces)
  *       500:
  *         description: Internal server error
  */

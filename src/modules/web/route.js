@@ -11,7 +11,6 @@ const farmCategoriesRouter = require('./farmCategories/route');
 const investmentsRouter = require('./investments/route');
 const portfolioRouter = require('./portfolio/route');
 const betaSignupsRouter = require('./betaSignups/route');
-const paystackRouter = require('./paystack/route');
 
 const router = require('express').Router();
 
@@ -24,8 +23,6 @@ router.use('/beta-signups', betaSignupsRouter);
 router.use('/admin', adminRouter);
 
 router.use('/marketing-admin', marketingAdminRouter);
-
-router.use('/payments/paystack', paystackRouter);
 
 router.use(securityMiddleware);
 

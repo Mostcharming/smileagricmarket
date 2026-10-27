@@ -1,0 +1,10 @@
+{
+  "event": "payment.received",
+  "data": {
+    "reference": "SMILEWEBHOOKEXAMPLE001",
+    "transactionId": "TXNWEBHOOKEXAMPLE001",
+    "amount": 250000,
+    "currency": "NGN",
+    "status": "SUCCESS"
+  }
+}

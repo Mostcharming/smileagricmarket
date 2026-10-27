@@ -1,0 +1,76 @@
+{
+  "at": "2026-10-27T20:00:37.974Z",
+  "request": {
+    "amount": "250000.00",
+    "currency": "NGN",
+    "reference": "SMILEB92CA3FCF2E2E02CEB6D6063",
+    "description": "Smile sandbox checkout account-number test",
+    "redirectUrl": "https://app.smileagrimarket.com"
+  },
+  "response": {
+    "status": true,
+    "statusCode": "00",
+    "message": "successful",
+    "dataResponse": {
+      "data": {
+        "reference": "SMILEB92CA3FCF2E2E02CEB6D6063",
+        "totalAmount": 250050,
+        "amount": 250000,
+        "metadata": null,
+        "redirectUrl": "https://app.smileagrimarket.com",
+        "fee": 50,
+        "businessId": "9cd7bb1c-62ce-4b4c-bfa7-d5e275243662",
+        "description": "Smile sandbox checkout account-number test",
+        "currency": "NGN",
+        "payer": null,
+        "transactionId": "261027200040678A39A77PBO7",
+        "status": "PENDING"
+      },
+      "paymentUrl": "https://sandbox.paypetalhq.xyz/pay?pid=SMILEB92CA3FCF2E2E02CEB6D6063"
+    }
+  },
+  "accountFields": [],
+  "checkoutBankTransfer": {
+    "endpoint": "/pay/create-account",
+    "request": {
+      "pid": "SMILEB92CA3FCF2E2E02CEB6D6063"
+    },
+    "httpStatus": 200,
+    "response": {
+      "success": true,
+      "response": {
+        "reference": "MCH-SMILEB92CA3FCF2E2E02CEB6D6063",
+        "amount": 250050,
+        "bank": "9PSB",
+        "accountName": "SMILE AGRI-MARKET TECHNOLOGIES LIMITED",
+        "description": "Smile sandbox checkout account-number test",
+        "currency": "NGN",
+        "accountNumber": "5031670488"
+      }
+    }
+  },
+  "verification": {
+    "status": true,
+    "statusCode": "00",
+    "message": "successful",
+    "dataResponse": {
+      "currency": "NGN",
+      "amount": 250000,
+      "fee": 50,
+      "otherFee": 0,
+      "totalAmount": 250050,
+      "transactionId": "261027200040678A39A77PBO7",
+      "reference": "SMILEB92CA3FCF2E2E02CEB6D6063",
+      "description": "Smile sandbox checkout account-number test",
+      "status": "PENDING",
+      "payer": null,
+      "operationType": "PAYMENT",
+      "paymentMethod": "PENDING",
+      "paymentType": "CHECKOUT",
+      "completed": "PENDING",
+      "metadata": null,
+      "createdAt": "2026-10-27T20:00:40.681+00:00"
+    }
+  },
+  "creditApplied": false
+}

@@ -59,7 +59,7 @@ async function getAgreementPreview(req, res) {
 }
 
 function invest(req, res) {
-    return webInvestments.investInFarm(req, res, { requireAgreement: true });
+    return webInvestments.investInFarm(req, res);
 }
 
 async function findOwnedPayment(req) {
@@ -92,7 +92,8 @@ async function getPayment(req, res) {
             maturityReturnMode: terms?.maturityReturnMode ?? null,
             payoutDate: terms?.payoutDate || null,
             paidAt: payment.paidAt,
-            agreementAvailable: !!payment.agreement
+            agreementAvailable: !!payment.agreement,
+            investorInvestment: await require('../../../services/payments/service').getPaymentService().investorInvestment(req.user.id, payment.userFarmInvestmentId)
         }, payment.status === 'successful' ? 'Investment confirmed' : 'Investment payment status retrieved');
     } catch (error) { return handleError(res, error); }
 }

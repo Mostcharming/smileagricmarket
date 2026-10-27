@@ -313,7 +313,7 @@ router.post('/', uploadFarmDocuments, createFarm);
  *     tags:
  *       - Web Farms
  *     summary: Create an investment project for a farm
- *     description: Add an investment project to a farm. A farm may have multiple projects. The backend attaches the newest active template for the selected category, sets startDate to the project creation date, calculates endDate from the template duration, sets status to not_started, and initializes project-scoped milestones.
+ *     description: Add an investment project to a farm. A farm may have multiple projects. The backend attaches the newest active template for the selected category, sets dates, and initializes project-scoped milestones. In PayPetal mode the template currency must be NGN. After committing the project, the backend creates its dedicated NGN subwallet. Its name is the farm name with whitespace removed plus the first six project UUID characters; the UUID suffix is extended on collisions. Each project gets a unique ten-character alphanumeric reference, saved before the API call and reused on retries. The response includes paymentAccount with the reference, name, subwallet ID, bank details, status and lastError. Project creation still returns 201 if provider provisioning is pending, and recovery uses the saved instruction.
  *     security:
  *       - bearerAuth: []
  *     parameters:

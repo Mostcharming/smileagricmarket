@@ -16,8 +16,8 @@ Swagger is available at `/api-docs` and `/api-docs.json` under **Mobile Investme
 | Farm detail, projects, milestones and history | `GET /investments/{farmId}` | Use an ID from `investmentProjects` for the calculator and payment; the farm ID is not a project ID. |
 | Calculator | `GET /investments/projects/{investmentProjectId}/quote?amount=250000` | Returns principal, expected profit, total return, fixed term, payout date, amount bounds and suggested amounts. No payment is created. |
 | Review agreement | `GET /investments/projects/{investmentProjectId}/agreement?amount=250000` | Returns quote, agreement version, review sections and the three acknowledgement labels. |
-| Make payment | `POST /investments/{investmentProjectId}/invest` | Requires approved KYC, email, verified PayPetal payout account, agreement acceptance, and an idempotency key. Returns project bank-transfer instructions. |
-| Check payment | `POST /investments/payments/{transactionId}/verify` | Reads saved deposit reconciliation status. An admin must match the actual bank statement before funds are credited. |
+| Make payment | `POST /investments/{investmentProjectId}/invest` | Requires approved KYC, verified PayPetal payout account, agreement acceptance, and an idempotency key. Returns gateway.paymentUrl for PayPetal checkout. |
+| Check payment | `POST /investments/payments/{transactionId}/confirm-payment` | Checks the saved PayPetal transaction. Only a matching SUCCESS credits the investment, once. |
 | Investment confirmed | `GET /investments/payments/{transactionId}` | Show success only when `confirmed` is true. Includes saved amount, ROI, duration, farm and projected return. |
 | Agreement download | `GET /investments/payments/{transactionId}/agreement?download=true` | Authenticated UTF-8 `.txt` attachment. Omit `download` for JSON. Not proof of payment; the document includes payment status. |
 | Portfolio overview | `GET /portfolio` | Investor totals and return summary. |
@@ -83,18 +83,40 @@ Confirmation, download and portfolio profit use the accepted terms even after th
 template changes. Legacy web payments have no agreement and keep their existing
 portfolio calculation behavior; agreement download for these returns 404.
 
-PayPetal is the default provider. Display `gateway.bankName`, `accountName`,
-`accountNumber`, `amount`, `currency` and `reference` for the bank transfer. Keep the
-internal `transactionId` to read its pending or reconciled status. Verification
-does not confirm deposits automatically; financial admins reconcile the statement.
-Paystack initialization, verification and its webhook are temporarily disabled
-with HTTP 503. No SDK checkout or automatic Paystack fallback is available.
+PayPetal is the default provider. Open `gateway.paymentUrl` and keep the internal
+`transactionId`. When the user taps "I have paid", call
+`POST /investments/payments/{transactionId}/confirm-payment` with no body.
+The backend queries the saved provider transaction and checks its reference,
+transaction ID, principal and currency. A pending payment is never credited.
+A matching `SUCCESS` records the deposit and credits the project exactly once.
+Once PayPetal webhook authentication is configured, provider notifications can
+confirm the same payment automatically. Read the existing payment-status endpoint
+for updates; the "I have paid" action remains available as a verification fallback.
+
+For a top-up, preview and accept the agreement for the additional amount, then
+call the same `/invest` endpoint with a new idempotency key. Each payment retains
+its own immutable terms and maturity payout instruction. `investorInvestment`
+contains this user's total confirmed amount and successful payment count for the
+project. Replaying an existing key does not create another payment or checkout.
+The amount is the investment principal; provider fees are separate. The former
+`/verify` endpoint has been removed on both web and mobile. The same quote,
+agreement, payment status and download routes are also available under `/web`.
+
+The live sandbox `/pay/initiate` response contains `dataResponse.data` (reference,
+transaction ID, principal, fees and status) and `dataResponse.paymentUrl`. It does
+not contain bank details. Complete initiation and verification responses are
+stored in `investment_payments.gateway_response`. Set `PAYPETAL_PAYMENT_REDIRECT_URL`
+to the frontend confirmation page; the default redirects to the configured website
+or the application home page. An uncertain initiation is
+blocked from repeat POSTs; its saved payment can still be confirmed by reference.
+Checkout does not select a project subwallet. Project escrow activation retains
+its separate check of the actual project wallet balance before releasing funds.
 
 ## Deployment and design boundaries
 
-Run `npm run migrate` before starting the new server version. This adds only the
-nullable agreement column; existing payments are retained. No seed data is required.
-Run `npm test` for the regression suite. Tests mock the database and Paystack and
+Run `npm run migrate` before starting the new server version. This includes migration `20261027000003-add-paypetal-investment-checkout.js` for
+checkout attempt tracking and automated deposit audit records; existing payments are retained. No seed data is required.
+Run `npm run test:payments` for the regression suite. Tests mock the provider and
 do not create real payments or alter a deployed database.
 
 The supplied screenshot is the design reference because the Figma connector was

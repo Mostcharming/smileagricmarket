@@ -25,7 +25,8 @@ module.exports = S => {
             confirmedAmount: { ...money, defaultValue: 0 }, releasedAmount: { ...money, defaultValue: 0 },
             status: { ...text(false), defaultValue: 'awaiting_wallet' },
             counterparty: text(), providerTransactionId: text(), milestones: json,
-            creationAttemptedAt: date, escrowAttemptedAt: date, lastError: text()
+            creationAttemptedAt: date, escrowAttemptedAt: date, lastError: text(),
+            subwalletResponse: json, subwalletData: json
         }, indexes: [
             { unique: true, fields: ['user_farm_investment_id'] }, { unique: true, fields: ['reference'] },
             { unique: true, fields: ['wallet_name'] }, { unique: true, fields: ['provider_wallet_id'] }
@@ -33,7 +34,8 @@ module.exports = S => {
         PaymentDeposit: { table: 'payment_deposits', fields: {
             id, projectEscrowId: foreign('project_escrows'), investmentPaymentId: foreign('investment_payments'),
             providerTransactionId: text(false), amount: money, currency: { type: S.STRING(3), allowNull: false },
-            reviewedBy: foreign('admins'), evidenceReference: { type: S.TEXT, allowNull: false },
+            reviewedBy: foreign('admins', true), evidenceReference: { type: S.TEXT, allowNull: false },
+            verificationSource: { ...text(false), defaultValue: 'manual' },
             receivedAt: { type: S.DATE, allowNull: false }
         }, indexes: [{ unique: true, fields: ['investment_payment_id'] }, { unique: true, fields: ['provider_transaction_id'] }] },
         EscrowRelease: { table: 'escrow_releases', fields: {
@@ -49,6 +51,15 @@ module.exports = S => {
             status: { ...text(false), defaultValue: 'scheduled' }, creationAttemptedAt: date,
             completedAt: date, providerTransactionId: text(), lastError: text()
         }, indexes: [{ unique: true, fields: ['investment_payment_id'] }, { unique: true, fields: ['reference'] }, { fields: ['due_at', 'status'] }] },
+        PaymentWebhook: { table: 'payment_webhooks', fields: {
+            id, investmentPaymentId: foreign('investment_payments'),
+            bodyHash: { type: S.STRING(64), allowNull: false }, payload: { type: S.JSONB, allowNull: false },
+            status: { ...text(false), defaultValue: 'queued' }, processedAt: date
+        }, indexes: [{ unique: true, fields: ['body_hash'] }, { fields: ['investment_payment_id', 'status'] }] },
+        PaymentWebhookRateLimit: { table: 'payment_webhook_rate_limits', fields: {
+            key: { type: S.STRING(100), allowNull: false, primaryKey: true },
+            requestCount: { type: S.INTEGER, allowNull: false }, expiresAt: { type: S.DATE, allowNull: false }
+        }, indexes: [{ fields: ['expires_at'] }] },
         PaymentJob: { table: 'payment_jobs', fields: {
             id, key: text(false), action: text(false), entityId: { type: S.UUID, allowNull: false },
             status: { ...text(false), defaultValue: 'pending' },

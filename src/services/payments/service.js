@@ -5,8 +5,9 @@ const { Op } = require('sequelize');
 const { resolveInvestmentProjectStatus } = require('../../utils/investmentProject');
 const { PaymentError, amount, decimal, allocateMilestones, providerAmount, assertAgreement, maturityTerms, listData } = require('./domain');
 const { completeIdentity, customerIdentity } = require('./customerRegistration');
+const { createProjectReference, projectWalletName } = require('./projectWalletIdentity');
 
-function createPaymentService({ sequelize, models, provider, getSettings, now = () => new Date() }) {
+function createPaymentService({ sequelize, models, provider, getSettings, now = () => new Date(), newProjectReference = createProjectReference }) {
     const { PaymentProfile, ProjectEscrow, PaymentDeposit, EscrowRelease, InvestorPayout, PaymentJob,
         User, Wallet, UserFarm, UserFarmInvestment, UserFarmMilestone, InvestmentPayment, Investment, KYC } = models;
 
@@ -17,37 +18,88 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
     }
 
     async function ensureProject(project, ownerId, transaction) {
-        if (!['NGN', 'USD'].includes(project.currency)) throw new PaymentError('PayPetal supports NGN and USD only');
+        if (!transaction) return sequelize.transaction(tx => ensureProject(project, ownerId, tx));
+        const savedProject = await UserFarmInvestment.findByPk(project.id, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!savedProject) throw new PaymentError('Investment project not found', 404);
+        const existing = await ProjectEscrow.findOne({ where: { userFarmInvestmentId: project.id }, transaction });
+        if (existing) return existing;
+        if (project.currency !== 'NGN') throw new PaymentError('PayPetal project subwallets require an NGN investment project', 400);
+        const farm = await UserFarm.findByPk(project.userFarmId, { transaction });
+        if (!farm || farm.userId !== ownerId) throw new PaymentError('Farm not found', 404);
         const rows = await UserFarmMilestone.findAll({ where: { userFarmInvestmentId: project.id }, transaction });
         const plan = allocateMilestones(project.expectedInvestment, rows);
-        const [escrow] = await ProjectEscrow.findOrCreate({ where: { userFarmInvestmentId: project.id },
-            defaults: { ownerId, reference: `SMILE-FARM-${project.id}`, walletName: `SMILE-FARM-${project.id}`,
-                currency: project.currency, targetAmount: project.expectedInvestment, milestones: plan }, transaction });
+        let escrow;
+        let suffixLength = 6;
+        for (let attempt = 0; attempt < 30 && !escrow; attempt++) {
+            const reference = newProjectReference();
+            if (!/^[A-Za-z0-9]{10}$/.test(reference) || !/[A-Za-z]/.test(reference) || !/\d/.test(reference)) {
+                throw new PaymentError('Invalid generated project subwallet reference');
+            }
+            const walletName = projectWalletName(farm.name, project.id, suffixLength);
+            try {
+                // A savepoint keeps the parent project transaction usable after a uniqueness collision.
+                escrow = await sequelize.transaction({ transaction }, savepoint => ProjectEscrow.create({
+                    userFarmInvestmentId: project.id, ownerId, reference, walletName,
+                    currency: 'NGN', targetAmount: project.expectedInvestment, milestones: plan
+                }, { transaction: savepoint }));
+            } catch (error) {
+                if (error.name !== 'SequelizeUniqueConstraintError') throw error;
+                const fields = Object.keys(error.fields || {});
+                if (fields.some(field => ['wallet_name', 'walletName'].includes(field)) || !fields.length) {
+                    suffixLength = Math.min(32, suffixLength + 2);
+                }
+            }
+        }
+        if (!escrow) throw new PaymentError('Unable to reserve a unique project subwallet name and reference');
         for (const row of plan) await rows.find(item => item.id === row.milestoneId).update({ amount: decimal(row.cents) }, { transaction });
-        await enqueue('provision_project', escrow.id, transaction);
+        const job = await enqueue('provision_project', escrow.id, transaction);
+        const leaseToken = randomUUID();
+        await job.update({ status: 'running', attempts: job.attempts + 1, leaseToken,
+            leaseUntil: new Date(now().getTime() + 10 * 60000) }, { transaction });
+        transaction.afterCommit(async () => {
+            await executeJob(job, leaseToken);
+            await escrow.reload({ transaction: null });
+        });
         return escrow;
     }
 
     async function provisionProject(id) {
-        const escrow = await ProjectEscrow.findByPk(id);
+        const { escrow, create } = await sequelize.transaction(async transaction => {
+            const escrow = await ProjectEscrow.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+            if (!escrow) throw new PaymentError('Project subwallet instruction not found', 404);
+            if (!escrow.providerWalletId && escrow.currency !== 'NGN') {
+                throw new PaymentError('PayPetal project subwallets require an NGN investment project', 400);
+            }
+            const create = !escrow.providerWalletId && !escrow.creationAttemptedAt;
+            if (create) await escrow.update({ creationAttemptedAt: now() }, { transaction });
+            return { escrow, create };
+        });
         if (escrow.providerWalletId) return;
-        const wallets = listData(await provider.subwallets());
-        const matches = wallets.filter(wallet => wallet.name === escrow.walletName);
-        if (matches.length > 1) throw new PaymentError('Multiple project wallets found; operator reconciliation required');
-        let wallet = matches[0];
-        if (!wallet && escrow.creationAttemptedAt) {
-            throw new PaymentError('Project wallet creation outcome is unknown; verify it in PayPetal before retrying');
-        }
-        if (!wallet) {
-            await escrow.update({ creationAttemptedAt: now() });
-            const result = await provider.createSubwallet({ name: escrow.walletName, currency: escrow.currency, reference: escrow.reference });
+        let wallet;
+        if (create) {
+            let response;
+            try {
+                response = await provider.createSubwallet({ name: escrow.walletName, currency: 'NGN', reference: escrow.reference });
+            } catch (error) {
+                if (error.uncertain === false) await escrow.update({ creationAttemptedAt: null });
+                throw error;
+            }
+            const result = response?.responseData || response?.dataResponse;
             wallet = result?.data;
+            await escrow.update({ subwalletResponse: response, subwalletData: wallet || null });
+        } else {
+            const matches = listData(await provider.subwallets()).filter(item => item.name === escrow.walletName);
+            if (matches.length > 1) throw new PaymentError('Multiple project wallets found; operator reconciliation required');
+            wallet = matches[0];
+            if (!wallet) throw new PaymentError('Project wallet creation outcome is unknown; verify it in PayPetal before retrying');
         }
-        if (!wallet?.id || wallet.currency !== escrow.currency || !wallet.accountNumber || !wallet.bankName) {
+        if (!wallet?.id || wallet.currency !== escrow.currency || wallet.name !== escrow.walletName
+            || !wallet.accountNumber || !wallet.bankName || !wallet.accountName
+            || (wallet.reference && wallet.reference !== escrow.reference)) {
             throw new PaymentError('PayPetal returned incomplete project wallet details');
         }
         await escrow.update({ providerWalletId: wallet.id, accountNumber: wallet.accountNumber,
-            accountName: wallet.accountName, bankName: wallet.bankName, status: 'collecting', lastError: null });
+            accountName: wallet.accountName, bankName: wallet.bankName, subwalletData: wallet, status: 'collecting', lastError: null });
     }
 
     async function listBanks() {
@@ -243,18 +295,6 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
             ...(transaction ? { lock: transaction.LOCK.UPDATE } : {}) });
         if (profile?.status !== 'verified' || !profile.customerId) throw new PaymentError('A verified PayPetal payout account is required');
         return profile;
-    }
-
-    async function investmentInstructions(payment) {
-        const escrow = await ProjectEscrow.findOne({ where: { userFarmInvestmentId: payment.userFarmInvestmentId } });
-        if (!escrow?.providerWalletId || escrow.status !== 'collecting') {
-            throw new PaymentError('Project payment account is not ready to receive investments');
-        }
-        await verifiedProfile(payment.investorId);
-        return { provider: 'paypetal', method: 'bank_transfer', reference: payment.reference,
-            amount: payment.amount, currency: payment.currency, bankName: escrow.bankName,
-            accountNumber: escrow.accountNumber, accountName: escrow.accountName,
-            confirmation: 'admin_statement_reconciliation', investmentProjectId: payment.userFarmInvestmentId };
     }
 
     async function acceptingProject(project, investorId, transaction) {
@@ -509,6 +549,7 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
         }, 60000);
         heartbeat.unref();
         const handlers = { create_customer: ensureCustomer, provision_project: provisionProject,
+            confirm_investment: id => webhooks.processInvestmentWebhook(id, job.attempts),
             sync_account: id => syncAccount(id, resolvedAccount),
             activate_project: activateProject, release_milestone: releaseMilestone, pay_roi: payRoi };
         try {
@@ -558,8 +599,14 @@ function createPaymentService({ sequelize, models, provider, getSettings, now = 
         });
     }
 
-    return { ensureProject, provisionProject, listBanks, validateAccount, setupAccount, verifiedProfile, acceptingProject,
-        investmentInstructions, recordDeposit, queueMilestone, runNextJob, retryJob, reconcileReference,
+    const checkout = require('./investmentCheckout').createInvestmentCheckout({
+        sequelize, models, provider, getSettings, scheduleMaturity, enqueue, now
+    });
+    const webhooks = require('./webhooks').createPaymentWebhooks({
+        sequelize, models, confirmInvestment: checkout.confirmInvestment, now
+    });
+    return { ...webhooks, ...checkout, ensureProject, provisionProject, listBanks, validateAccount, setupAccount, verifiedProfile, acceptingProject,
+        recordDeposit, queueMilestone, runNextJob, retryJob, reconcileReference,
         activateProject, releaseMilestone, payRoi, scheduleMaturity, syncAccount, ensureCustomer };
 }
 

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test:payments": "node --test test/paypetal-customer.test.js test/wallet-swagger.test.js",
+    "test:categories": "node --test test/farm-category.test.js",
+    "test:payments": "node --test test/paypetal-customer.test.js test/wallet-swagger.test.js test/project-subwallet.test.js test/investment-checkout.test.js test/paypetal-webhook.test.js",
     "lint": "eslint src/",
     "format": "prettier --write 'src/**/*.js'",
     "migrate": "npx sequelize-cli db:migrate",

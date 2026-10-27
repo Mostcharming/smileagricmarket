@@ -42,6 +42,11 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 
+// Handle webhook bytes before JSON parsing, input sanitization and user authentication.
+const paypetalWebhook = require('./modules/web/paypetal/route').createPaypetalWebhookRouter();
+app.use([`/${config.apiVersion}/web/payments/paypetal/webhook`,
+  `/api/${config.apiVersion}/web/payments/paypetal/webhook`], paypetalWebhook);
+
 app.use(cors({
   origin: [
     'https://smileagrimarket.com',
@@ -61,12 +66,7 @@ app.use(compression());
 
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-app.use(express.json({
-  limit: '10kb',
-  verify: (req, res, buffer) => {
-    req.rawBody = Buffer.from(buffer);
-  }
-}));
+app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 app.use(createRateLimitMiddleware({

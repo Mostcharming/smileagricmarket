@@ -37,6 +37,11 @@ module.exports = (sequelize) => {
         underscored: true,
         indexes: [
             {
+                name: 'farm_categories_normalized_name_unique',
+                unique: true,
+                fields: [sequelize.fn('lower', sequelize.fn('btrim', sequelize.col('name')))]
+            },
+            {
                 fields: ['name'],
                 unique: true
             },

@@ -2,26 +2,33 @@
 
 const { sequelize } = require('../../../database');
 const defineModels = require('../../../database/models');
-const { Op } = require('sequelize');
+const { Op, UniqueConstraintError } = require('sequelize');
 
 const models = defineModels(sequelize);
 const { FarmCategory, Milestone, Investment } = models;
 
+const categoryNameMatch = name => sequelize.where(
+    sequelize.fn('lower', sequelize.fn('btrim', sequelize.col('name'))),
+    sequelize.fn('lower', name.trim())
+);
+const duplicateCategoryMessage = 'Farm category with this name already exists';
 
 async function createFarmCategory(req, res) {
     try {
-        const { name, description } = req.body;
+        const { name, description } = req.body || {};
 
-        if (!name || name.trim() === '') {
+        if (typeof name !== 'string' || name.trim() === '') {
             return res.fail('Farm category name is required', 400);
         }
+        if (name.trim().length > 255) return res.fail('Farm category name cannot exceed 255 characters', 400);
+        if (description != null && typeof description !== 'string') return res.fail('description must be a string', 400);
 
         const existingCategory = await FarmCategory.findOne({
-            where: { name: name.trim() }
+            where: categoryNameMatch(name)
         });
 
         if (existingCategory) {
-            return res.fail('Farm category with this name already exists', 409);
+            return res.fail(duplicateCategoryMessage, 409);
         }
 
         const category = await FarmCategory.create({
@@ -40,6 +47,7 @@ async function createFarmCategory(req, res) {
             'Farm category created successfully'
         );
     } catch (error) {
+        if (error instanceof UniqueConstraintError) return res.fail(duplicateCategoryMessage, 409);
         console.error('Create farm category error:', error);
         return res.fail(error.message, 500);
     }
@@ -129,15 +137,17 @@ async function getFarmCategoryById(req, res) {
 async function updateFarmCategory(req, res) {
     try {
         const { categoryId } = req.params;
-        const { name, description } = req.body;
+        const { name, description } = req.body || {};
 
         if (!categoryId) {
             return res.fail('Category ID is required', 400);
         }
 
-        if (!name || name.trim() === '') {
+        if (typeof name !== 'string' || name.trim() === '') {
             return res.fail('Farm category name is required', 400);
         }
+        if (name.trim().length > 255) return res.fail('Farm category name cannot exceed 255 characters', 400);
+        if (description != null && typeof description !== 'string') return res.fail('description must be a string', 400);
 
         const category = await FarmCategory.findByPk(categoryId);
 
@@ -145,14 +155,12 @@ async function updateFarmCategory(req, res) {
             return res.fail('Farm category not found', 404);
         }
 
-        if (name.trim() !== category.name) {
-            const existingCategory = await FarmCategory.findOne({
-                where: { name: name.trim() }
-            });
+        const existingCategory = await FarmCategory.findOne({
+            where: { [Op.and]: [categoryNameMatch(name), { id: { [Op.ne]: category.id } }] }
+        });
 
-            if (existingCategory) {
-                return res.fail('Farm category with this name already exists', 409);
-            }
+        if (existingCategory) {
+            return res.fail(duplicateCategoryMessage, 409);
         }
 
         await category.update({
@@ -171,6 +179,7 @@ async function updateFarmCategory(req, res) {
             'Farm category updated successfully'
         );
     } catch (error) {
+        if (error instanceof UniqueConstraintError) return res.fail(duplicateCategoryMessage, 409);
         console.error('Update farm category error:', error);
         return res.fail(error.message, 500);
     }

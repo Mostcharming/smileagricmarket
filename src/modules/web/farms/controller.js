@@ -25,7 +25,8 @@ const {
     MilestoneReviewAudit,
     Investment,
     InvestmentMilestone,
-    InvestmentPayment
+    InvestmentPayment,
+    ProjectEscrow
 } = models;
 
 const FUNDED_PAYMENT_STATUSES = ['recorded', 'successful'];
@@ -258,6 +259,13 @@ function getInvestmentProjectInclude(attributes = [
             getInvestmentTemplateInclude(),
             getProjectMilestoneInclude(),
             {
+                model: ProjectEscrow,
+                as: 'Escrow',
+                attributes: ['reference', 'walletName', 'providerWalletId', 'currency', 'bankName',
+                    'accountNumber', 'accountName', 'status', 'lastError'],
+                required: false
+            },
+            {
                 model: InvestmentPayment,
                 as: 'Payments',
                 attributes: ['investorId'],
@@ -320,6 +328,7 @@ function formatInvestmentProject(investmentProject, req) {
         InvestmentTemplate: projectTemplate,
         ProjectMilestones: projectMilestoneAssignments = [],
         Payments: projectPayments = [],
+        Escrow: projectEscrow,
         ...projectFields
     } = investmentProject;
     const milestones = formatMilestoneAssignments(projectMilestoneAssignments, req);
@@ -360,7 +369,11 @@ function formatInvestmentProject(investmentProject, req) {
         },
         farmCategory: projectCategory || null,
         investmentTemplate: projectTemplate || null,
-        milestones
+        milestones,
+        paymentAccount: projectEscrow ? { reference: projectEscrow.reference, name: projectEscrow.walletName,
+            subwalletId: projectEscrow.providerWalletId, currency: projectEscrow.currency, bankName: projectEscrow.bankName,
+            accountNumber: projectEscrow.accountNumber, accountName: projectEscrow.accountName,
+            status: projectEscrow.status, lastError: projectEscrow.lastError } : null
     };
 }
 
